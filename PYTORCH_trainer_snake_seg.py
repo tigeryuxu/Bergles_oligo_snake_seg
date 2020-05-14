@@ -61,11 +61,15 @@ if __name__ == '__main__':
     #s_path = './(9) Checkpoints_TITAN_5x5_256x64_NO_transforms_COMPLEX_LR_sched/'    
     #s_path = './(10) Checkpoints_TITAN_5x5_256x64_TRANSFORMS_COMPLEX_LR_sched/'
     s_path = './(1) Checkpoint_PYTORCH/'
+    s_path = './(2) Checkpoint_PYTORCH_spatial_weight/'
+    
     
     #input_path = './Train_matched_quads_PYTORCH_256_64_MATCH_ILASTIK/'        
     input_path = '/media/user/storage/Data/(1) snake seg project/Train_SNAKE_SEG_scaled_cleaned/'
         
     #input_path = '/media/user/storage/Train/'
+    
+    input_path = './Train_SNAKE_SEG_scaled_cleaned/'
     
     
     """ Start network """   
@@ -78,7 +82,10 @@ if __name__ == '__main__':
     unet.to(device)
     print('parameters:', sum(param.numel() for param in unet.parameters()))
 
-    loss_function = torch.nn.CrossEntropyLoss()
+    loss_function = torch.nn.CrossEntropyLoss(reduction='none')
+    
+    
+    
     #optimizer = torch.optim.SGD(unet.parameters(), lr = 0.01, momentum=0.99)   
     lr = 1e-3; milestones = [5, 10, 100]
     #lr = 1e-4;  milestones = [6, 14, 20]
@@ -161,6 +168,9 @@ if __name__ == '__main__':
     #transforms = initialize_transforms(p=0.5)
     transforms = initialize_transforms_simple(p = 0.5)
     #transforms = 0
+    
+    sp_weight_bool = 0
+    
 
     # """ load mean and std """  
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
@@ -175,7 +185,7 @@ if __name__ == '__main__':
     if not resume:
         idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
         
-    training_set = Dataset_tiffs_snake_seg(idx_train, examples, mean_arr, std_arr, transforms = transforms)
+    training_set = Dataset_tiffs_snake_seg(idx_train, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = transforms)
     val_set = Dataset_tiffs_snake_seg(idx_valid, examples, mean_arr, std_arr, transforms = 0)
     
     """ Create training and validation generators"""
@@ -208,7 +218,7 @@ if __name__ == '__main__':
               print('Current learning rate is: ' + str(cur_lr))
 
          iter_cur_epoch = 0;          
-         for batch_x, batch_y in training_generator:
+         for batch_x, batch_y, spatial_weight in training_generator:
              
                 """ Speed testing
                         
@@ -255,7 +265,16 @@ if __name__ == '__main__':
                 
                 """ forward + backward + optimize """
                 output_train = unet(inputs)
+                
                 loss = loss_function(output_train, labels)
+                if len(spatial_weight.size()):
+                     spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                     weighted = loss * spatial_tensor
+                     loss = torch.mean(weighted)
+                else:
+                     loss = torch.mean(loss)                
+                
+                
                 loss.backward()
                 optimizer.step()
                

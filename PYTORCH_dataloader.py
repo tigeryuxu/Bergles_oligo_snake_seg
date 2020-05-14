@@ -13,14 +13,15 @@ import torch
 import time
 import numpy as np
 
-
+import scipy
+import math
 
 """ Extended functions for SNAKE_SEG """
 
 """ Load data directly from tiffs with seed mask """
 import tifffile as tifffile
 class Dataset_tiffs_snake_seg(data.Dataset):
-  def __init__(self, list_IDs, examples, mean, std, transforms = 0):
+  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0):
         'Initialization'
         #self.labels = labels
         self.list_IDs = list_IDs
@@ -28,6 +29,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         self.transforms = transforms
         self.mean = mean
         self.std = std
+        self.sp_weight_bool = sp_weight_bool
 
   def apply_transforms(self, image, labels):
         inputs = image
@@ -72,7 +74,25 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                              
         return temp
     
-      
+  def create_spatial_weight_mat(self, labels, edgeFalloff=10,background=0.01,approximate=True):
+       
+         if approximate:   # does chebyshev
+             dist1 = scipy.ndimage.distance_transform_cdt(labels)
+             dist2 = scipy.ndimage.distance_transform_cdt(np.where(labels>0,0,1))    # sets everything in the middle of the OBJECT to be 0
+                     
+         else:   # does euclidean
+             dist1 = scipy.ndimage.distance_transform_edt(labels, sampling=[1,1,1])
+             dist2 = scipy.ndimage.distance_transform_edt(np.where(labels>0,0,1), sampling=[1,1,1])
+             
+         """ DO CLASS WEIGHTING instead of spatial weighting WITHIN the object """
+         dist1[dist1 > 0] = 0.5
+     
+         dist = dist1+dist2
+         attention = math.e**(1-dist/edgeFalloff) + background   # adds background so no loses go to zero
+         attention /= np.average(attention)
+         return np.reshape(attention,labels.shape)
+    
+     
 
   def __len__(self):
         'Denotes the total number of samples'
@@ -93,6 +113,14 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         Y[Y > 0] = 1
         
         
+        """ Get spatial weight matrix """
+        if self.sp_weight_bool:
+             spatial_weight = self.create_spatial_weight_mat(Y)
+             
+        else:
+             spatial_weight = 0
+           
+        
         """ Do normalization here??? """
         #X  = (X  - self.mean)/self.std
         
@@ -103,7 +131,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         """ Append seed mask """
         X = self.append_seed_mask(X, seed_crop) 
             
-        return X, Y
+        return X, Y, spatial_weight
 
 
 
