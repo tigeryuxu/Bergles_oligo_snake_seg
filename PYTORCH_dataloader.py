@@ -118,7 +118,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
              spatial_weight = self.create_spatial_weight_mat(Y)
              
         else:
-             spatial_weight = 0
+             spatial_weight = []
            
         
         """ Do normalization here??? """

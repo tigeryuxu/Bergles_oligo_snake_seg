@@ -267,7 +267,7 @@ if __name__ == '__main__':
                 output_train = unet(inputs)
                 
                 loss = loss_function(output_train, labels)
-                if len(spatial_weight.size()):
+                if torch.is_tensor(spatial_weight):
                      spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
                      weighted = loss * spatial_tensor
                      loss = torch.mean(weighted)
@@ -307,7 +307,7 @@ if __name__ == '__main__':
          if cur_epoch % validate_every_num_epochs == 0:
              
               with torch.set_grad_enabled(False):  # saves GPU RAM
-                   for batch_x_val, batch_y_val in val_generator:
+                   for batch_x_val, batch_y_val, spatial_weight in val_generator:
                         
                         """ Transfer to GPU to normalize ect... """
                         inputs_val, labels_val = transfer_to_GPU(batch_x_val, batch_y_val, device, mean_arr, std_arr)
@@ -317,6 +317,15 @@ if __name__ == '__main__':
                         # forward pass to check validation
                         output_val = unet(inputs_val)
                         loss = loss_function(output_val, labels_val)
+
+                        if torch.is_tensor(spatial_weight):
+                               spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                               weighted = loss * spatial_tensor
+                               loss = torch.mean(weighted)
+                        else:
+                               loss = torch.mean(loss)  
+
+
           
                         """ Training loss """
                         val_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
