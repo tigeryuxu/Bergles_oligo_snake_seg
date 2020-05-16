@@ -237,17 +237,17 @@ if __name__ == '__main__':
 
 
     """ Find LR, to do so must: (1) uncomment section in dataloader """  
-    from torch_lr_finder import LRFinder
+    # from torch_lr_finder import LRFinder
 
-    model = unet
-    loss_function = torch.nn.CrossEntropyLoss()   # *** must use this loss function because reduction == mean
-    optimizer = torch.optim.AdamW(unet.parameters(), lr=1e-7, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
-    lr_finder = LRFinder(model, optimizer, loss_function, device="cuda")
-    lr_finder.range_test(training_generator, val_generator, start_lr=1e-7, end_lr=10, num_iter=100, diverge_th=100000)
-    lr_finder.plot() # to inspect the loss-learning rate graph
-    lr_finder.reset()
+    # model = unet
+    # loss_function = torch.nn.CrossEntropyLoss()   # *** must use this loss function because reduction == mean
+    # optimizer = torch.optim.AdamW(unet.parameters(), lr=1e-7, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+    # lr_finder = LRFinder(model, optimizer, loss_function, device="cuda")
+    # lr_finder.range_test(training_generator, val_generator, start_lr=1e-7, end_lr=10, num_iter=100, diverge_th=100000)
+    # lr_finder.plot() # to inspect the loss-learning rate graph
+    # lr_finder.reset()
 
-    zzz
+    #zzz
     
 
 
