@@ -47,6 +47,9 @@ from PYTORCH_dataloader import *
 
 from sklearn.model_selection import train_test_split
 
+
+import kornia
+
 torch.backends.cudnn.benchmark = True  
 torch.backends.cudnn.enabled = True 
 
@@ -58,49 +61,36 @@ if __name__ == '__main__':
     
     
     """" Input paths """    
-    #s_path = './(9) Checkpoints_TITAN_5x5_256x64_NO_transforms_COMPLEX_LR_sched/'    
-    #s_path = './(10) Checkpoints_TITAN_5x5_256x64_TRANSFORMS_COMPLEX_LR_sched/'
     s_path = './(1) Checkpoint_PYTORCH/'
     s_path = './(2) Checkpoint_PYTORCH_spatial_weight/'
-    
+    s_path = './(3) Checkpoint_SGD_spatial/'
+    s_path = './(4) Checkpoint_AdamW_spatial/'
+    s_path = './(5) Checkpoint_AdamW/'
+    #s_path = './(6) Checkpoint_AdamW_FOCALLOSS/'
+    #s_path = './(7) Checkpoint_AdamW_spatial_batch_1/'
     
     #input_path = './Train_matched_quads_PYTORCH_256_64_MATCH_ILASTIK/'        
     input_path = '/media/user/storage/Data/(1) snake seg project/Train_SNAKE_SEG_scaled_cleaned/'
-        
     #input_path = '/media/user/storage/Train/'
-    
-    input_path = './Train_SNAKE_SEG_scaled_cleaned/'
-    
-    
-    """ Start network """   
-    #kernel_size=5
-    #pad = int((kernel_size - 1)/2)
-    #unet = UNet(in_channel=1,out_channel=2, kernel_size=kernel_size, pad=pad)
-        
-    unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, padding= int((5 - 1)/2), batch_norm=False, up_mode='upconv')
-    
-    unet.to(device)
-    print('parameters:', sum(param.numel() for param in unet.parameters()))
+    #input_path = './Train_SNAKE_SEG_scaled_cleaned/'
 
-    loss_function = torch.nn.CrossEntropyLoss(reduction='none')
-    
-    
-    
-    #optimizer = torch.optim.SGD(unet.parameters(), lr = 0.01, momentum=0.99)   
-    lr = 1e-3; milestones = [5, 10, 100]
-    #lr = 1e-4;  milestones = [6, 14, 20]
-    
-    optimizer = torch.optim.Adam(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
-    """ Add scheduler """
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1, last_epoch=-1)
-    resume = 0
-    
-    
     """ TO LOAD OLD CHECKPOINT """
     # Read in file names
     onlyfiles_check = glob.glob(os.path.join(s_path,'check_*'))
     onlyfiles_check.sort(key = natsort_key1)
+ 
     
+        
+    # """ load mean and std """  
+    mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
+    std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
+
+    num_workers = 2;
+ 
+    save_every_num_epochs = 1;
+    plot_every_num_epochs = 1;
+    validate_every_num_epochs = 1;      
+ 
     if not onlyfiles_check:   
         """ Get metrics per batch """
         train_loss_per_batch = []; train_jacc_per_batch = []
@@ -113,6 +103,48 @@ if __name__ == '__main__':
         lr_plot = [];
         iterations = 0;
         
+        """ Start network """   
+        #kernel_size=5
+        #pad = int((kernel_size - 1)/2)
+        #unet = UNet(in_channel=1,out_channel=2, kernel_size=kernel_size, pad=pad)
+        
+        unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, padding= int((5 - 1)/2), batch_norm=False, up_mode='upconv')
+        unet.to(device)
+        print('parameters:', sum(param.numel() for param in unet.parameters()))  
+    
+        """ Select loss function """
+        loss_function = torch.nn.CrossEntropyLoss(reduction='none')
+        #kwargs = {"alpha": 0.5, "gamma": 2.0, "reduction": 'none'}
+        #loss_function = kornia.losses.FocalLoss(**kwargs)
+
+        """ Select optimizer """
+        #lr = 1e-3; milestones = [20, 50, 100]  # with AdamW *** EXPLODED ***
+        lr = 1e-3; milestones = [5, 50, 100]  # with AdamW
+        lr = 1e-5; milestones = [50, 100]  # with AdamW slow down
+
+        #optimizer = torch.optim.SGD(unet.parameters(), lr = lr, momentum=0.99)
+        #optimizer = torch.optim.Adam(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
+        optimizer = torch.optim.AdamW(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+
+        """ Add scheduler """
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1, last_epoch=-1)
+        resume = 0
+        
+        """ Prints out all variables in current graph """
+        # Required to initialize all
+        batch_size = 8;      
+        test_size = 0.1
+        """ Load training data """
+        print('loading data')   
+        
+        """ Specify transforms """
+        #transforms = initialize_transforms(p=0.5)
+        #transforms = initialize_transforms_simple(p = 0.5)
+        transforms = 0
+        
+        sp_weight_bool = 0
+ 
+    
 
     else:             
         """ Find last checkpoint """       
@@ -128,6 +160,12 @@ if __name__ == '__main__':
         iterations = check['iterations']
         idx_train = check['idx_train']
         idx_valid = check['idx_valid']
+        
+        
+        unet = check['model_type']
+        optimizer = check['optimizer_type']
+        scheduler = check['scheduler_type']
+        
         
         unet.load_state_dict(check['model_state_dict'])
         optimizer.load_state_dict(check['optimizer_state_dict'])
@@ -151,30 +189,19 @@ if __name__ == '__main__':
         plot_prec_val = check['plot_prec_val']
      
         lr_plot = check['lr_plot']
-        
-        resume = 1
-        
-       
-    """ Prints out all variables in current graph """
-    # Required to initialize all
-    batch_size = 8; save_every_num_epochs = 1;
-    plot_every_num_epochs = 1;
-    validate_every_num_epochs = 1;        
-    test_size = 0.1
-    """ Load training data """
-    print('loading data')   
-    num_workers = 2;
-    """ Specify transforms """
-    #transforms = initialize_transforms(p=0.5)
-    transforms = initialize_transforms_simple(p = 0.5)
-    #transforms = 0
-    
-    sp_weight_bool = 0
-    
 
-    # """ load mean and std """  
-    mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
-    std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')    
+        # newly added
+        mean_arr = check['mean_arr']
+        std_arr = check['std_arr']
+        
+        batch_size = check['batch_size']
+        sp_weight_bool = check['sp_weight_bool']
+        loss_function = check['loss_function']
+        transforms = check['transforms']
+
+        resume = 1
+
+
 
     """ Load filenames from tiff """
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
@@ -186,7 +213,7 @@ if __name__ == '__main__':
         idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
         
     training_set = Dataset_tiffs_snake_seg(idx_train, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = transforms)
-    val_set = Dataset_tiffs_snake_seg(idx_valid, examples, mean_arr, std_arr, transforms = 0)
+    val_set = Dataset_tiffs_snake_seg(idx_valid, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = 0)
     
     """ Create training and validation generators"""
     val_generator = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers,
@@ -205,8 +232,25 @@ if __name__ == '__main__':
     train_steps_per_epoch = len(idx_train)/batch_size
     validation_size = len(idx_valid)
     epoch_size = len(idx_train)    
+
+
+
+
+    """ Find LR, to do so must: (1) uncomment section in dataloader """  
+    from torch_lr_finder import LRFinder
+
+    model = unet
+    loss_function = torch.nn.CrossEntropyLoss()   # *** must use this loss function because reduction == mean
+    optimizer = torch.optim.AdamW(unet.parameters(), lr=1e-7, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+    lr_finder = LRFinder(model, optimizer, loss_function, device="cuda")
+    lr_finder.range_test(training_generator, val_generator, start_lr=1e-7, end_lr=10, num_iter=100, diverge_th=100000)
+    lr_finder.plot() # to inspect the loss-learning rate graph
+    lr_finder.reset()
+
+    zzz
     
-    
+
+
     """ Start training """
     for cur_epoch in range(len(train_loss_per_epoch), 10000):           
          loss_train = 0
@@ -272,7 +316,8 @@ if __name__ == '__main__':
                      weighted = loss * spatial_tensor
                      loss = torch.mean(weighted)
                 else:
-                     loss = torch.mean(loss)                
+                     loss = torch.mean(loss)   
+                     #loss
                 
                 
                 loss.backward()
@@ -423,6 +468,11 @@ if __name__ == '__main__':
                 'idx_train': idx_train,
                 'idx_valid': idx_valid,
                 
+                
+                'model_type': unet,
+                'optimizer_type': optimizer,
+                'scheduler_type': scheduler,
+                
                 'model_state_dict': unet.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'scheduler': scheduler.state_dict(),
@@ -442,7 +492,19 @@ if __name__ == '__main__':
                 'plot_prec': plot_prec,
                 'plot_prec_val': plot_prec_val,
                 
-                'lr_plot': lr_plot
+                'lr_plot': lr_plot,
+                
+                 # newly added
+                'mean_arr': mean_arr,
+                'std_arr': std_arr,
+                
+                'batch_size': batch_size,  
+                'sp_weight_bool': sp_weight_bool,
+                'loss_function': loss_function,  
+                'transforms': transforms  
+
+                
+                
                 }, save_name)
      
                 

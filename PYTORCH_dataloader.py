@@ -130,6 +130,15 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         
         """ Append seed mask """
         X = self.append_seed_mask(X, seed_crop) 
+
+
+        """ If want to do lr_finder """
+        # X = np.asarray(X, dtype=np.float32)
+        # X = (X - self.mean)/self.std    
+        # #X = np.expand_dims(X, axis=0)
+        # X = torch.tensor(X, dtype = torch.float, requires_grad=False)
+        # Y = torch.tensor(Y, dtype = torch.long, requires_grad=False) 
+
             
         return X, Y, spatial_weight
 
