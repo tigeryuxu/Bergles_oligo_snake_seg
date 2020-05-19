@@ -21,7 +21,7 @@ import math
 """ Load data directly from tiffs with seed mask """
 import tifffile as tifffile
 class Dataset_tiffs_snake_seg(data.Dataset):
-  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0):
+  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0):
         'Initialization'
         #self.labels = labels
         self.list_IDs = list_IDs
@@ -30,6 +30,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         self.mean = mean
         self.std = std
         self.sp_weight_bool = sp_weight_bool
+        self.dist_loss = dist_loss
 
   def apply_transforms(self, image, labels):
         inputs = image
@@ -74,6 +75,15 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                              
         return temp
     
+  # def create_dist_loss(self, labels):
+  #        posmask = labels
+  #        negmask = ~posmask
+  #        spatial_weight = scipy.ndimage.distance_transform_cdt(posmask) + scipy.ndimage.distance_transform_cdt(negmask)
+
+  #        return spatial_weight
+     
+        
+     
   def create_spatial_weight_mat(self, labels, edgeFalloff=10,background=0.01,approximate=True):
        
          if approximate:   # does chebyshev
@@ -90,8 +100,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
          dist = dist1+dist2
          attention = math.e**(1-dist/edgeFalloff) + background   # adds background so no loses go to zero
          attention /= np.average(attention)
-         return np.reshape(attention,labels.shape)
-    
+         return np.reshape(attention,labels.shape)    
      
 
   def __len__(self):
@@ -117,8 +126,12 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         if self.sp_weight_bool:
              spatial_weight = self.create_spatial_weight_mat(Y)
              
+        elif self.dist_loss:
+             spatial_weight = self.create_dist_loss(Y)
         else:
              spatial_weight = []
+             
+             
            
         
         """ Do normalization here??? """

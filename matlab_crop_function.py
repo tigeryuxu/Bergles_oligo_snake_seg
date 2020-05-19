@@ -47,7 +47,7 @@ def crop_around_centroid(input_im, y, x, z, crop_size, z_size, height, width, de
      
      
      """ Python indexing requires minus 1 from all dimensions """
-     crop = input_im[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max]
+     crop = input_im[box_x_min -1:box_x_max -1, box_y_min-1:box_y_max-1, box_z_min-1:box_z_max-1]
      where_are_NaNs = np.isnan(crop)
      crop[where_are_NaNs] = 0
      

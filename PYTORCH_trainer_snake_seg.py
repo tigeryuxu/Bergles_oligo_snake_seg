@@ -18,6 +18,8 @@ TO DO snake seg:
 
 """
 
+
+
 """ ALLOWS print out of results on compute canada """
 import matplotlib
 matplotlib.rc('xtick', labelsize=8)
@@ -47,6 +49,7 @@ from PYTORCH_dataloader import *
 
 from sklearn.model_selection import train_test_split
 
+from losses_pytorch.boundary_loss import DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
 
 import kornia
 
@@ -68,6 +71,15 @@ if __name__ == '__main__':
     s_path = './(5) Checkpoint_AdamW/'
     #s_path = './(6) Checkpoint_AdamW_FOCALLOSS/'
     #s_path = './(7) Checkpoint_AdamW_spatial_batch_1/'
+    s_path = './(8) Checkpoint_SGD_cyclic_batch_norm/'
+    #s_path = './(9) Checkpoint_AdamW_batch_norm/'
+    #s_path = './(10) Checkpoint_AdamW_batch_norm_SWITCH/'
+    s_path = './(11) Checkpoint_SGD_batch_norm/'
+    
+    #s_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'
+    
+    s_path = './(13) Checkpoint_AdamW_batch_norm_DC_and_HDBinary_loss/'
+    
     
     #input_path = './Train_matched_quads_PYTORCH_256_64_MATCH_ILASTIK/'        
     input_path = '/media/user/storage/Data/(1) snake seg project/Train_SNAKE_SEG_scaled_cleaned/'
@@ -85,12 +97,14 @@ if __name__ == '__main__':
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
     std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
 
-    num_workers = 2;
+    num_workers = 1;
  
     save_every_num_epochs = 1;
     plot_every_num_epochs = 1;
     validate_every_num_epochs = 1;      
- 
+
+    dist_loss = 1
+    #dist_loss = 1
     if not onlyfiles_check:   
         """ Get metrics per batch """
         train_loss_per_batch = []; train_jacc_per_batch = []
@@ -108,25 +122,40 @@ if __name__ == '__main__':
         #pad = int((kernel_size - 1)/2)
         #unet = UNet(in_channel=1,out_channel=2, kernel_size=kernel_size, pad=pad)
         
-        unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, padding= int((5 - 1)/2), batch_norm=False, up_mode='upconv')
+        unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, padding= int((5 - 1)/2), 
+                           batch_norm=True, batch_norm_switchable=False, up_mode='upconv')
         unet.to(device)
         print('parameters:', sum(param.numel() for param in unet.parameters()))  
     
         """ Select loss function """
-        loss_function = torch.nn.CrossEntropyLoss(reduction='none')
+        #loss_function = torch.nn.CrossEntropyLoss(reduction='none')
         #kwargs = {"alpha": 0.5, "gamma": 2.0, "reduction": 'none'}
         #loss_function = kornia.losses.FocalLoss(**kwargs)
+        
+        """ ****** DISTANCE LOSS FUNCTIONS *** CHECK IF NEED TO BE (X,Y,Z) format??? """
+        #import DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
+        loss_function = DC_and_HDBinary_loss(); dist_loss = 1
+        
 
         """ Select optimizer """
         #lr = 1e-3; milestones = [20, 50, 100]  # with AdamW *** EXPLODED ***
         lr = 1e-3; milestones = [5, 50, 100]  # with AdamW
         lr = 1e-5; milestones = [50, 100]  # with AdamW slow down
+        lr = 1e-5; milestones = [50, 100]  # with AdamW slow down
 
-        #optimizer = torch.optim.SGD(unet.parameters(), lr = lr, momentum=0.99)
+        #optimizer = torch.optim.SGD(unet.parameters(), lr = lr, momentum=0.90)
         #optimizer = torch.optim.Adam(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
         optimizer = torch.optim.AdamW(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
 
+
+
         """ Add scheduler """
+        
+        # *** IF WITH ADAM CYCLING ==> set cycle_momentum == False
+        #scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=1e-7, max_lr=1e-3, step_size_up=2000, step_size_down=None, 
+        #                                              mode='triangular', gamma=1.0, scale_fn=None, scale_mode='cycle', 
+        #                                              cycle_momentum=False, base_momentum=0.8, max_momentum=0.9, last_epoch=-1)
+        
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1, last_epoch=-1)
         resume = 0
         
@@ -170,7 +199,7 @@ if __name__ == '__main__':
         unet.load_state_dict(check['model_state_dict'])
         optimizer.load_state_dict(check['optimizer_state_dict'])
         scheduler.load_state_dict(check['scheduler'])
-        
+  
         """ Restore per batch """
         train_loss_per_batch = check['train_loss_per_batch']
         train_jacc_per_batch = check['train_jacc_per_batch']
@@ -240,15 +269,15 @@ if __name__ == '__main__':
     # from torch_lr_finder import LRFinder
 
     # model = unet
-    # loss_function = torch.nn.CrossEntropyLoss()   # *** must use this loss function because reduction == mean
-    # optimizer = torch.optim.AdamW(unet.parameters(), lr=1e-7, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+    # loss_function = torch.nn.CrossEntropyLoss()   # *** must use this loss function because dist_loss == mean
+    # optimizer = torch.optim.SGD(unet.parameters(), lr = 1e-5, momentum=0.99)
+    # #optimizer = torch.optim.AdamW(unet.parameters(), lr=1e-7, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
     # lr_finder = LRFinder(model, optimizer, loss_function, device="cuda")
     # lr_finder.range_test(training_generator, val_generator, start_lr=1e-7, end_lr=10, num_iter=100, diverge_th=100000)
     # lr_finder.plot() # to inspect the loss-learning rate graph
     # lr_finder.reset()
 
-    #zzz
-    
+    # zzz
 
 
     """ Start training """
@@ -257,6 +286,7 @@ if __name__ == '__main__':
          jacc_train = 0   
                   
          for param_group in optimizer.param_groups:
+              #param_group['lr'] = 1e-7   # manually sets learning rate
               cur_lr = param_group['lr']
               lr_plot.append(cur_lr)
               print('Current learning rate is: ' + str(cur_lr))
@@ -310,11 +340,22 @@ if __name__ == '__main__':
                 """ forward + backward + optimize """
                 output_train = unet(inputs)
                 
+                
+                if dist_loss:  # for distance loss functions
+                    labels = labels.unsqueeze(1)
+                    #labels = labels.permute(0, 1, 3, 4, 2)
+                    #output_train = output_train.permute(0, 1, 3, 4, 2)
+                
+                
                 loss = loss_function(output_train, labels)
+                
+
                 if torch.is_tensor(spatial_weight):
                      spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
                      weighted = loss * spatial_tensor
                      loss = torch.mean(weighted)
+                elif dist_loss:
+                       loss  # do not do anything if do not need to reduce
                 else:
                      loss = torch.mean(loss)   
                      #loss
@@ -361,12 +402,19 @@ if __name__ == '__main__':
              
                         # forward pass to check validation
                         output_val = unet(inputs_val)
+
+                        if dist_loss:  # for distance loss functions
+                            labels_val = labels_val.unsqueeze(1)
+
                         loss = loss_function(output_val, labels_val)
 
                         if torch.is_tensor(spatial_weight):
                                spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
                                weighted = loss * spatial_tensor
                                loss = torch.mean(weighted)
+                        elif dist_loss:
+                               loss  # do not do anything if do not need to reduce
+                            
                         else:
                                loss = torch.mean(loss)  
 
@@ -433,7 +481,14 @@ if __name__ == '__main__':
               
               plot_metric_fun(lr_plot, [], class_name='', metric_name='learning rate', plot_num=35)
               plt.figure(35); plt.savefig(s_path + 'lr_per_epoch.png') 
-     
+
+              """ Plot negative loss """
+              if loss < 0:
+                  plot_metric_fun(train_loss_per_epoch[cur_epoch - 5: -1], val_loss_per_eval[cur_epoch - 5: -1], class_name='', metric_name='loss', plot_num=36)
+                  plt.figure(36); plt.savefig(s_path + 'loss_per_epoch_NEGATIVE.png')     
+                  
+                  # plot_metric_fun(train_loss_per_batch[iterations - (iter_cur_epoch * 5 * batch_size): -1], val_loss_per_eval[iterations - (iter_cur_epoch * 5): -1], class_name='', metric_name='loss', plot_num=37)
+                  # plt.figure(37); plt.savefig(s_path + 'loss_NEGATIVE_ZOOM.png')                   
 
               """ Plot metrics per batch """                
               plot_metric_fun(train_jacc_per_batch, [], class_name='', metric_name='jaccard', plot_num=34)

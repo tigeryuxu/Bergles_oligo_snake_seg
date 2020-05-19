@@ -6,7 +6,7 @@ Created on Sun Oct  6 11:55:06 2019
 """
 
 import numpy as np
-from data_functions import *
+from data_functions_CLEANED import *
 import matplotlib.pyplot as plt
 
 from scipy import ndimage as ndi
@@ -21,10 +21,7 @@ import cv2 as cv2
 from skimage.filters import threshold_local
 
 
-""" plots max projection """
-def plot_max(im):
-     ma = np.amax(im, axis=-1)
-     plt.figure(); plt.imshow(ma)
+import torch
      
 
 """ If resized, check to make sure no straggling non-attached objects """
@@ -307,6 +304,41 @@ def UNet_inference(crop, crop_seed, batch_x, batch_y, weights, mean_arr, std_arr
         
    return depth_last_tmp, batch_x, batch_y, weights, input_im_save, output_softMax
 
+
+
+""" run UNet inference """
+def UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=None):
+   """ Combine seed mask with input im"""
+   input_im_and_seeds = np.zeros(np.shape(crop) + (2, ))
+   input_im_and_seeds[:, :, :, 0] = crop
+   input_im_and_seeds[:, :, :, 1] = crop_seed  
+
+
+   """ Rearrange channels """
+   input_im_and_seeds = np.moveaxis(input_im_and_seeds, -1, 0)
+   input_im_and_seeds = np.moveaxis(input_im_and_seeds, -1, 1)
+   
+   """ Normalization """
+   input_im_and_seeds = (input_im_and_seeds - mean_arr)/std_arr
+           
+   inputs = torch.tensor(input_im_and_seeds, dtype = torch.float, device=device, requires_grad=False)
+   """ Expand dims """
+   inputs = inputs.unsqueeze(0) 
+  
+   
+   """ forward + backward + optimize """
+   output = unet(inputs)
+   output = output.data.cpu().numpy()
+
+
+   
+   depth_last_tmp = np.moveaxis(output[0], 1, -1)
+   depth_last_tmp = np.moveaxis(depth_last_tmp, 0, -1)     
+           
+   output = np.argmax(depth_last_tmp, axis = -1)   # takes only 1st of batch          
+       
+ 
+   return output
 
 
 
