@@ -3,10 +3,13 @@ get_tp_fp_fn, SoftDiceLoss, and DC_and_CE/TopK_loss are from https://github.com/
 """
 
 import torch
-from ND_Crossentropy import CrossentropyND, TopKLoss, WeightedCrossEntropyLoss
+import numpy as np
+from losses_pytorch.ND_Crossentropy import CrossentropyND, TopKLoss, WeightedCrossEntropyLoss
 from torch import nn
 from torch.autograd import Variable
 from torch import einsum
+
+
 
 def softmax_helper(x):
     # copy from: https://github.com/MIC-DKFZ/nnUNet/blob/master/nnunet/utilities/nd_softmax.py
@@ -426,11 +429,14 @@ class AsymLoss(nn.Module):
         return -asym
 
 class DC_and_CE_loss(nn.Module):
-    def __init__(self, soft_dice_kwargs, ce_kwargs, aggregate="sum"):
+    def __init__(self, aggregate="sum"):
         super(DC_and_CE_loss, self).__init__()
         self.aggregate = aggregate
-        self.ce = CrossentropyND(**ce_kwargs)
-        self.dc = SoftDiceLoss(apply_nonlin=softmax_helper, **soft_dice_kwargs)
+        #self.ce = CrossentropyND(**ce_kwargs)
+        self.ce = CrossentropyND()
+        
+        #self.dc = SoftDiceLoss(apply_nonlin=softmax_helper, **soft_dice_kwargs)
+        self.dc = SoftDiceLoss(apply_nonlin=softmax_helper)
 
     def forward(self, net_output, target):
         dc_loss = self.dc(net_output, target)

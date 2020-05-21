@@ -50,6 +50,8 @@ from PYTORCH_dataloader import *
 from sklearn.model_selection import train_test_split
 
 from losses_pytorch.boundary_loss import DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
+from losses_pytorch.dice_loss import FocalTversky_loss, DC_and_CE_loss
+from losses_pytorch.focal_loss import FocalLoss
 
 import kornia
 
@@ -76,9 +78,19 @@ if __name__ == '__main__':
     #s_path = './(10) Checkpoint_AdamW_batch_norm_SWITCH/'
     s_path = './(11) Checkpoint_SGD_batch_norm/'
     
-    #s_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'
+    s_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'
     
-    s_path = './(13) Checkpoint_AdamW_batch_norm_DC_and_HDBinary_loss/'
+    #s_path = './(13) Checkpoint_AdamW_batch_norm_DC_and_HDBinary_loss/'
+    
+    
+    #s_path = './(14) Checkpoint_AdamW_batch_norm_HDBinary_loss/'
+    
+    #s_path = './(15) Checkpoint_AdamW_batch_norm_SPATIALW/'
+    
+    
+    #s_path = './(16) Checkpoint_AdamW_batch_norm_DICE_CE/'
+    
+    #s_path = './(17) Checkpoint_AdamW_batch_norm_FOCALLOSS/'
     
     
     #input_path = './Train_matched_quads_PYTORCH_256_64_MATCH_ILASTIK/'        
@@ -103,7 +115,7 @@ if __name__ == '__main__':
     plot_every_num_epochs = 1;
     validate_every_num_epochs = 1;      
 
-    dist_loss = 1
+    dist_loss = 0
     #dist_loss = 1
     if not onlyfiles_check:   
         """ Get metrics per batch """
@@ -124,6 +136,7 @@ if __name__ == '__main__':
         
         unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, padding= int((5 - 1)/2), 
                            batch_norm=True, batch_norm_switchable=False, up_mode='upconv')
+        unet.train()
         unet.to(device)
         print('parameters:', sum(param.numel() for param in unet.parameters()))  
     
@@ -132,10 +145,14 @@ if __name__ == '__main__':
         #kwargs = {"alpha": 0.5, "gamma": 2.0, "reduction": 'none'}
         #loss_function = kornia.losses.FocalLoss(**kwargs)
         
+      
+        
         """ ****** DISTANCE LOSS FUNCTIONS *** CHECK IF NEED TO BE (X,Y,Z) format??? """
         #import DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
-        loss_function = DC_and_HDBinary_loss(); dist_loss = 1
-        
+        #loss_function = DC_and_HDBinary_loss(); dist_loss = 1
+        #loss_function = HDDTBinaryLoss(); dist_loss = 1
+        #loss_function = FocalLoss(apply_nonlin=None, alpha=None, gamma=2, balance_index=0, smooth=1e-5, size_average=True)
+        loss_function = DC_and_CE_loss()
 
         """ Select optimizer """
         #lr = 1e-3; milestones = [20, 50, 100]  # with AdamW *** EXPLODED ***
@@ -273,15 +290,16 @@ if __name__ == '__main__':
     # optimizer = torch.optim.SGD(unet.parameters(), lr = 1e-5, momentum=0.99)
     # #optimizer = torch.optim.AdamW(unet.parameters(), lr=1e-7, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
     # lr_finder = LRFinder(model, optimizer, loss_function, device="cuda")
-    # lr_finder.range_test(training_generator, val_generator, start_lr=1e-7, end_lr=10, num_iter=100, diverge_th=100000)
+    # lr_finder.range_test(training_generator, val_generator, start_lr=1e-5, end_lr=10, num_iter=50, diverge_th=100000)
     # lr_finder.plot() # to inspect the loss-learning rate graph
     # lr_finder.reset()
 
-    # zzz
+    #zzz
 
 
     """ Start training """
-    for cur_epoch in range(len(train_loss_per_epoch), 10000):           
+    for cur_epoch in range(len(train_loss_per_epoch), 10000):  
+         unet.train()         
          loss_train = 0
          jacc_train = 0   
                   
@@ -393,6 +411,7 @@ if __name__ == '__main__':
          if cur_epoch % validate_every_num_epochs == 0:
              
               with torch.set_grad_enabled(False):  # saves GPU RAM
+                   unet.eval()
                    for batch_x_val, batch_y_val, spatial_weight in val_generator:
                         
                         """ Transfer to GPU to normalize ect... """

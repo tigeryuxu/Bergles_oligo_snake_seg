@@ -37,7 +37,7 @@ To try:
 import matplotlib
 matplotlib.rc('xtick', labelsize=8) 
 matplotlib.rc('ytick', labelsize=8) 
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 #import matplotlib.pyplot as plt
 
 """ Libraries to load """
@@ -88,6 +88,7 @@ pregenerated = 1
 """
 
 check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1
+check_path ='./(15) Checkpoint_AdamW_batch_norm_SPATIALW/'; dilation = 1
 #s_path='./Checkpoints_BELUGA/SCALED_5_Bergles_cropped_forward_prop_DILATED/';  dilation = 2
 s_path = check_path + 'TEST_inference/'
 try:
@@ -97,7 +98,7 @@ try:
 except FileExistsError:
     print("Directory " , s_path ,  " already exists")
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation/'
-
+input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large/'
 
 """ Load filenames from zip """
 images = glob.glob(os.path.join(input_path,'*input.tif*'))
@@ -128,73 +129,37 @@ mean_arr = check['mean_arr']
 std_arr = check['std_arr']
 
 
+""" Set to eval mode for batch norm """
+unet.eval()
+#unet.training # check if mode set correctly
+unet.to(device)
+
 
 input_size = 80
 depth = 16
-input_counter = counter
 
 crop_size = int(input_size/2)
 z_size = depth
 
-for i in range(len(input_counter)):
-                       
-        """ Load input image """
-        input_name = examples[input_counter[i]]['input']
-        input_im = open_image_sequence_to_3D(input_name, width_max='default', height_max='default', depth='default')
-        
-        """ also detect shape of input_im and adapt accordingly """
-        width_tmp = np.shape(input_im)[1]
-        height_tmp = np.shape(input_im)[2]
-        depth_tmp = np.shape(input_im)[0]
-        
-        input_im = convert_multitiff_to_matrix(input_im)
-    
-        """ Decide whether to use auto seeds or pregenerated seeds"""
-        if pregenerated:
-             
-             seed_name = examples[input_counter[i]]['seeds']
-             all_seeds = open_image_sequence_to_3D(seed_name, width_max='default', height_max='default', depth='default')             
-                  
-             labelled=np.uint8(all_seeds)
-             labelled = np.moveaxis(labelled, 0, -1)
-             
-             """ Make seeds sparse by deleting branch points"""
-             #degrees, coordinates = bw_skel_and_analyze(cropped_seed)
-             #branch_points = np.copy(degrees); branch_points[branch_points != 3] = 0
-             #cropped_seed[branch_points > 0] = 0
-             
-             
-        else:        
-             """ Plotting as interactive scroller """
-             only_colocalized_mask, overall_coord = GUI_cell_selector(input_im, crop_size=100, z_size=30,
-                                                                       height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
-             """ or auto-create seeds """
-             all_seeds, cropped_seed, binary = create_auto_seeds(input_im, only_colocalized_mask, overall_coord, 
-                                           crop_size=100, z_size=30, height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
-             
-             plot_save_max_project(fig_num=88, im=cropped_seed, max_proj_axis=-1, title='all_seeds', 
-                                             name=s_path + 'all_seeds.png', pause_time=0.001)
-             plot_save_max_project(fig_num=89, im=binary, max_proj_axis=-1, title='all_seeds_binary', 
-                                             name=s_path + 'all_seeds_binary.png', pause_time=0.001)
-             labelled = measure.label(all_seeds)
 
+""" Make seeds sparse by deleting branch points"""
+#degrees, coordinates = bw_skel_and_analyze(cropped_seed)
+#branch_points = np.copy(degrees); branch_points[branch_points != 3] = 0
+#cropped_seed[branch_points > 0] = 0
 
-        """ Now start looping through each seed point to crop out the image """
-        """ Make a list of centroids to keep track of all the new locations to visit """
-        cc_seeds = measure.regionprops(labelled)
+for i in range(len(examples)):              
+        """ (1) Loads data as sorted list of seeds """
+        sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
+
+        matplotlib.use('Agg')
         
-        """ Garbage collection """
-        all_seeds = []
-        # convert cc to list
-        list_seeds = []
-        for cc in cc_seeds:
-             list_seeds.append(cc['coords'])
-        sorted_list = sorted(list_seeds, key=len, reverse=True)  
-
+        # initializes empty arrays
         final_seg_overall = np.zeros(np.shape(input_im))
         each_individual_fiber_trace_coords = []
+            
         for seed_idx in range(len(sorted_list)):
-
+            
+             """ Creates empty array to track current seed trace """
              trace_mask = np.zeros(np.shape(input_im))
              trace = sorted_list[seed_idx]
              
@@ -210,18 +175,14 @@ for i in range(len(input_counter)):
 
              """ FOR LARGER IMAGE WILL GO OUT OF MEMORY IF DONT CROP HERE """
              if pregenerated:
-                  overall_coord = cc_seeds[0]['coords'][0]
-             
-             centroid[0] = int(centroid[0]);
-             centroid[1] = int(centroid[1]);
-             centroid[2] = int(centroid[2]);
+                  overall_coord = sorted_list[0][0]
              
              """ MAYBE DILATE AS CROPS INSTEAD """    
-             x = int(overall_coord[0])
-             y = int(overall_coord[1])
-             z = int(overall_coord[2])
+             x = int(overall_coord[0]); y = int(overall_coord[1]); z = int(overall_coord[2])
              crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(trace_mask, y, x, z, 
-                                     crop_size=500, z_size=100, height=height_tmp, width=width_tmp, depth=depth_tmp)
+                                                                                        crop_size=500, z_size=100, height=height_tmp, width=width_tmp, depth=depth_tmp)
+             
+             
              crop_trace_mask = crop
              
              """ add endpoints to a new list of points to visit (seed_idx) """
@@ -296,7 +257,6 @@ for i in range(len(input_counter)):
                   crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
                   crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(track_seg, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
 
-                       
                   # crop_seed = dilate_by_ball_to_binary(crop_seed, radius=1)    
                   # """ limit to only seed in the middle minus all branchpoints """
                   # #center_cube
@@ -315,8 +275,7 @@ for i in range(len(input_counter)):
                   if np.count_nonzero(crop_seed) <= 10:
                        crop_seed[:, :, :] = 0
                   
-                  
-
+                    
                   """ Dilate the seed by sphere 2 to mimic training data """
                   # THIS IS ORIGINAL BALL DILATION 
                   crop_seed = dilate_by_ball_to_binary(crop_seed, radius=dilation)
@@ -514,7 +473,7 @@ for i in range(len(input_counter)):
              coords_track_seg = np.transpose(np.nonzero(track_seg))
              each_individual_fiber_trace_coords.append(coords_track_seg)
              
-             print('Seed_idx #: ' + str(seed_idx) + " of possible: " + str(len(cc_seeds)))
+             print('Seed_idx #: ' + str(seed_idx) + " of possible: " + str(len(sorted_list)))
                    
              """ Save max projections and pickle file """
              plot_save_max_project(fig_num=6, im=final_seg_overall, max_proj_axis=-1, title='overall seg', 

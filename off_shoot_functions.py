@@ -7,6 +7,7 @@ Created on Sun Oct  6 11:55:06 2019
 
 import numpy as np
 from data_functions_CLEANED import *
+from data_functions_3D import *
 import matplotlib.pyplot as plt
 
 from scipy import ndimage as ndi
@@ -22,7 +23,58 @@ from skimage.filters import threshold_local
 
 
 import torch
+import scipy     
+
+""" (1) Load input and parse into seeds """
+def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
+     """ Load input image """
+     input_name = examples[im_num]['input']
+     input_im = open_image_sequence_to_3D(input_name, width_max='default', height_max='default', depth='default')
      
+     """ also detect shape of input_im and adapt accordingly """
+     width_tmp = np.shape(input_im)[1]
+     height_tmp = np.shape(input_im)[2]
+     depth_tmp = np.shape(input_im)[0]
+     
+     input_im = convert_multitiff_to_matrix(input_im)
+ 
+     """ Decide whether to use auto seeds or pregenerated seeds"""
+     if pregenerated:
+          
+          seed_name = examples[im_num]['seeds']
+          all_seeds = open_image_sequence_to_3D(seed_name, width_max='default', height_max='default', depth='default')             
+               
+          labelled=np.uint8(all_seeds)
+          labelled = np.moveaxis(labelled, 0, -1)
+          overall_coord = []
+
+          
+     else:        
+          """ Plotting as interactive scroller """
+          only_colocalized_mask, overall_coord = GUI_cell_selector(input_im, crop_size=100, z_size=30,
+                                                                    height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
+          """ or auto-create seeds """
+          all_seeds, cropped_seed, binary = create_auto_seeds(input_im, only_colocalized_mask, overall_coord, 
+                                        crop_size=100, z_size=30, height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
+          
+          plot_save_max_project(fig_num=88, im=cropped_seed, max_proj_axis=-1, title='all_seeds', 
+                                          name=s_path + 'all_seeds.png', pause_time=0.001)
+          plot_save_max_project(fig_num=89, im=binary, max_proj_axis=-1, title='all_seeds_binary', 
+                                          name=s_path + 'all_seeds_binary.png', pause_time=0.001)
+          labelled = measure.label(all_seeds)
+ 
+
+     """ Now start looping through each seed point to crop out the image """
+     """ Make a list of centroids to keep track of all the new locations to visit """
+     cc_seeds = measure.regionprops(labelled)
+     list_seeds = []
+     for cc in cc_seeds:
+          list_seeds.append(cc['coords'])
+     sorted_list = sorted(list_seeds, key=len, reverse=True)  
+ 
+     return sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord
+
+
 
 """ If resized, check to make sure no straggling non-attached objects """
 def check_resized(im, depth, width_max, height_max):
@@ -443,3 +495,4 @@ def GUI_cell_selector(depth_last, crop_size, z_size,  height_tmp, width_tmp, dep
         for idx in range(len(matching_blob_coords)):
              only_colocalized_mask[matching_blob_coords[idx][0], matching_blob_coords[idx][1], matching_blob_coords[idx][2]] = 255
          
+        return only_colocalized_mask, overall_coord
