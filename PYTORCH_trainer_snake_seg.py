@@ -70,15 +70,15 @@ if __name__ == '__main__':
     s_path = './(2) Checkpoint_PYTORCH_spatial_weight/'
     s_path = './(3) Checkpoint_SGD_spatial/'
     s_path = './(4) Checkpoint_AdamW_spatial/'
-    s_path = './(5) Checkpoint_AdamW/'
+    #s_path = './(5) Checkpoint_AdamW/'
     #s_path = './(6) Checkpoint_AdamW_FOCALLOSS/'
     #s_path = './(7) Checkpoint_AdamW_spatial_batch_1/'
-    s_path = './(8) Checkpoint_SGD_cyclic_batch_norm/'
-    #s_path = './(9) Checkpoint_AdamW_batch_norm/'
+    #s_path = './(8) Checkpoint_SGD_cyclic_batch_norm/'
+    s_path = './(9) Checkpoint_AdamW_batch_norm/'
     #s_path = './(10) Checkpoint_AdamW_batch_norm_SWITCH/'
-    s_path = './(11) Checkpoint_SGD_batch_norm/'
+    #s_path = './(11) Checkpoint_SGD_batch_norm/'
     
-    s_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'
+    #s_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'
     
     #s_path = './(13) Checkpoint_AdamW_batch_norm_DC_and_HDBinary_loss/'
     
@@ -91,6 +91,17 @@ if __name__ == '__main__':
     #s_path = './(16) Checkpoint_AdamW_batch_norm_DICE_CE/'
     
     #s_path = './(17) Checkpoint_AdamW_batch_norm_FOCALLOSS/'
+    
+    
+    #s_path = './(18) Checkpoint_AdamW_batch_norm_SPATIALW_CYCLIC/'
+    
+    
+    #s_path = './(19) Checkpoint_AdamW_batch_norm_HD_and_CE/'
+    
+    s_path = './(20) Checkpoint_AdamW_batch_norm_7x7/'
+    
+    
+    """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
     
     
     #input_path = './Train_matched_quads_PYTORCH_256_64_MATCH_ILASTIK/'        
@@ -115,8 +126,13 @@ if __name__ == '__main__':
     plot_every_num_epochs = 1;
     validate_every_num_epochs = 1;      
 
+    #dist_loss = 0
     dist_loss = 0
-    #dist_loss = 1
+    both = 0
+    if both:
+        loss_function_2 = torch.nn.CrossEntropyLoss()
+        #loss_function = HDDTBinaryLoss(); dist_loss = 1
+        
     if not onlyfiles_check:   
         """ Get metrics per batch """
         train_loss_per_batch = []; train_jacc_per_batch = []
@@ -134,31 +150,36 @@ if __name__ == '__main__':
         #pad = int((kernel_size - 1)/2)
         #unet = UNet(in_channel=1,out_channel=2, kernel_size=kernel_size, pad=pad)
         
-        unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, padding= int((5 - 1)/2), 
+        kernel_size = 5
+        unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
                            batch_norm=True, batch_norm_switchable=False, up_mode='upconv')
         unet.train()
         unet.to(device)
         print('parameters:', sum(param.numel() for param in unet.parameters()))  
     
         """ Select loss function """
-        #loss_function = torch.nn.CrossEntropyLoss(reduction='none')
+        loss_function = torch.nn.CrossEntropyLoss(reduction='none')
         #kwargs = {"alpha": 0.5, "gamma": 2.0, "reduction": 'none'}
         #loss_function = kornia.losses.FocalLoss(**kwargs)
         
       
         
         """ ****** DISTANCE LOSS FUNCTIONS *** CHECK IF NEED TO BE (X,Y,Z) format??? """
-        #import DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
+        # DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
         #loss_function = DC_and_HDBinary_loss(); dist_loss = 1
         #loss_function = HDDTBinaryLoss(); dist_loss = 1
+        #if both:
+        #    loss_function_2 = torch.nn.CrossEntropyLoss()
+            
+            
         #loss_function = FocalLoss(apply_nonlin=None, alpha=None, gamma=2, balance_index=0, smooth=1e-5, size_average=True)
-        loss_function = DC_and_CE_loss()
+        #loss_function = DC_and_CE_loss()
 
         """ Select optimizer """
         #lr = 1e-3; milestones = [20, 50, 100]  # with AdamW *** EXPLODED ***
         lr = 1e-3; milestones = [5, 50, 100]  # with AdamW
         lr = 1e-5; milestones = [50, 100]  # with AdamW slow down
-        lr = 1e-5; milestones = [50, 100]  # with AdamW slow down
+        lr = 1e-5; milestones = [100]  # with AdamW slow down
 
         #optimizer = torch.optim.SGD(unet.parameters(), lr = lr, momentum=0.90)
         #optimizer = torch.optim.Adam(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
@@ -214,6 +235,7 @@ if __name__ == '__main__':
         
         
         unet.load_state_dict(check['model_state_dict'])
+        unet.to(device)
         optimizer.load_state_dict(check['optimizer_state_dict'])
         scheduler.load_state_dict(check['scheduler'])
   
@@ -246,6 +268,7 @@ if __name__ == '__main__':
         transforms = check['transforms']
 
         resume = 1
+
 
 
 
@@ -295,7 +318,6 @@ if __name__ == '__main__':
     # lr_finder.reset()
 
     #zzz
-
 
     """ Start training """
     for cur_epoch in range(len(train_loss_per_epoch), 10000):  
@@ -361,11 +383,16 @@ if __name__ == '__main__':
                 
                 if dist_loss:  # for distance loss functions
                     labels = labels.unsqueeze(1)
-                    #labels = labels.permute(0, 1, 3, 4, 2)
-                    #output_train = output_train.permute(0, 1, 3, 4, 2)
+                    labels = labels.permute(0, 1, 3, 4, 2)
+                    output_train = output_train.permute(0, 1, 3, 4, 2)
+                    
                 
                 
                 loss = loss_function(output_train, labels)
+                if both:
+                    loss_ce = loss_function_2(output_train.permute(0, 1, 4, 2, 3), labels.permute(0, 1, 4, 2, 3).squeeze())
+                    
+                    loss = loss + loss_ce
                 
 
                 if torch.is_tensor(spatial_weight):
@@ -382,6 +409,10 @@ if __name__ == '__main__':
                 loss.backward()
                 optimizer.step()
                
+                if dist_loss:  # for distance loss functions
+                    labels = labels.permute(0, 1, 4, 2, 3)
+                    output_train = output_train.permute(0, 1, 4, 2, 3)
+                
                 """ Training loss """
                 """ ********************* figure out how to do spatial weighting??? """
                 train_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
@@ -424,8 +455,16 @@ if __name__ == '__main__':
 
                         if dist_loss:  # for distance loss functions
                             labels_val = labels_val.unsqueeze(1)
-
+                            labels_val = labels_val.permute(0, 1, 3, 4, 2)
+                            output_val = output_val.permute(0, 1, 3, 4, 2)                            
+                                    
                         loss = loss_function(output_val, labels_val)
+                        if both:
+                            loss_ce = loss_function_2(output_val.permute(0, 1, 4, 2, 3), labels_val.permute(0, 1, 4, 2, 3).squeeze())
+                            
+                            loss = loss + loss_ce
+
+
 
                         if torch.is_tensor(spatial_weight):
                                spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
@@ -436,9 +475,13 @@ if __name__ == '__main__':
                             
                         else:
                                loss = torch.mean(loss)  
-
-
-          
+                               
+                               
+                        if dist_loss:  # for distance loss functions
+                            labels_val = labels_val.permute(0, 1, 4, 2, 3)
+                            output_val = output_val.permute(0, 1, 4, 2, 3)
+        
+                  
                         """ Training loss """
                         val_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
                         loss_val += loss.cpu().data.numpy()

@@ -162,7 +162,29 @@ for i in range(len(examples)):
         # initializes empty arrays
         final_seg_overall = np.zeros(np.shape(input_im))
         each_individual_fiber_trace_coords = []
-                   
+            
+        
+        """ Convert list into tree in pandas dataframe """
+        import pandas as pd
+        # data = {'coords', [],
+        #         'parent', [],
+        #         'child', [],
+        #         'depth', []
+        #         }
+        columns = {'coords', 'parent', 'child', 'depth'}
+        tree_df = pd.DataFrame(columns=columns)
+        
+        coords = 0; parent = 0; child = 0; depth = 0;
+        
+        
+        new_node = {'coords':coords, 'parent': parent, 'child': child, 'depth': depth}
+        
+        tree_df = tree_df.append(new_node, ignore_index=True)
+        zzz
+        
+        
+        
+        
         
         for seed_idx in range(len(sorted_list)):
             

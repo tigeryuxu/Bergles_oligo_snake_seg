@@ -13,7 +13,7 @@ class UNet_online(nn.Module):
         n_classes=2,
         depth=5,
         wf=3,    # 2 ** (wf  + i)   # else 10 * (i + 1)
-        #kernel_size = 3,
+        kernel_size = 5,
         padding= int((5 - 1)/2),
         batch_norm=False,
         batch_norm_switchable=False,
@@ -45,18 +45,19 @@ class UNet_online(nn.Module):
         assert up_mode in ('upconv', 'upsample')
         self.padding = padding
         self.depth = depth
+        self.kernel_size = kernel_size
         prev_channels = in_channels
         self.down_path = nn.ModuleList()
         for i in range(depth):
             self.down_path.append(
-                UNetConvBlock(prev_channels, 2 ** (wf  + i), padding, batch_norm, batch_norm_switchable)
+                UNetConvBlock(prev_channels, 2 ** (wf  + i), padding, batch_norm, batch_norm_switchable, kernel_size)
             )
             prev_channels = 2 ** (wf  + i)
             
         self.up_path = nn.ModuleList()
         for i in reversed(range(depth - 1)):
             self.up_path.append(
-                UNetUpBlock(prev_channels, 2 ** (wf  + i), up_mode, padding, batch_norm, batch_norm_switchable)
+                UNetUpBlock(prev_channels, 2 ** (wf  + i), up_mode, padding, batch_norm, batch_norm_switchable, kernel_size)
             )
             prev_channels = 2 ** (wf  + i)
 
@@ -77,18 +78,18 @@ class UNet_online(nn.Module):
 
 
 class UNetConvBlock(nn.Module):
-    def __init__(self, in_size, out_size, padding, batch_norm, batch_norm_switchable):
+    def __init__(self, in_size, out_size, padding, batch_norm, batch_norm_switchable, kernel_size):
         super(UNetConvBlock, self).__init__()
         block = []
 
-        block.append(nn.Conv3d(in_size, out_size, kernel_size=5, padding=int(padding)))   # can be changed to 5
+        block.append(nn.Conv3d(in_size, out_size, kernel_size=kernel_size, padding=int(padding)))   # can be changed to 5
         block.append(nn.ReLU())
         if batch_norm:
             block.append(nn.BatchNorm3d(out_size))
         elif batch_norm_switchable:
             block.append(SwitchNorm3d(out_size))
 
-        block.append(nn.Conv3d(out_size, out_size, kernel_size=5, padding=int(padding)))
+        block.append(nn.Conv3d(out_size, out_size, kernel_size=kernel_size, padding=int(padding)))
         block.append(nn.ReLU())
         if batch_norm:
             block.append(nn.BatchNorm3d(out_size))
@@ -104,7 +105,7 @@ class UNetConvBlock(nn.Module):
 
 
 class UNetUpBlock(nn.Module):
-    def __init__(self, in_size, out_size, up_mode, padding, batch_norm, batch_norm_switchable):
+    def __init__(self, in_size, out_size, up_mode, padding, batch_norm, batch_norm_switchable, kernel_size):
         super(UNetUpBlock, self).__init__()
         if up_mode == 'upconv':
             self.up = nn.ConvTranspose3d(in_size, out_size, kernel_size=2, stride=2, output_padding = 0)
@@ -114,7 +115,7 @@ class UNetUpBlock(nn.Module):
                 nn.Conv3d(in_size, out_size, kernel_size=1),
             )
 
-        self.conv_block = UNetConvBlock(out_size * 2, out_size, padding, batch_norm, batch_norm_switchable)
+        self.conv_block = UNetConvBlock(out_size * 2, out_size, padding, batch_norm, batch_norm_switchable, kernel_size)
 
     def center_crop(self, layer, target_size):
         _, _, layer_depth, layer_height, layer_width = layer.size()
