@@ -73,7 +73,7 @@ torch.backends.cudnn.enabled = True
 
 from matlab_crop_function import *
 from off_shoot_functions import *
-
+from tree_functions import *
 
 """ Define GPU to use """
 import torch
@@ -157,34 +157,30 @@ for i in range(len(examples)):
         """ (1) Loads data as sorted list of seeds """
         sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
 
-        matplotlib.use('Agg')
         
         # initializes empty arrays
         final_seg_overall = np.zeros(np.shape(input_im))
         each_individual_fiber_trace_coords = []
             
         
-        """ Convert list into tree in pandas dataframe """
-        import pandas as pd
-        # data = {'coords', [],
-        #         'parent', [],
-        #         'child', [],
-        #         'depth', []
-        #         }
-        columns = {'coords', 'parent', 'child', 'depth'}
-        tree_df = pd.DataFrame(columns=columns)
-        
-        coords = 0; parent = 0; child = 0; depth = 0;
+
+        """ add seeds to form roots of tree """
         
         
-        new_node = {'coords':coords, 'parent': parent, 'child': child, 'depth': depth}
+        """ (1) First loop through and turn each seed into segments at branch points 
+            (2) Then add to list with parent/child indices
+        """
+        all_trees = []
+        for root in sorted_list:
+            tree_df = get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp)                              
+            im = show_tree(tree_df, template_im = input_im)
+            plot_max(im, ax=-1)
+            all_trees.append(tree_df)
         
-        tree_df = tree_df.append(new_node, ignore_index=True)
+        
         zzz
         
-        
-        
-        
+        matplotlib.use('Agg')
         
         for seed_idx in range(len(sorted_list)):
             
@@ -192,15 +188,11 @@ for i in range(len(examples)):
              trace_mask = np.zeros(np.shape(input_im))
              trace = sorted_list[seed_idx]
              
-             """ also skip trace if too short ==> thres == 4 for 1st ieration """
-             if len(trace) < 5: continue;
-             
              centroid = []
              for idx_trace in range(len(trace)):
                   trace_mask[trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]] = 1
                   if idx_trace == int(len(trace)/2):
                        centroid = [trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]]
-
 
              """ FOR LARGER IMAGE WILL GO OUT OF MEMORY IF DONT CROP HERE """
              if pregenerated:
@@ -210,8 +202,6 @@ for i in range(len(examples)):
              x = int(overall_coord[0]); y = int(overall_coord[1]); z = int(overall_coord[2])
              crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(trace_mask, y, x, z, 
                                                                                         crop_size=500, z_size=100, height=height_tmp, width=width_tmp, depth=depth_tmp)
-             
-             
              crop_trace_mask = crop
              
              """ add endpoints to a new list of points to visit (seed_idx) """
@@ -257,8 +247,8 @@ for i in range(len(examples)):
              ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=4)
              center_cube = ball_in_middle_dil
              
-             
-             
+            
+                          
              """ Keep looping until there are no more seed centers to visit """  
              iterator = 0            
              while len(np.unique(list_seed_centers)) != 0:
