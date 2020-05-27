@@ -148,11 +148,6 @@ crop_size = int(input_size/2)
 z_size = depth
 
 
-""" Make seeds sparse by deleting branch points"""
-#degrees, coordinates = bw_skel_and_analyze(cropped_seed)
-#branch_points = np.copy(degrees); branch_points[branch_points != 3] = 0
-#cropped_seed[branch_points > 0] = 0
-
 for i in range(len(examples)):              
         """ (1) Loads data as sorted list of seeds """
         sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
@@ -172,60 +167,74 @@ for i in range(len(examples)):
         """
         all_trees = []
         for root in sorted_list:
-            tree_df = get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp)                              
+            tree_df, children = get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp)                              
             im = show_tree(tree_df, template_im = input_im)
             plot_max(im, ax=-1)
+        
+            ### convert empty lists to "nan"
+            tree_df = tree_df.mask(tree_df.applymap(str).eq('[]'))
+            tree_df = tree_df.mask(tree_df.applymap(str).eq('[[]]'))
+            
+            
+            ### set "visited" to correct value
+            for idx, node in tree_df.iterrows():
+                if not np.isnan(np.asarray(node.child)).any():
+                    node.visited = 1
+                else:
+                    node.visited = np.nan
+            
+            # append to all trees
             all_trees.append(tree_df)
-        
-        
-        zzz
-        
+            
+            zzz
+            
         matplotlib.use('Agg')
         
-        for seed_idx in range(len(sorted_list)):
-            
-             """ Creates empty array to track current seed trace """
-             trace_mask = np.zeros(np.shape(input_im))
-             trace = sorted_list[seed_idx]
+        for tree in all_trees:
              
-             centroid = []
-             for idx_trace in range(len(trace)):
-                  trace_mask[trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]] = 1
-                  if idx_trace == int(len(trace)/2):
-                       centroid = [trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]]
 
-             """ FOR LARGER IMAGE WILL GO OUT OF MEMORY IF DONT CROP HERE """
-             if pregenerated:
-                  overall_coord = sorted_list[0][0]
+             # """ Creates empty array to track current seed trace """
+             # trace_mask = np.zeros(np.shape(input_im))
+             # trace = sorted_list[seed_idx]
              
-             """ MAYBE DILATE AS CROPS INSTEAD """    
-             x = int(overall_coord[0]); y = int(overall_coord[1]); z = int(overall_coord[2])
-             crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(trace_mask, y, x, z, 
-                                                                                        crop_size=500, z_size=100, height=height_tmp, width=width_tmp, depth=depth_tmp)
-             crop_trace_mask = crop
-             
-             """ add endpoints to a new list of points to visit (seed_idx) """
-             degrees, coordinates = bw_skel_and_analyze(crop_trace_mask)
-             end_points = np.copy(degrees); end_points[end_points != 1] = 0
-             coords_end_points = np.transpose(np.nonzero(end_points))
+             # centroid = []
+             # for idx_trace in range(len(trace)):
+             #      trace_mask[trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]] = 1
+             #      if idx_trace == int(len(trace)/2):
+             #           centroid = [trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]]
 
-             """ FIX ==> also added to scale cropped images instead """
-             new_ep_coords = []
-             for end_point in coords_end_points:
-                  ep_center = scale_coords_of_crop_to_full(end_point, box_x_min, box_y_min, box_z_min)
-                  new_ep_coords.append(ep_center)   
-             coords_end_points = new_ep_coords
+             # """ FOR LARGER IMAGE WILL GO OUT OF MEMORY IF DONT CROP HERE """
+             # if pregenerated:
+             #      overall_coord = sorted_list[0][0]
+             
+             # """ MAYBE DILATE AS CROPS INSTEAD """    
+             # x = int(overall_coord[0]); y = int(overall_coord[1]); z = int(overall_coord[2])
+             # crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(trace_mask, y, x, z, 
+             #                                                                            crop_size=500, z_size=100, height=height_tmp, width=width_tmp, depth=depth_tmp)
+             # crop_trace_mask = crop
+             
+             # """ add endpoints to a new list of points to visit (seed_idx) """
+             # degrees, coordinates = bw_skel_and_analyze(crop_trace_mask)
+             # end_points = np.copy(degrees); end_points[end_points != 1] = 0
+             # coords_end_points = np.transpose(np.nonzero(end_points))
+
+             # """ FIX ==> also added to scale cropped images instead """
+             # new_ep_coords = []
+             # for end_point in coords_end_points:
+             #      ep_center = scale_coords_of_crop_to_full(end_point, box_x_min, box_y_min, box_z_min)
+             #      new_ep_coords.append(ep_center)   
+             # coords_end_points = new_ep_coords
              
                             
-             list_seed_centers = []
-             for ep in coords_end_points:
-                  list_seed_centers.append(ep)
-             #list_seed_centers.append(seed_center)
-             already_visited = []
+             # list_seed_centers = []
+             # for ep in coords_end_points:
+             #      list_seed_centers.append(ep)
+             # #list_seed_centers.append(seed_center)
+             # already_visited = []
              
-             """ also, create an empty array to keep track of what has been seeded/segmented """
-             #track_seg = np.zeros(np.shape(input_im))
-             track_seg = trace_mask
+             # """ also, create an empty array to keep track of what has been seeded/segmented """
+             # #track_seg = np.zeros(np.shape(input_im))
+             # track_seg = trace_mask
              
              """ Create sphere in middle to expand net of matching """
              ball_in_middle = np.zeros([input_size,input_size, z_size])
@@ -247,55 +256,56 @@ for i in range(len(examples)):
              ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=4)
              center_cube = ball_in_middle_dil
              
-            
-                          
-             """ Keep looping until there are no more seed centers to visit """  
+        
+             """ Keep looping until everything has been visited """  
              iterator = 0            
-             while len(np.unique(list_seed_centers)) != 0:
+             #while len(np.unique(list_seed_centers)) != 0:
+                 
+             while np.asarray(tree.visited.isnull()).any():   
+                 
+                  unvisited_indices = np.where(tree.visited.isnull() == True)[0]
+                  first_ind = unvisited_indices[0]
                   
-                  """ Garbage collection """
-                  crop = []; crop_trace_mask = []; degrees = []; centroid = [];
-                  end_points = []; labelled = []; only_colocalized_mask = []; trace_mask = [];
+                  """ Get center of crop """
+                  if np.isnan(tree.end_be_coord[first_ind]).any():   # if there's no end index for some reason, use starting one???
                   
-                  batch_x = []; batch_y = []; weights = [];
-                  x = int(list_seed_centers[0][0]); y = int(list_seed_centers[0][1]); z = int(list_seed_centers[0][2])
+                  
+                      """ OR ==> should use parent??? """
+                      cur_be = tree.start_be_coord[first_ind]
+                  else:              
+                      cur_be = tree.end_be_coord[first_ind]
+  
+                  centroid = cur_be[math.floor(len(cur_be)/2)]
+                  
+                  x = int(centroid[0]); y = int(centroid[1]); z = int(centroid[2])
+                 
+                  """ Get image array with only current indices """
+                  
+                  coords = tree.coords[first_ind]
+                  
+                  cur_seg_im = np.zeros(np.shape(input_im))   # maybe speed up here by not creating the image every time???
+                  cur_seg_im[coords[:, 0], coords[:, 1], coords[:, 2]] = 1
+                  
+                  # add the centroid as well
+                  cur_seg_im[x, y, z] = 1
 
-                  """ More strict skipping """
-                  if iterator == 0:
-                       track_seg_old = []
-                       
-                  else:
-                       if iterator > 500 and track_seg_old[x,y,z] > 0:
-                            print('skipped becuase track seg old')
-                            already_visited.append(list_seed_centers[0])
-                            del list_seed_centers[0]
-                            iterator += 1
-                            continue;    
+                  """ GET ALL LAST 2 or 3 coords from parents as well!!!
+                  
+                  
+                  
+                  ###########################
+                  
+                  
+                  """
+
+                 
 
                   """ use centroid of object to make seed crop """
                   crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
-                  crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(track_seg, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
+                  crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(cur_seg_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
 
-                  # crop_seed = dilate_by_ball_to_binary(crop_seed, radius=1)    
-                  # """ limit to only seed in the middle minus all branchpoints """
-                  # #center_cube
-                  # crop_seed[crop_seed > 0] = 1                  
-                  # test = skeletonize_3d(crop_seed);  test[test > 0] = 1
-                  # degrees, coordinates = bw_skel_and_analyze(test)
-                  # branch_points = np.copy(degrees); branch_points[branch_points != 3] = 0   
-                  
-                  # test[branch_points > 0 ] = 0 
-                  # coloc_with_end_points = test + center_cube
-                  
-                  # only_coloc = find_overlap_by_max_intensity(bw=test, intensity_map=coloc_with_end_points) 
-                  # crop_seed = only_coloc
-                       
-                  """ Delete seeds that are too small """
-                  if np.count_nonzero(crop_seed) <= 10:
-                       crop_seed[:, :, :] = 0
-                  
                     
-                  """ Dilate the seed by sphere 2 to mimic training data """
+                  """ Dilate the seed by sphere 1 to mimic training data """
                   # THIS IS ORIGINAL BALL DILATION 
                   crop_seed = dilate_by_ball_to_binary(crop_seed, radius=dilation)
 
@@ -303,20 +313,14 @@ for i in range(len(examples)):
                   """ Limit seed to only smaller size!!! 40 x 40 box in the middle
                        to cleave off edges. Then use to 
                   """
-                  
-                  #crop_seed[seed_limiting_box == 0] = 0;
-
-                       
                   # also make sure everything is connected to middle point (no loose seeds)
                   crop_seed = convert_matrix_to_multipage_tiff(crop_seed)
                   crop_seed = np.expand_dims(crop_seed, axis=-1)
                   crop_seed = check_resized(crop_seed, depth, width_max=input_size, height_max=input_size)
                   crop_seed = crop_seed[:, :, :, 0]
                   crop_seed = convert_multitiff_to_matrix(crop_seed)
-                  
                        
-                  """ Send to segmentor!!! """
-                  #batch_x = []; batch_y = []; weights = [];
+                  """ Send to segmentor for INFERENCE """
                   crop = np.asarray(crop, np.uint8)
                   crop = np.asarray(crop, np.float32)
                   crop_seed[crop_seed > 0] = 255
@@ -328,24 +332,44 @@ for i in range(len(examples)):
         
                   """ SAVE max projections"""
                   plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
-                                        name=s_path + 'Crop_' + str(seed_idx) + '_' + str(iterator) + '_seed.png', pause_time=0.001)
+                                        name=s_path + 'Crop_' + str(first_ind) + '_' + str(iterator) + '_seed.png', pause_time=0.001)
                   plot_save_max_project(fig_num=2, im=depth_last_tmp, max_proj_axis=-1, title='segmentation', 
-                                        name=s_path + 'Crop_' + str(seed_idx) + '_' + str(iterator) + '_segmentation.png', pause_time=0.001)
+                                        name=s_path + 'Crop_' + str(first_ind) + '_' + str(iterator) + '_segmentation.png', pause_time=0.001)
                   plot_save_max_project(fig_num=3, im=crop, max_proj_axis=-1, title='input', 
-                                        name=s_path + 'Crop_' + str(seed_idx) + '_' + str(iterator) + '_input_im.png', pause_time=0.001)
+                                        name=s_path + 'Crop_' + str(first_ind) + '_' + str(iterator) + '_input_im.png', pause_time=0.001)
 
 
-                  """ Also save/extract paranodes """
-                  paranodes = np.copy(depth_last_tmp)
+
+
+
+
+
+
+
+
+                  """ TURN SEGMENTATION INTO skeleton and asses branch points ect... 
+                  
+                          ***might need to smooth the skeleton???
+                  
+                  
+                  """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
                   depth_last_tmp[depth_last_tmp > 0] = 1
                   seg_test = depth_last_tmp
-          
-                  """ Clean up segmentation by imopen/imclose """
-                  #""" Delete anything that is only 10 pixel large """
-                  #intensity_map = np.copy(seg_test)
-                  #intensity_map[seg_test > 0] = 2
-                  #seg_test = find_overlap_by_max_intensity(bw=seg_test, intensity_map=intensity_map, min_size_obj=10)                 
                        
                   """ also only keep segments that are near to end points of the original seed """
                   crop_seed[crop_seed > 0] = 1
@@ -357,20 +381,22 @@ for i in range(len(examples)):
                   seg_test[only_coloc == 0] = 0
                   seg_test = only_coloc
                   
-                 
-                  """ Only keep paranodes that are colocalized as well """
-                  #paranodes[paranodes < 2] = 0
-                  #paranodes[paranodes > 0] = 1
-                  #paranodes[seg_test == 0] = 0
-                  
-                  """ and delete paranodes from seg_test for stopping error propagation """
-                  #seg_test[paranodes > 0] = 0
+
+
+
+
+
+
+
+
+
 
                   """ Clean up segmentation by imopen/imclose """
                   seg_test[crop_seed > 0] = 1
                   seg_test = dilate_by_ball_to_binary(seg_test, radius=2)
                   #seg_test = erode_by_ball_to_binary(seg_test, radius=3)    
                        
+                  
                        
                   """ Must skeletonize segmentation before saving in track_seg because otherwise will grow iteratively each time with new dilation
                        so instead, must save ANOTHER array for tracking dilated segmentations if want to keep those...

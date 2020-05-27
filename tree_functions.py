@@ -22,7 +22,7 @@ import pandas as pd
 
 """ Convert list into tree in pandas dataframe """
 def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp):
-    columns = {'coords', 'parent', 'child', 'depth', 'start_be_coord', 'end_be_coord', 'cur_idx'}
+    columns = {'coords', 'parent', 'child', 'depth', 'start_be_coord', 'end_be_coord', 'cur_idx', 'visited'}
     tree_df = pd.DataFrame(columns=columns)
     
 
@@ -132,29 +132,22 @@ def treeify(tree_df, depth, cc_segs, root_neighborhood, all_neighborhoods, all_h
             idx_parent_df = np.where(tree_df.cur_idx == parent)
             cur_be = np.vstack(tree_df.end_be_coord[idx_parent_df[0][0]])
 
-       
         ### find next seg                    
+        all_children = [];
         for idx_cur_seg in range(len(all_hood_first_last)):
-            #if not all_hood_first_last[idx_cur_seg]:
-                
             if not np.asarray(all_hood_first_last[idx_cur_seg]).any():
-                
                 continue   # skip if empty
-            cur_seg = np.vstack(all_hood_first_last[idx_cur_seg])
-
-            all_children = [];
-            if (cur_seg[:, None] == cur_be).all(-1).any():
                 
-                if depth == 1:
-                    print('match')
+            cur_seg = np.vstack(all_hood_first_last[idx_cur_seg])
+            if (cur_seg[:, None] == cur_be).all(-1).any():
                 
                 if len(tree_df) > 0:
                     cur_idx = np.max(tree_df.cur_idx[:]) + 1;  
 
-
                 full_seg_coords = np.vstack(cc_segs[idx_cur_seg]['coords'])
-
-                new_node = {'coords': full_seg_coords, 'parent': parent, 'child': [], 'depth': depth, 'cur_idx': cur_idx, 'start_be_coord': cur_be, 'end_be_coord': []}
+                
+                ### ADD NEW NODE TO TREE
+                new_node = {'coords': full_seg_coords, 'parent': parent, 'child': [], 'depth': depth, 'cur_idx': cur_idx, 'start_be_coord': cur_be, 'end_be_coord': [], 'visited': 0}
                 tree_df = tree_df.append(new_node, ignore_index=True)
                 
                 ### find next be
@@ -164,11 +157,9 @@ def treeify(tree_df, depth, cc_segs, root_neighborhood, all_neighborhoods, all_h
                 for idx_cur_be in range(len(all_neighborhoods)):
                     if not all_neighborhoods[idx_cur_be]:
                         continue # skip if empty
-                        
                     search_be = np.vstack(all_neighborhoods[idx_cur_be])
                     
-                    if (cur_seg[:, None] == search_be).all(-1).any():
-                                             
+                    if (cur_seg[:, None] == search_be).all(-1).any():        
                         next_be.append(search_be)
                         
                         # delete the neighborhood we currently assessed
@@ -178,8 +169,10 @@ def treeify(tree_df, depth, cc_segs, root_neighborhood, all_neighborhoods, all_h
                 print(cur_idx)
 
                 # delete the neighborhood we currently assessed
-                #all_hood_first_last_tmp = list(np.copy(all_hood_first_last))
                 all_hood_first_last[idx_cur_seg] = []
+                # append children to send to previous call
+                all_children.append(cur_idx)
+                
                 
                 if not isempty and np.asarray(np.vstack(next_be)).any():
                     next_be = np.vstack(next_be)
@@ -187,18 +180,15 @@ def treeify(tree_df, depth, cc_segs, root_neighborhood, all_neighborhoods, all_h
                     tree_df.end_be_coord[idx_parent_df[0][0]] = next_be
                                                 
                     # recurse
-                    tree_df = treeify(tree_df, depth + 1, cc_segs, 
+                    tree_df, next_children = treeify(tree_df, depth + 1, cc_segs, 
                                           root_neighborhood, all_neighborhoods_tmp, all_hood_first_last, cur_idx=cur_idx, parent=cur_idx) 
-
-                    # append children
-                    all_children.append(cur_idx)
-                    
-                    # add all children
-                    tree_df.child[cur_idx].append(all_children)
+    
+                    # add all children from next call
+                    tree_df.child[cur_idx].append(next_children)
 
 
                 
-        return tree_df
+        return tree_df, all_children
     
     
 """ Plot tree """
