@@ -2,43 +2,14 @@
 """
 Created on Sunday Dec. 24th
 ============================================================
-
-
- ***NEED TO INSTALL SCIPY???
- 
- 
- Try reducing network size
- 
-
 @author: Tiger
-
-
-
-To try:
-     - ridge filter for seed generation
-     - dilate while training?
-     - interpolate while training?
-
-
-     - advancing cone instead of a square to colocalize broken fragments???
-
-
-
 """
-
-
-
-""" ALLOWS print out of results on compute canada """
-#from keras import backend as K
-#cfg = K.tf.ConfigProto()
-#cfg.gpu_options.allow_growth = True
-#K.set_session(K.tf.Session(config=cfg))
-
 import matplotlib
 matplotlib.rc('xtick', labelsize=8) 
 matplotlib.rc('ytick', labelsize=8) 
 #matplotlib.use('Agg')
-#import matplotlib.pyplot as plt
+matplotlib.use('Qt5Agg')
+
 
 """ Libraries to load """
 import numpy as np
@@ -61,19 +32,17 @@ from UNet_pytorch_online import *
 from PYTORCH_dataloader import *
 
 from sklearn.model_selection import train_test_split
-
 from losses_pytorch.boundary_loss import DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
 
-import kornia
 
 torch.backends.cudnn.benchmark = True  
 torch.backends.cudnn.enabled = True 
 
-
-
 from matlab_crop_function import *
 from off_shoot_functions import *
 from tree_functions import *
+from skimage.morphology import skeletonize_3d, skeletonize
+
 
 """ Define GPU to use """
 import torch
@@ -83,18 +52,11 @@ print(device)
 """ Decide if use pregenerated seeds or not """
 pregenerated = 1
         
-
-# Initialize everything with specific random seeds for repeatability
-"""  Network Begins:
-"""
-
+"""  Network Begins: """
 check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1
 check_path ='./(15) Checkpoint_AdamW_batch_norm_SPATIALW/'; dilation = 1
-
-
-check_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'; dilation = 1
-
-#s_path='./Checkpoints_BELUGA/SCALED_5_Bergles_cropped_forward_prop_DILATED/';  dilation = 2
+#check_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'; dilation = 1
+check_path = './(21) Checkpoint_AdamW_batch_norm_3x_branched/'; dilation = 1
 
 s_path = check_path + 'TEST_inference/'
 try:
@@ -103,6 +65,7 @@ try:
     print("Directory " , s_path ,  " Created ") 
 except FileExistsError:
     print("Directory " , s_path ,  " already exists")
+
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation/'
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large/'
 
@@ -114,7 +77,6 @@ examples = [dict(input=i,truth=i.replace('input.tif','truth.tif'), cell_mask=i.r
                  seeds = i.replace('input.tif', 'seeds.tif')) for i in images]
 
 counter = list(range(len(examples)))  # create a counter, so can randomize it
-
 
 """ TO LOAD OLD CHECKPOINT """
 onlyfiles_check = glob.glob(os.path.join(check_path,'check_*'))
@@ -140,165 +102,109 @@ unet.eval()
 #unet.training # check if mode set correctly
 unet.to(device)
 
-
 input_size = 80
 depth = 16
 
 crop_size = int(input_size/2)
 z_size = depth
 
-
 for i in range(len(examples)):              
         """ (1) Loads data as sorted list of seeds """
         sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
 
-        
-        # initializes empty arrays
-        final_seg_overall = np.zeros(np.shape(input_im))
-        each_individual_fiber_trace_coords = []
-            
-        
-
+    
         """ add seeds to form roots of tree """
-        
-        
         """ (1) First loop through and turn each seed into segments at branch points 
             (2) Then add to list with parent/child indices
         """
         all_trees = []
         for root in sorted_list:
             tree_df, children = get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp)                              
-            im = show_tree(tree_df, template_im = input_im)
+            tmp_tree_im = np.zeros(np.shape(input_im))
+            im = show_tree(tree_df, tmp_tree_im)
             plot_max(im, ax=-1)
-        
-            ### convert empty lists to "nan"
-            tree_df = tree_df.mask(tree_df.applymap(str).eq('[]'))
-            tree_df = tree_df.mask(tree_df.applymap(str).eq('[[]]'))
-            
-            
+                        
             ### set "visited" to correct value
             for idx, node in tree_df.iterrows():
-                if not np.isnan(np.asarray(node.child)).any():
+                if not isListEmpty(node.child):
                     node.visited = 1
                 else:
-                    node.visited = np.nan
-            
+                    node.visited = np.nan            
             # append to all trees
             all_trees.append(tree_df)
             
-            zzz
-            
+            if len(all_trees) == 1:
+                break
+
         matplotlib.use('Agg')
-        
+ 
+        track_trees = np.zeros(np.shape(input_im))    
+        num_tree = 0
         for tree in all_trees:
-             
-
-             # """ Creates empty array to track current seed trace """
-             # trace_mask = np.zeros(np.shape(input_im))
-             # trace = sorted_list[seed_idx]
-             
-             # centroid = []
-             # for idx_trace in range(len(trace)):
-             #      trace_mask[trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]] = 1
-             #      if idx_trace == int(len(trace)/2):
-             #           centroid = [trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]]
-
-             # """ FOR LARGER IMAGE WILL GO OUT OF MEMORY IF DONT CROP HERE """
-             # if pregenerated:
-             #      overall_coord = sorted_list[0][0]
-             
-             # """ MAYBE DILATE AS CROPS INSTEAD """    
-             # x = int(overall_coord[0]); y = int(overall_coord[1]); z = int(overall_coord[2])
-             # crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(trace_mask, y, x, z, 
-             #                                                                            crop_size=500, z_size=100, height=height_tmp, width=width_tmp, depth=depth_tmp)
-             # crop_trace_mask = crop
-             
-             # """ add endpoints to a new list of points to visit (seed_idx) """
-             # degrees, coordinates = bw_skel_and_analyze(crop_trace_mask)
-             # end_points = np.copy(degrees); end_points[end_points != 1] = 0
-             # coords_end_points = np.transpose(np.nonzero(end_points))
-
-             # """ FIX ==> also added to scale cropped images instead """
-             # new_ep_coords = []
-             # for end_point in coords_end_points:
-             #      ep_center = scale_coords_of_crop_to_full(end_point, box_x_min, box_y_min, box_z_min)
-             #      new_ep_coords.append(ep_center)   
-             # coords_end_points = new_ep_coords
-             
-                            
-             # list_seed_centers = []
-             # for ep in coords_end_points:
-             #      list_seed_centers.append(ep)
-             # #list_seed_centers.append(seed_center)
-             # already_visited = []
-             
-             # """ also, create an empty array to keep track of what has been seeded/segmented """
-             # #track_seg = np.zeros(np.shape(input_im))
-             # track_seg = trace_mask
-             
-             """ Create sphere in middle to expand net of matching """
-             ball_in_middle = np.zeros([input_size,input_size, z_size])
-             ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
-             ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=20)
-             dil_end_points = ball_in_middle_dil
-             
-             
-             """ Create seed limiting box """
-             ball_in_middle = np.zeros([input_size,input_size, z_size])
-             ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
-             ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=20)
-             seed_limiting_box = ball_in_middle_dil             
-             
-
              """ Create box in middle to only get seed colocalized with middle after splitting branchpoints """
              ball_in_middle = np.zeros([input_size,input_size, z_size])
              ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
-             ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=4)
+             ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=10)
              center_cube = ball_in_middle_dil
-             
-        
+
+
+             ball_in_middle = np.zeros([input_size,input_size, z_size])
+             ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
+             ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=4)
+             small_center_cube = ball_in_middle_dil
+
+                     
              """ Keep looping until everything has been visited """  
-             iterator = 0            
-             #while len(np.unique(list_seed_centers)) != 0:
-                 
+             iterator = 0    
              while np.asarray(tree.visited.isnull()).any():   
                  
                   unvisited_indices = np.where(tree.visited.isnull() == True)[0]
-                  first_ind = unvisited_indices[0]
+                  first_ind = unvisited_indices[-1]
+
+                  """ GET ALL LAST 2 or 3 coords from parents as well """
+                  parent_coords = get_parent_nodes(tree, start_ind=first_ind, num_parents=4, parent_coords=[])
+                  
+                  if len(parent_coords) > 0:
+                      parent_coords = np.vstack(parent_coords)
                   
                   """ Get center of crop """
-                  if np.isnan(tree.end_be_coord[first_ind]).any():   # if there's no end index for some reason, use starting one???
-                  
-                  
-                      """ OR ==> should use parent??? """
-                      cur_be = tree.start_be_coord[first_ind]
-                  else:              
-                      cur_be = tree.end_be_coord[first_ind]
-  
-                  centroid = cur_be[math.floor(len(cur_be)/2)]
-                  
-                  x = int(centroid[0]); y = int(centroid[1]); z = int(centroid[2])
-                 
-                  """ Get image array with only current indices """
-                  
+                  cur_coords = []
+
+                  ### Get start of crop
+                  cur_be_start = tree.start_be_coord[first_ind]
+                  centroid = cur_be_start[math.floor(len(cur_be_start)/2)]
+                  cur_coords.append(centroid)
+ 
+                  ### Get middle of crop """
                   coords = tree.coords[first_ind]
+                  cur_coords.append(coords)
                   
+                  ### Get end of crop if it exists
+                  if not np.isnan(tree.end_be_coord[first_ind]).any():   # if there's no end index for some reason, use starting one???
+                      """ OR ==> should use parent??? """             
+                      cur_be_end = tree.end_be_coord[first_ind]
+                      centroid = cur_be_end[math.floor(len(cur_be_end)/2)]
+                      cur_coords.append(centroid)                      
+                  else:
+                      ### otherwise, just leave ONLY the start index, and nothing else
+                      cur_coords = centroid
+                      cur_be_end = cur_be_start
+                
+                  x = int(centroid[0]); y = int(centroid[1]); z = int(centroid[2])
+                  cur_coords = np.vstack(cur_coords)
+                  
+                  if np.shape(cur_coords)[1] == 1:
+                      cur_coords = np.transpose(cur_coords)
+
                   cur_seg_im = np.zeros(np.shape(input_im))   # maybe speed up here by not creating the image every time???
-                  cur_seg_im[coords[:, 0], coords[:, 1], coords[:, 2]] = 1
+                  cur_seg_im[cur_coords[:, 0], cur_coords[:, 1], cur_coords[:, 2]] = 1
                   
                   # add the centroid as well
                   cur_seg_im[x, y, z] = 1
-
-                  """ GET ALL LAST 2 or 3 coords from parents as well!!!
                   
-                  
-                  
-                  ###########################
-                  
-                  
-                  """
-
-                 
+                  # add the parent
+                  if len(parent_coords) > 0:
+                      cur_seg_im[parent_coords[:, 0], parent_coords[:, 1], parent_coords[:, 2]] = 1
 
                   """ use centroid of object to make seed crop """
                   crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
@@ -309,9 +215,8 @@ for i in range(len(examples)):
                   # THIS IS ORIGINAL BALL DILATION 
                   crop_seed = dilate_by_ball_to_binary(crop_seed, radius=dilation)
 
-                  
-                  """ Limit seed to only smaller size!!! 40 x 40 box in the middle
-                       to cleave off edges. Then use to 
+
+                  """ Check nothing hanging off edges in seed
                   """
                   # also make sure everything is connected to middle point (no loose seeds)
                   crop_seed = convert_matrix_to_multipage_tiff(crop_seed)
@@ -324,701 +229,301 @@ for i in range(len(examples)):
                   crop = np.asarray(crop, np.uint8)
                   crop = np.asarray(crop, np.float32)
                   crop_seed[crop_seed > 0] = 255
-
                     
                   output_PYTORCH = UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=device)
-                  depth_last_tmp = output_PYTORCH
-  
+        
+        
         
                   """ SAVE max projections"""
                   plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
-                                        name=s_path + 'Crop_' + str(first_ind) + '_' + str(iterator) + '_seed.png', pause_time=0.001)
-                  plot_save_max_project(fig_num=2, im=depth_last_tmp, max_proj_axis=-1, title='segmentation', 
-                                        name=s_path + 'Crop_' + str(first_ind) + '_' + str(iterator) + '_segmentation.png', pause_time=0.001)
+                                        name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_seed.png', pause_time=0.001)
+                  plot_save_max_project(fig_num=2, im=output_PYTORCH, max_proj_axis=-1, title='segmentation', 
+                                        name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_segmentation.png', pause_time=0.001)
                   plot_save_max_project(fig_num=3, im=crop, max_proj_axis=-1, title='input', 
-                                        name=s_path + 'Crop_' + str(first_ind) + '_' + str(iterator) + '_input_im.png', pause_time=0.001)
+                                        name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_input_im.png', pause_time=0.001)
 
-
-
-
-
-
-
-
-
-
-                  """ TURN SEGMENTATION INTO skeleton and asses branch points ect... 
-                  
+                  """ TURN SEGMENTATION INTO skeleton and assess branch points ect...                  
                           ***might need to smooth the skeleton???
+                          (0) pre-process unlinked portions that are very close by???                          
+                          (1) use old start_be_coord to find only nearby segments                          
+                          (2) skeletonize everything                          
+                          (3) find branch points + end points                          
+                          (4) create tree node for every branch + end point using the treeify function???                          
+                          (5) ***make sure start from last index with nan child and go backwards always???                                    
+                  """                  
+                  """ (0) PRE-PROCESS unlinked components that are very close by...                   
+                          ***AND delete anything that has previously been identified                  
+                  """                  
+                 
+                  """ Things to fix still:
+                           - ***WHAT IS THE BEST CROPPING +/- 1???
+                           - *** ADD difference between branch point vs. end point in the tree!!! ==> discern by # of children???                                      
+                           *** how to deal with edges being cut off???                                          
+                           
+                           
+                           
+                           
+                           more parents???
+                           dont delete small things???
+                           
+                           
+                           maybe propagate slower??? move only 20 pixels at a time???
+                           
+                           ***also, dilation quite slow right now
+
+        
+                    
+                                ***why not linking nearby things???                 
+                                
+                                
+                                *** why not continuing some seeds??? set the tree to terminate too early???
+                                *** need the spatial W one??? b/c super close to connecting some???
+                                *** what's up with the weird one that bends upwards???
+                           
+                           
+                           
+                           ***circle instead of cube subtraction??? ==> b/c creating bad cut-offs right now
+                           ***linking is still missing a few obvious ones...
+                           ***stop letting it propoagate like crazy if only next to nearby small ones
+                           
+                           *** if new branchpoints are near old one, then all count as the same branchpoint
+                               ***==> REMOVED PARENT node visited below!!!
+                               ****** also added a dilation below
+                               
+                           
+                           
+                           ***spatial weight loss in center???
+                           
+                           
+                      """
+
+                  """ REMOVE EDGE """
+                  dist_xy = 10
+                  dist_z = 2
                   
+                  edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
+                  edge[dist_xy:crop_size * 2-dist_xy, dist_xy:crop_size * 2-dist_xy, dist_z:z_size-dist_z] = 1
+                  edge = np.where((edge==0)|(edge==1), edge^1, edge)
                   
-                  """
+                  output_PYTORCH[edge == 1] = 0
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-                  depth_last_tmp[depth_last_tmp > 0] = 1
-                  seg_test = depth_last_tmp
-                       
-                  """ also only keep segments that are near to end points of the original seed """
-                  crop_seed[crop_seed > 0] = 1
-                  coloc_with_end_points = dil_end_points + seg_test
-                  bw_coloc = coloc_with_end_points > 0
-                  only_coloc = find_overlap_by_max_intensity(bw=seg_test, intensity_map=coloc_with_end_points) 
+                  """ ***FIND anything that has previously been identified """
+                  ### Just current tree???
+                  im = show_tree(tree, track_trees)
+                                    
+                  ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
+                  for cur_tree in all_trees:
+                      im += show_tree(cur_tree, track_trees)
                   
-                  # FIXED, instead of adding giant circles into seg_test final
-                  seg_test[only_coloc == 0] = 0
-                  seg_test = only_coloc
+                  im[im > 0] = 1
+                  crop_prev, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
+                  crop_prev = skeletonize_3d(crop_prev)
+                                    
+                  im_dil = dilate_by_ball_to_binary(crop_prev, radius=3)
                   
-
-
-
-
-
-
-
-
-
-
-                  """ Clean up segmentation by imopen/imclose """
-                  seg_test[crop_seed > 0] = 1
-                  seg_test = dilate_by_ball_to_binary(seg_test, radius=2)
-                  #seg_test = erode_by_ball_to_binary(seg_test, radius=3)    
-                       
+                  ### ***but exclude the center for subtraction
+                  im_sub = subtract_im_no_sub_zero(im_dil, small_center_cube)
                   
-                       
-                  """ Must skeletonize segmentation before saving in track_seg because otherwise will grow iteratively each time with new dilation
-                       so instead, must save ANOTHER array for tracking dilated segmentations if want to keep those...
-                  """
-                  seg_test = skeletonize_3d(seg_test); seg_test[seg_test > 0] = 1
-                  #crop_seed = skeletonize_3d(crop_seed);  crop_seed[crop_seed > 0] = 1
-
-                  """ EXTRA IN SECOND ITERATION ==> DELETE ALL SEGMENTATIONS THAT HAVE ALREADY BEEN IDENTIFIED
-                      BUT, EXCLUDING THOSE WITHIN THE ENDPOINT BEING STUDIED
-                  """
-                  # get crop from previous segmentations
-                  track_seg_crop_delete = final_seg_overall[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] + track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max]
-                  track_seg_crop_delete[track_seg_crop_delete > 0] = 1
-                  track_seg_crop_delete = dilate_by_ball_to_binary(track_seg_crop_delete, radius=2)
 
                   # subtract old parts of image that have been identified in past rounds of segmentation
-                  seg_test = subtract_im_no_sub_zero(seg_test, track_seg_crop_delete)
-       
-                  plot_save_max_project(fig_num=9, im=seg_test, max_proj_axis=-1, title='segmentation_deleted', 
-                              name=s_path + 'Crop_' + str(seed_idx) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001)
-                         
-                                    
-                  """ Add segmentation to track_seg array *** must take actual crop coords from cropping function above"""
-                  track_seg_old = []
-                  track_seg_old = np.copy(track_seg)
+                  output_PYTORCH = subtract_im_no_sub_zero(output_PYTORCH, im_sub)
 
-                  if iterator == 0:
-                       crop_seed = skeletonize_3d(crop_seed);  crop_seed[crop_seed > 0] = 1
-                       track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] + crop_seed + seg_test
-                  else:
-                       """ Add paranodes """
-                       #paranodes = skeletonize_3d(paranodes); paranodes[paranodes > 0] = 1
-                       #seg_test[paranodes > 0] = 2
-                       
-                       """ Also prevent overlap so can have paranodes in value == 2 """
-                       prevent_overlap = track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max]
-                       seg_test[prevent_overlap > 0] = 0
-                       
-                       track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] + seg_test
+                  """ delete all small objects """
+                  # labelled = measure.label(output_PYTORCH)
+                  # cc = measure.regionprops(labelled); 
+                  # cleaned = np.zeros(np.shape(output_PYTORCH))
+                  # for seg in cc:
+                  #      coord = seg['coords']; 
+                  #      if len(coord) > 10:
+                  #          cleaned[coord[:, 0], coord[:, 1], coord[:, 2]] = 1
+                           
+                           
+                  # output_PYTORCH = cleaned
                   
-                  """ Now get a crop that includes what has already been segmented in the area """
-                  track_seg_crop = np.copy(seg_test)
-                  track_seg_crop[track_seg_crop > 0] = 1
-                  crop_seed = dilate_by_ball_to_binary(crop_seed, radius=5)
+                  """ add in crop seed and subtract later??? """
+                  output_PYTORCH = output_PYTORCH + crop_seed
+                  output_PYTORCH[output_PYTORCH > 0] = 1
                   
-                  # error checking to see if empty array
-                  skip, already_visited, list_seed_centers = check_empty(track_seg_crop, already_visited, list_seed_centers, reason='skipped becuase deleted')
-                  if skip: iterator +=1; continue;
+                  """ only keep anything colocalized with center 
                   
-                  """ Then start looking for end-points and append them to the list of points to go to """
-                  degrees, coordinates = bw_skel_and_analyze(track_seg_crop)
-                  degrees[crop_seed == 1] = 0    # NEW TIGER ADDED to subtract out old end points
-
-                  branch_points = np.copy(degrees); branch_points[branch_points != 3] = 0
+                  
+                  **** ONLY DILATE END POINTS THOUGH *** """
+                  degrees, coordinates = bw_skel_and_analyze(output_PYTORCH)
                   end_points = np.copy(degrees); end_points[end_points != 1] = 0
                   
                   
-                  """get coordinates of end points and convert to seed_center on larger image! """
-                  """ Make sure to only get the SINGLE middle point, and NOT the entire endpoint object """
-                  labelled = measure.label(end_points)
-                  cc_end_points = measure.regionprops(labelled); new_ep_coords = []
-                  for end_point in cc_end_points:
-                       ep_center = end_point['centroid']; ep_center = np.asarray(ep_center)
-                       ep_center = scale_coords_of_crop_to_full(ep_center, box_x_min, box_y_min, box_z_min)
-                       new_ep_coords.append(ep_center)   
-                       
-                  """ Include points on edge of image as end_points in "new_ep_coords" array """
-                  # error checking to see if empty array
-                  skip, already_visited, list_seed_centers = check_empty(coordinates, already_visited, list_seed_centers, reason='skipped becuase no coordinates')
-                  if skip: iterator +=1; continue;
-                       
-                  coordinates = np.delete(coordinates, 0, axis=0) # removes first zeros                                 
-                  max_crop_size = crop_size * 2
-                  max_z_size = z_size
-                  for min_max_check in coordinates:
-                       if min_max_check[0] == 0 or min_max_check[1] == 0 or min_max_check[2] == 0 or min_max_check[0] == max_crop_size or min_max_check[1] == max_crop_size or min_max_check[2] == max_z_size:                                            
-                            min_max_check_scaled = scale_coords_of_crop_to_full(min_max_check, box_x_min, box_y_min, box_z_min)
-                            new_ep_coords.append(min_max_check_scaled)
+                  ### BUT ONLY THE END POINTS WITHIN THE CENTRAL CUBE
+                  # exclude_cube = np.copy(center_cube)
+                  # exclude_cube[exclude_cube > 0] = -1
+                  # exclude_cube[exclude_cube == 0] = 1
+                  # exclude_cube[exclude_cube == -1] = 0
+                  # end_points = subtract_im_no_sub_zero(end_points, exclude_cube)
+                  
+                  
+                  end_points = dilate_by_ball_to_binary(end_points, radius=5)       
+                  
+                  """ added a little dilation for the output as well """
+                  
+                  output_PYTORCH = dilate_by_ball_to_binary(output_PYTORCH, radius=1)  
+                  output_PYTORCH = output_PYTORCH + end_points
+                  output_PYTORCH[output_PYTORCH > 0] = 1
+                  output_PYTORCH = skeletonize_3d(output_PYTORCH)
+                  output_PYTORCH[output_PYTORCH > 0] = 1  # line before this sets all values to 255
+                  
+                
+                  # (1) use old start_coords to find only nearby segments
+                  #cur_be_start               
+                  # ***or just use center cube
+                  coloc_with_center = output_PYTORCH + center_cube
+                  only_coloc = find_overlap_by_max_intensity(bw=output_PYTORCH, intensity_map=coloc_with_center) 
+                      
 
-                  """ Skip if empty """
-                  skip, already_visited, list_seed_centers = check_empty(new_ep_coords, already_visited, list_seed_centers, reason='skipped becuase no coordinates')
-                  if skip: iterator +=1; continue;
+                  ### use to see if should skip
+                  sub_seed = subtract_im_no_sub_zero(only_coloc, crop_seed)
                   
-                  """ append the point that we just went to """
-                  already_visited.append(list_seed_centers[0])
-                  del list_seed_centers[0]
-                  
-                  """ Check if point already exists in previous segmentation. If so, skip it"""
-                  if list_seed_centers:
-                       append_lists = np.append(list_seed_centers, new_ep_coords, axis=0)
-                       unique_seed_centers = np.unique(append_lists, axis=0)
+                  # if iterator == 26:
+                  #      zzz
+
+                  """ skip if everything was subtracted out last time: """
+                  if np.count_nonzero(sub_seed) < 5:
+                          tree.visited[first_ind] = 1;
+                          print('Finished')
+                          plot_save_max_project(fig_num=9, im=only_coloc, max_proj_axis=-1, title='segmentation_deleted', 
+                                  name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001)                       
+                          plot_save_max_project(fig_num=10, im=only_coloc, max_proj_axis=-1, title='_final_added', 
+                                  name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_zfinal_added.png', pause_time=0.001) 
+                          iterator += 1
+                          continue                      
+
                   else:
-                       unique_seed_centers = new_ep_coords
-                    
-                  """ also check if already visited. If so, skip it """
-                  not_visited = []
-                  for unique in unique_seed_centers:
-                       bool_visited = 0
-                       for visited in already_visited:
-                            if np.array_equal(unique, visited):
-                                 bool_visited = 1
-                                 break
-                            # IF NOT MORE THAN average 5 pixels away in some dimension, then exclude
-                            elif np.mean(np.abs(unique - visited)) < 2 :
-                                 bool_visited = 1
-                                 break
-                       if not bool_visited:
-                         not_visited.append(unique)
- 
-                  list_seed_centers = not_visited
-                  print('Finished one ep cycle'); plt.close('all')
-                  iterator += 1
-               
-             """ Garbage collection """
-             track_seg_old = [];     
-             
-             final_seg_overall = final_seg_overall + track_seg 
-             
-             coords_track_seg = np.transpose(np.nonzero(track_seg))
-             each_individual_fiber_trace_coords.append(coords_track_seg)
-             
-             print('Seed_idx #: ' + str(seed_idx) + " of possible: " + str(len(sorted_list)))
-                   
-             """ Save max projections and pickle file """
-             plot_save_max_project(fig_num=6, im=final_seg_overall, max_proj_axis=-1, title='overall seg', 
-                                        name=s_path + 'overall_segmentation_' + str(seed_idx) + '_.png', pause_time=0.001)
-             if seed_idx <= 1:
-                  plot_save_max_project(fig_num=7, im=input_im, max_proj_axis=-1, title='input overall', 
-                                        name=s_path + 'input.png', pause_time=0.001)
-             
-             """ Garbage collection """
-             track_seg = []
+
+                      
+                      # (2) skeletonize the output to create "all_neighborhoods" and "all_hood_first_last"                                    
+                      """ Add the old crop back in to ensure correct branch_points ect... 
+                      
+                      and then delete the old crop that matches the original
+                      
+                      """
+                      # only_coloc = only_coloc + crop_seed
+                      # only_coloc[only_coloc > 0] = 1
+                      
+                      """ *** MAKE THIS INTO A FUNCTION to be shared with treeify !!! """
+                      degrees, coordinates = bw_skel_and_analyze(only_coloc)
+                      """ insert the current be neighborhood at center and set to correct index in "degrees"
+                              or add in the endpoint like I just said, but subtract it out to keep the crop_seed separate???                              
+                      """
+                      cur_end = np.copy(cur_be_end)
+                      cur_end = scale_coords_of_crop_to_full(cur_end, -box_x_min - 1, -box_y_min - 1, -box_z_min - 1)
+                      degrees[cur_end[:, 0], cur_end[:, 1], cur_end[:, 2]] = 4
+                      
+
+                      plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 
+                                  name=s_path + 'Crop_' + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001) 
+                      
+                      all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_x_min=box_x_min, box_y_min=box_y_min, box_z_min=box_z_min)
+
+                      """ Find which neighborhood_be matches with cur_be_end to set as new root!!! 
+                              Then delete all the rest of the cur_segs that match with crop_seed
+                      """
+                      check_debug = np.zeros(np.shape(crop))
+                      idx = 0; 
+                      for neighbor_be in all_neighborhoods:
+                         if (cur_be_end[:, None] == neighbor_be).all(-1).any(): 
+                             root_neighborhood = neighbor_be
+                             print('match')
+                             # delete old
+                             all_neighborhoods[idx] = []
+                             
+                         else:
+                             cur = np.copy(neighbor_be)
+                             cur = scale_coords_of_crop_to_full(cur, -box_x_min - 1, -box_y_min - 1, -box_z_min - 1)
+                             check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 1
+                       
+                         idx += 1
+                      # delete cur_segs *** NOT NEEDED
+                      idx = 0
+                      for cur_seg in all_hood_first_last:
+                            if (cur_seg[:, None] == tree.coords[first_ind]).all(-1).any():
+                                  all_hood_first_last[idx] = []
+                            else:
+                               cur = np.copy(cur_seg)
+                               cur = scale_coords_of_crop_to_full(cur, -box_x_min - 1, -box_y_min - 1, -box_z_min - 1)
+                               check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 1                 
+                            
+                            idx += 1
+                     
+                      plot_save_max_project(fig_num=10, im=check_debug, max_proj_axis=-1, title='_final_added', 
+                                  name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_zfinal_added.png', pause_time=0.001) 
+                      
+
+                      """ IF is empty (no following part) """
+                      if len(all_neighborhoods) == 0:
+                          tree.visited[first_ind] = 1;
+                          print('Finished')
+                          iterator += 1
+                          continue
+                      
+                      else:
+                          """ else add to tree """
+                          cur_idx = tree.cur_idx[first_ind]
+                          depth_tree = tree.depth[first_ind] + 1
+                          tree = tree
+                          parent =  tree.parent[first_ind]
+                          #root_neighborhood = all_neighborhoods[0]
+                          
+                          tree, list_ = treeify(tree, depth_tree, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = cur_idx, parent= cur_idx, start=1)
+
+                          ### set "visited" to correct value
+                          # for idx, node in tree.iterrows():
+                          #      if not isListEmpty(node.child):
+                          #          node.visited = 1
+                          #      elif not node.visited:
+                          #          node.visited = np.nan    
+                          
+                          
+                          """ set parent is visited to true """
+                          tree.visited[first_ind] = 1;
+
+                          
         
-        """ Garbage ==> can't save pickle for enormous input """
-        #save_pkl(final_seg_overall, s_path, 'overall_segmentation.pkl')
+                          print('Finished one iteration'); plt.close('all')
+                          iterator += 1
+            
+             num_tree += 1 
+             print('Tree #: ' + str(num_tree) + " of possible: " + str(len(all_trees)))
+             
+                 
+             """ Save max projections and pickle file """
+             im = show_tree(tree, track_trees)
+             plot_save_max_project(fig_num=6, im=im, max_proj_axis=-1, title='overall seg', 
+                                        name=s_path + 'overall_segmentation_' + str(num_tree) + '_.png', pause_time=0.001)
+
+             """ Save max projections and pickle file """
+             im[im > 0] = 1
+             plot_save_max_project(fig_num=7, im=im, max_proj_axis=-1, title='overall seg', 
+                                        name=s_path + 'overall_segmentation_BW' + str(num_tree) + '_.png', pause_time=0.001)        
+
+
+        
+
+
+        print('save entire tree')
+        ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
+        for cur_tree in all_trees:
+            im += show_tree(cur_tree, track_trees)
+        im[im > 0] = 1
+        plot_save_max_project(fig_num=7, im=im, max_proj_axis=-1, title='overall seg', 
+                                   name=s_path + 'overall_segmentation_BW' + str(num_tree) + '_.png', pause_time=0.001)        
+
         print("Saving after first iteration")
         final_seg_overall = convert_matrix_to_multipage_tiff(final_seg_overall)
         imsave(s_path + 'overall_output_1st_iteration.tif', np.asarray(final_seg_overall * 255, dtype=np.uint8))
 
 
 
-
-
-
-
-
-
-
-
-
-        """ Create sphere in middle to expand net of matching """
-        ball_in_middle = np.zeros([input_size,input_size, z_size])
-        ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
-        ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=30)
-        dil_end_points = ball_in_middle_dil
-
-
-
-
-
-
-
-
-
-
-
-
-#         """ If change to right teeter, must set delete from list as right teeter as well """
-
-#          ## Getting back the objects:        
-#          #with open(s_path + 'overall_segmentation.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-#          #    loaded = pickle.load(f)
-#          #    final_seg_overall = loaded[0] 
-
-
-#         final_seg_overall = convert_multitiff_to_matrix(final_seg_overall)
-
-#         """ Second iteration of analysis, same as before, but now use end points from previous mask
-#                  ***AND SUBTRACT OUT THE ORIGINAL SPACE THAT HAS BEEN SURVEYED ALREADY EVERY TIME YOU RUN THE ANALYSIS
-#         """
-#         second_iter_each_individual_fiber_trace_coords = []
-#         second_iter_branch_number = []
-#         trace_idx = 0
-#         min_trace_size = 20 # pixels from 1st iteration, or skip here
-        
-#         each_individual_fiber_trace_coords = sorted(each_individual_fiber_trace_coords, key=len, reverse=True)  
-#         for trace in each_individual_fiber_trace_coords:
-             
-#              trace = each_individual_fiber_trace_coords[trace_idx]
-             
-#              """ also skip trace if too short ==> thres == 10 for 2nd ieration """
-#              if len(trace) < min_trace_size: trace_idx += 1; continue;             
-             
-#              trace_mask = np.zeros(np.shape(input_im))
-#              trace_idx += 1
-# #             for idx_trace in range(len(trace)):
-# #                  trace_mask[trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]] = 1
-# #                  
-# #             """ add endpoints to a new list of points to visit (seed_idx) """
-# #             degrees, coordinates = bw_skel_and_analyze(trace_mask)
-# #             end_points = np.copy(degrees); end_points[end_points != 1] = 0
-# #             coords_end_points = np.transpose(np.nonzero(end_points))
-             
-             
-#              centroid = []
-#              for idx_trace in range(len(trace)):
-#                   trace_mask[trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]] = 1
-#                   if idx_trace == int(len(trace)/2):
-#                        centroid = [trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]]
-
-
-#              """ FOR LARGER IMAGE WILL GO OUT OF MEMORY IF DONT CROP HERE """
-#              #labelled = measure.label(trace_mask)
-#              #cc_coloc = measure.regionprops(labelled)
-     
-#              #overall_coord = np.asarray(cc_coloc[0]['centroid']);
-#              centroid[0] = int(centroid[0]);
-#              centroid[1] = int(centroid[1]);
-#              centroid[2] = int(centroid[2]);
-             
-#              """ MAYBE DILATE AS CROPS INSTEAD """    
-#              x = int(overall_coord[0])
-#              y = int(overall_coord[1])
-#              z = int(overall_coord[2])
-#              crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(trace_mask, y, x, z, 
-#                                      crop_size=500, z_size=100, height=height_tmp, width=width_tmp, depth=depth_tmp)
-#              crop_trace_mask = crop
-             
-#              """ add endpoints to a new list of points to visit (seed_idx) """
-#              degrees, coordinates = bw_skel_and_analyze(crop_trace_mask)
-#              end_points = np.copy(degrees); end_points[end_points != 1] = 0
-#              coords_end_points = np.transpose(np.nonzero(end_points))
-
-#              """ FIX ==> also added to scale cropped images instead """
-#              new_ep_coords = []
-#              for end_point in coords_end_points:
-#                   #ep_center = end_point['centroid']; ep_center = np.asarray(ep_center)
-#                   ep_center = scale_coords_of_crop_to_full(end_point, box_x_min, box_y_min, box_z_min)
-#                   new_ep_coords.append(ep_center)   
-#              coords_end_points = new_ep_coords
-             
-                  
-#              """ Then loop exactly as same above except for the subtraction of the trace_seg_mask from iteration #1 """
-#              """ Now start looping through each seed point to crop out the image """
-#              """ Make a list of centroids to keep track of all the new locations to visit """
-#              for seed_idx in range(len(coords_end_points)): # extra 2nd iter
-#                   seed_center = coords_end_points[seed_idx]  # extra 2nd iter
-#                   seed_center = np.asarray(seed_center)  
-#                   seed_center[0] = int(seed_center[0]); seed_center[1] = int(seed_center[1]); seed_center[2] = int(seed_center[2])
-     
-#                   list_seed_centers = []
-#                   list_seed_centers.append(seed_center)
-#                   already_visited = []
-                               
-#                   """ EXTRA: 2nd iter: use trace_mask instead """
-#                   track_seg = trace_mask
-     
-#                   """ Keep looping until there are no more seed centers to visit """  
-#                   iterator = 0
-#                   while list_seed_centers:   
-#                        """ Garbage collection """
-#                        crop = []; crop_trace_mask = []; degrees = [];
-#                        end_points = []; labelled = []; only_colocalized_mask = []; #trace_mask = [];
-
-#                        batch_x = []; batch_y = []; weights = [];
-#                        """ *************** switch to teeter right in 2nd iteration by always sampling the LAST seed_center idx *********** """
-#                        x = int(list_seed_centers[0][0]); y = int(list_seed_centers[0][1]); z = int(list_seed_centers[0][2])
-#                        #height_tmp = width_tmp = input_tmp_size   # NEED TO FIX THIS, get actual input im size
-#                        #depth_tmp = depth_tmp_size
-     
-     
-#                        """ EXTRA: 2nd iter remove this, use trace_mask instead """
-#                        #if iterator == 0: track_seg_old = np.zeros(np.shape(input_im))
-#                        """ ALSO EXTRA FOR 2nd iteration ==> change iterator > 0 instead of iterator > 3"""     
-#                        if iterator > 1000 and track_seg_old[x,y,z] > 0:
-#                             print('skipped')
-#                             already_visited.append(list_seed_centers[0])
-#                             del list_seed_centers[0]
-#                             iterator += 1
-#                             continue;    
-     
-#                        """ use centroid of object to make seed crop """
-#                        crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
-#                        crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(track_seg, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
-     
-                            
-#                        # crop_seed = dilate_by_ball_to_binary(crop_seed, radius=1)    
-#                        # """ limit to only seed in the middle minus all branchpoints """
-#                        # #center_cube
-#                        # crop_seed[crop_seed > 0] = 1                  
-#                        # test = skeletonize_3d(crop_seed);  test[test > 0] = 1
-#                        # degrees, coordinates = bw_skel_and_analyze(test)
-#                        # branch_points = np.copy(degrees); branch_points[branch_points != 3] = 0   
-                       
-#                        # test[branch_points > 0 ] = 0 
-#                        # coloc_with_end_points = test + center_cube
-                       
-#                        # only_coloc = find_overlap_by_max_intensity(bw=test, intensity_map=coloc_with_end_points) 
-#                        # crop_seed = only_coloc
-                            
-#                        if np.count_nonzero(crop_seed) <= 10:
-#                             crop_seed[:, :, :] = 0                           
-     
-#                        """ Dilate the seed by sphere 2 to mimic training data """
-#                        # THIS IS ORIGINAL BALL DILATION 
-#                        crop_seed = dilate_by_ball_to_binary(crop_seed, radius=dilation)
-     
-                       
-#                        """ Limit seed to only smaller size!!! 40 x 40 box in the middle """
-                       
-#                        #crop_seed[seed_limiting_box == 0] = 0;
-     
-                            
-#                        # also make sure everything is connected to middle point (no loose seeds)
-#                        crop_seed = convert_matrix_to_multipage_tiff(crop_seed)
-#                        crop_seed = np.expand_dims(crop_seed, axis=-1)
-#                        crop_seed = check_resized(crop_seed, depth, width_max=input_size, height_max=input_size)
-#                        crop_seed = crop_seed[:, :, :, 0]
-#                        crop_seed = convert_multitiff_to_matrix(crop_seed)
-                       
-                            
-#                        """ Send to segmentor!!! """
-#                        #batch_x = []; batch_y = []; weights = [];
-#                        crop = np.asarray(crop, np.uint8)
-#                        crop = np.asarray(crop, np.float32)
-#                        crop_seed[crop_seed > 0] = 255
-     
-#                        depth_last_tmp, batch_x, batch_y, weights, input_im_save, output_softMax = UNet_inference(crop, crop_seed, batch_x, batch_y, weights, mean_arr, std_arr, x_3D, y_3D_, weight_matrix_3D, softMaxed, training, num_truth_class)
-             
-          
-                       
-#                        """ Also save/extract paranodes """
-#                        paranodes = np.copy(depth_last_tmp)
-                       
-                       
-#                        depth_last_tmp[depth_last_tmp > 0] = 1
-#                        seg_test = depth_last_tmp
-                       
-#                        """ SAVE max projections"""
-#                        plot_save_max_project(fig_num=11, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
-#                                              name=s_path + '_' + '_2nd_iter_' + str(trace_idx) +  '_' + str(seed_idx) + '_' + str(iterator) + '_seed_crop.png', pause_time=0.001)
-#                        plot_save_max_project(fig_num=12, im=depth_last_tmp, max_proj_axis=-1, title='segmentation', 
-#                                              name=s_path + '_' + '_2nd_iter_' + str(trace_idx) +  '_' + str(seed_idx) + '_' + str(iterator) + '_segmentation.png', pause_time=0.001)
-#                        plot_save_max_project(fig_num=13, im=crop, max_proj_axis=-1, title='input', 
-#                                              name=s_path + '_' + '_2nd_iter_' + str(trace_idx) +  '_' + str(seed_idx) + '_' + str(iterator) + '_input_crop.png', pause_time=0.001)
-                       
-
-                       
-#                        """ also only keep segments that are near to end points of the original seed """
-#                        crop_seed[crop_seed > 0] = 1
-#                        #crop_seed = skeletonize_3d(crop_seed);  crop_seed[crop_seed > 0] = 1
-#                        #
-#                        #degrees, coordinates = bw_skel_and_analyze(crop_seed)
-#                        #end_points = np.copy(degrees); end_points[end_points != 1] = 0                  
-#                        #dil_end_points = dilate_by_ball_to_binary(end_points, radius=10)
-                      
-#                        coloc_with_end_points = dil_end_points + seg_test
-#                        bw_coloc = coloc_with_end_points > 0
-
-#                        #only_coloc = find_overlap_by_max_intensity(bw=bw_coloc, intensity_map=coloc_with_end_points)   # WRONG!!!
-#                        only_coloc = find_overlap_by_max_intensity(bw=seg_test, intensity_map=coloc_with_end_points) 
-                  
-                    
-#                        seg_test[only_coloc == 0] = 0
-#                        seg_test = only_coloc
-                       
-#                        """ Only keep paranodes that are colocalized as well """
-#                        paranodes[paranodes < 2] = 0
-#                        paranodes[paranodes > 0] = 1
-#                        paranodes[seg_test == 0] = 0
-                       
-#                        """ and delete paranodes from seg_test for stopping error propagation """
-#                        seg_test[paranodes > 0] = 0
-#                        #if np.count_nonzero(paranodes):
-#                        #     zzzzzz
-                                              
-  
-#                        """ Clean up segmentation by imopen/imclose """
-#                        seg_test[crop_seed > 0] = 1
-#                        seg_test = dilate_by_ball_to_binary(seg_test, radius=2)
-#                        #seg_test = erode_by_ball_to_binary(seg_test, radius=3)     
-
-                     
-#                        """ Must skeletonize segmentation before saving in track_seg because otherwise will grow iteratively each time with new dilation
-#                             so instead, must save ANOTHER array for tracking dilated segmentations if want to keep those...
-#                        """
-#                        seg_test = skeletonize_3d(seg_test); seg_test[seg_test > 0] = 1
-#                        #crop_seed = skeletonize_3d(crop_seed);  crop_seed[crop_seed > 0] = 1
-                       
-                       
-
-#                        """ no longer EXTRA IN SECOND ITERATION ==> DELETE ALL SEGMENTATIONS THAT HAVE ALREADY BEEN IDENTIFIED
-#                            BUT, EXCLUDING THOSE WITHIN THE ENDPOINT BEING STUDIED
-#                        """
-#                        ## end point being studied:                      
-#                        #cur_ep = np.zeros(np.shape(crop_seed))
-#                        #cur_ep[x - box_x_min,y - box_y_min,z - box_z_min] = 1
-#                        #dil_cur_ep = dilate_by_cube_to_binary(cur_ep, width=5)
-                       
-#                        # get crop from previous segmentations
-#                        #track_seg_crop_delete = final_seg_overall[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max]
-#                        #track_seg_crop_delete = dilate_by_ball_to_binary(track_seg_crop_delete, radius=2)
-                       
-#                        ## exclude regions of the end point (so keep them in the final analysis)
-#                        #track_seg_crop_delete = subtract_im_no_sub_zero(track_seg_crop_delete, dil_cur_ep)
-                       
-#                        # subtract old parts of image that have been identified in past rounds of segmentation
-#                        #seg_test = subtract_im_no_sub_zero(seg_test, track_seg_crop_delete)
-                       
-#                        """ Changed to this from first round """      
-#                        # get crop from previous segmentations
-#                        track_seg_crop_delete = final_seg_overall[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] + track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max]
-#                        track_seg_crop_delete[track_seg_crop_delete > 0] = 1
-#                        track_seg_crop_delete = dilate_by_ball_to_binary(track_seg_crop_delete, radius=2)
-     
-#                        # subtract old parts of image that have been identified in past rounds of segmentation
-#                        seg_test = subtract_im_no_sub_zero(seg_test, track_seg_crop_delete)                       
-                            
-                       
-#                        plot_save_max_project(fig_num=14, im=seg_test, max_proj_axis=-1, title='segmentation_deleted', 
-#                                              name=s_path + '_' + '_2nd_iter_' + str(trace_idx) + '_' + str(seed_idx) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001)
-         
-  
-#                        """ Add paranodes """
-#                        paranodes = skeletonize_3d(paranodes); paranodes[paranodes > 0] = 1
-#                        seg_test[paranodes > 0] = 2
-
-                       
-#                        """ Also prevent overlap so can have paranodes in value == 2 """
-#                        prevent_overlap = track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max]
-#                        seg_test[prevent_overlap > 0] = 0
-                       
-                       
-#                        """ Add segmentation to track_seg array *** must take actual crop coords from cropping function above"""
-#                        track_seg_old = np.copy(track_seg)
-#                        track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] + seg_test
-                       
-#                        """ Now get a crop that includes what has already been segmented in the area """
-#                        #track_seg_crop = np.copy(track_seg[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max])
-#                        #track_seg_crop[track_seg_crop > 0] = 1
-#                        track_seg_crop = np.copy(seg_test)
-#                        track_seg_crop[track_seg_crop > 0] = 1
-
-#                        crop_seed = dilate_by_ball_to_binary(crop_seed, radius=5)
-                       
-
-#                        """ EXTRA: also delete old areas here """
-#                        seg_test_deleted = track_seg_crop - track_seg_crop_delete
-#                        seg_test_deleted[seg_test_deleted < 0] = 0
-#                        track_seg_crop = seg_test_deleted
-                       
-                       
-#                        """ Delete anything that is only 1 pixel large """
-#                        intensity_map = np.copy(track_seg_crop)
-#                        intensity_map[track_seg_crop > 0] = 2
-#                        track_seg_crop = find_overlap_by_max_intensity(bw=track_seg_crop, intensity_map=intensity_map, min_size_obj=1)                 
-                       
-#                        # error checking to see if empty array
-#                        skip, already_visited, list_seed_centers = check_empty(track_seg_crop, already_visited, list_seed_centers, reason='skipped becuase deleted')
-#                        if skip: iterator +=1; continue;                  
-     
-#                        """ Then start looking for end-points and append them to the list of points to go to """
-#                        degrees, coordinates = bw_skel_and_analyze(track_seg_crop)
-#                        degrees[crop_seed == 1] = 0    # NEW TIGER ADDED to subtract out old end points
-
-                       
-#                        branch_points = np.copy(degrees); branch_points[branch_points != 3] = 0
-#                        end_points = np.copy(degrees); end_points[end_points != 1] = 0
-                       
-#                        """get coordinates of end points and convert to seed_center on larger image! """
-#                        """ Make sure to only get the SINGLE middle point, and NOT the entire endpoint object """
-#                        labelled = measure.label(end_points)
-#                        cc_end_points = measure.regionprops(labelled); new_ep_coords = []
-#                        for end_point in cc_end_points:
-#                             ep_center = end_point['centroid']; ep_center = np.asarray(ep_center)
-#                             ep_center = scale_coords_of_crop_to_full(ep_center, box_x_min, box_y_min, box_z_min)
-#                             new_ep_coords.append(ep_center)   
-                            
-#                        """ Include points on edge of image as end_points in "new_ep_coords" array """
-#                        # error checking to see if empty array
-#                        skip, already_visited, list_seed_centers = check_empty(coordinates, already_visited, list_seed_centers, reason='skipped becuase no coordinates')
-#                        if skip: iterator +=1; continue;
-                            
-#                        coordinates = np.delete(coordinates, 0, axis=0) # removes first zeros
-#                        max_crop_size = crop_size * 2
-#                        max_z_size = z_size
-#                        for min_max_check in coordinates:
-#                             if min_max_check[0] == 0 or min_max_check[1] == 0 or min_max_check[2] == 0 or min_max_check[0] == max_crop_size or min_max_check[1] == max_crop_size or min_max_check[2] == max_z_size:                                            
-#                                  min_max_check_scaled = scale_coords_of_crop_to_full(min_max_check, box_x_min, box_y_min, box_z_min)
-#                                  new_ep_coords.append(min_max_check_scaled)
-                                 
-#                        """ Skip if empty """
-#                        skip, already_visited, list_seed_centers = check_empty(new_ep_coords, already_visited, list_seed_centers, reason='skipped becuase no coordinates')
-#                        if skip: iterator +=1; continue;
-
-                                 
-#                        """ append the point that we just went to """
-#                        already_visited.append(list_seed_centers[0])
-#                        del list_seed_centers[0]
-                       
-#                        """ Check if point already exists in previous segmentation. If so, skip it"""
-#                        if list_seed_centers and len(np.unique(new_ep_coords)) > 0:
-#                             append_lists = np.append(list_seed_centers, new_ep_coords, axis=0)
-#                             unique_seed_centers = np.unique(append_lists, axis=0)
-#                        else:
-#                             unique_seed_centers = new_ep_coords
-                         
-#                        """ also check if already visited. If so, skip it """
-#                        not_visited = []
-#                        for unique in unique_seed_centers:
-#                             bool_visited = 0
-#                             for visited in already_visited:
-#                                  if np.array_equal(unique, visited):
-#                                       bool_visited = 1
-#                                       break
-#                                  # IF NOT MORE THAN average 2 pixels away in some dimension, then exclude
-#                                  elif np.mean(np.abs(unique - visited)) < 2 :
-#                                       bool_visited = 1
-#                                       break
-#                             if not bool_visited:
-#                               not_visited.append(unique)
-      
-#                        list_seed_centers = not_visited
-#                        print('Finished one ep cycle'); plt.close('all')
-#                        iterator += 1
-
-#                   """ Garbage collection """
-#                   track_seg_old = [];     
-                       
-#                   final_seg_overall = final_seg_overall + track_seg 
-                  
-#                   coords_track_seg = np.transpose(np.nonzero(track_seg))
-#                   second_iter_each_individual_fiber_trace_coords.append(coords_track_seg)
-#                   second_iter_branch_number.append(trace_idx - 1)
-                  
-#                   print('Seed_idx #: ' + str(seed_idx))
-
-#                   """ Garbage collection """
-#                   track_seg = [];     
-
-                        
-#              """ Save max projections and pickle file """
-#              plot_save_max_project(fig_num=20, im=final_seg_overall, max_proj_axis=-1, title='overall seg', 
-#                                         name=s_path + 'overall_segmentation_2nd_iter_' + str(trace_idx - 1) + '.png', pause_time=0.001)
-#              final_seg_overall[final_seg_overall > 0] = 1
-#              plot_save_max_project(fig_num=21, im=final_seg_overall, max_proj_axis=-1, title='input overall', 
-#                                         name=s_path + 'overall_segmentation_2nd_iter_BINARY_' + str(trace_idx - 1) + '.png', pause_time=0.001)
-                        
-             
-#         """ Save as outputs """
-#         print("Saving post-processed distance thresheded images")
-#         final_seg_overall = convert_matrix_to_multipage_tiff(final_seg_overall)
-#         imsave(s_path + 'overall_output_2nd_iteration.tif', np.asarray(final_seg_overall * 255, dtype=np.uint8))
-#         #final_seg_overall = convert_matrix_to_multipage_tiff(final_seg_overall)
-#         #imsave(s_path + 'overall_output.tif', final_seg_overall)
-        
- 
-
-
-
-
-
-
-     # (1) Add take away the mean value elim
-     # (2) Always sort from largest to smallest seeds and start with largest, (also put in min threshold?)
-
-
-
-        """ Post-processing: """
-        combine_first_and_second_iter = []        
-        for trace_idx in range(len(each_individual_fiber_trace_coords)):
-             trace = each_individual_fiber_trace_coords[trace_idx]
-             
-             for second_trace_idx in range(len(second_iter_branch_number)):
-                  branch_num = second_iter_branch_number[second_trace_idx]
-                  branch_coords = second_iter_each_individual_fiber_trace_coords[second_trace_idx]
-                  
-                  if trace_idx != branch_num:
-                       continue;
-                  elif branch_num > trace_idx:
-                       break;
-                  else:   # add to branch if the branch_num == trace_idx
-                       trace = np.append(trace, branch_coords, axis=0)
-                       trace = np.unique(trace, axis=0)
-                       
-                       print('appended')
-                       
-             combine_first_and_second_iter.append(trace)           
-             
-        """ Create array from list of each individual trace 
-            Maybe should sort by size??? so plot the largest sheaths first, and then if the small ones coloc, then ignore them?
-        """
-        sorted_list = sorted(combine_first_and_second_iter, key=len, reverse=True) 
-        all_traces_rainbow = np.zeros(np.shape(input_im))
-        for trace in sorted_list:
-             rand_val = randint(1,10)
-             for idx_trace in range(len(trace)):
-                  # only add to trace rainbow if NOT equal to zero in that spot
-                  if all_traces_rainbow[trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]] == 0:
-                         all_traces_rainbow[trace[idx_trace][0], trace[idx_trace][1], trace[idx_trace][2]] = rand_val          
-        
        
-        plot_save_max_project(fig_num=100, im=all_traces_rainbow, max_proj_axis=-1, title='trace rainbow', 
-                          name=s_path + 'overall_TRACE_RAINBOW.png', pause_time=0.001)
-        
-        """ Also save pickle files"""
-        save_pkl(all_traces_rainbow, s_path, 'FINAL_overall_TRACE_RAINBOW.pkl')
-        save_pkl(each_individual_fiber_trace_coords, s_path, 'FINAL_1st_iter_individual_trace_coords.pkl')
-        save_pkl(second_iter_branch_number, s_path, 'FINAL_2nd_iter_branch_nums.pkl')
-        save_pkl(second_iter_each_individual_fiber_trace_coords, s_path, 'FINAL_2nd_iter_individual_trace_coords.pkl')
-
-
-                               
-        """ Save as outputs """
-        print("Saving trace rainbow")
-        save_rainbow = convert_matrix_to_multipage_tiff(all_traces_rainbow)
-        imsave(s_path + 'overall_TRACE_RAINBOW.tif', np.asarray(save_rainbow * 255, dtype=np.uint8))
-
-        # In imageJ ==> select colorscale glaseby_on_dark ==> convert to RGB ==> then make 3D projection
-
-        
-        
         
         
         

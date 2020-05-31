@@ -25,6 +25,8 @@ from skimage.filters import threshold_local
 import torch
 import scipy     
 
+
+
 """ (1) Load input and parse into seeds """
 def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
      """ Load input image """
@@ -126,9 +128,9 @@ def subtract_im_no_sub_zero(arr1, arr2):
 
 """ Given coords of shape x, y, z in a cropped image, scales back to size in full size image """
 def scale_coords_of_crop_to_full(coords, box_x_min, box_y_min, box_z_min):
-        coords[0] = int(coords[0]) + box_x_min   # SCALING the ep_center
-        coords[1] = int(coords[1]) + box_y_min
-        coords[2] = int(coords[2]) + box_z_min
+        coords[:, 0] = np.round(coords[:, 0]) + box_x_min   # SCALING the ep_center
+        coords[:, 1] = np.round(coords[:, 1]) + box_y_min
+        coords[:, 2] = np.round(coords[:, 2]) + box_z_min
         scaled = coords
         return scaled  
 
@@ -395,7 +397,7 @@ def UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=None
 
 
 """ Prompts user with scrolling tile to select cell of interest """
-def GUI_cell_selector(depth_last, crop_size, z_size,  height_tmp, width_tmp, depth_tmp):
+def GUI_cell_selector(depth_last, crop_size, z_size,  height_tmp, width_tmp, depth_tmp, thresh=0):
 
         """ Interactive click event to select seed point """
         def onclick(event):
@@ -441,58 +443,60 @@ def GUI_cell_selector(depth_last, crop_size, z_size,  height_tmp, width_tmp, dep
         overall_coord = [int(coords[0][1]), int(coords[0][0]), z_position]
         plt.close(1)
          
+        only_colocalized_mask = []
+        if thresh:
 
-        """ Faster is to crop """
-        x = overall_coord[0]
-        y = overall_coord[1]
-        z = overall_coord[2]
-        depth_last_crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(depth_last, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
-        #input_im = crop   
-
-        """ Binarize and then use distant transform to locate cell bodies """
-        thresh = threshold_otsu(depth_last_crop)
-        binary = depth_last_crop > thresh
-           
-        """ Maybe faster/more efficient way is to just do distance transform on each 2D slice in stack"""
-        #dist1 = scipy.ndimage.distance_transform_edt(binary, sampling=[1,1,1])
-             
-        print('Distance transform')
-        # DO SLICE BY SLICE
-        dist1 = np.zeros(np.shape(binary))
-        for slice_idx in range(len(binary[0, 0, :])):
-            tmp = scipy.ndimage.distance_transform_edt(binary[:, :, slice_idx], sampling=1)
-            dist1[:, :, slice_idx] = tmp
-             
-        print('Distance transform completed')
-         
-        # Then threshold based on distance transform
-        thresh = 10 # pixel distance
-        binary = dist1 > thresh
+            """ Faster is to crop """
+            x = overall_coord[0]
+            y = overall_coord[1]
+            z = overall_coord[2]
+            depth_last_crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(depth_last, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
+            #input_im = crop   
+    
+            """ Binarize and then use distant transform to locate cell bodies """
+            thresh = threshold_otsu(depth_last_crop)
+            binary = depth_last_crop > thresh
+               
+            """ Maybe faster/more efficient way is to just do distance transform on each 2D slice in stack"""
+            #dist1 = scipy.ndimage.distance_transform_edt(binary, sampling=[1,1,1])
                  
-        
-        """ restore crop """
-        binary_restore = np.zeros(np.shape(depth_last))
-        binary_restore[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = binary
-        
-        
-        """ Then colocalize with coords to get mask """
-        labelled = measure.label(binary_restore)
-        cc_overlap = measure.regionprops(labelled)
-         
-        match = 0
-        matching_blob_coords = []
-        for cc in cc_overlap:
-             coords_blob = cc['coords']
-             for idx in coords_blob:     
-                 if (idx == np.asarray(overall_coord)).all():
-                     match = 1
-             if match:
-                 match = 0
-                 matching_blob_coords = coords_blob
-                 print('matched')            
+            print('Distance transform')
+            # DO SLICE BY SLICE
+            dist1 = np.zeros(np.shape(binary))
+            for slice_idx in range(len(binary[0, 0, :])):
+                tmp = scipy.ndimage.distance_transform_edt(binary[:, :, slice_idx], sampling=1)
+                dist1[:, :, slice_idx] = tmp
                  
-        only_colocalized_mask = np.zeros(np.shape(depth_last))
-        for idx in range(len(matching_blob_coords)):
-             only_colocalized_mask[matching_blob_coords[idx][0], matching_blob_coords[idx][1], matching_blob_coords[idx][2]] = 255
+            print('Distance transform completed')
+             
+            # Then threshold based on distance transform
+            thresh = 10 # pixel distance
+            binary = dist1 > thresh
+                     
+            
+            """ restore crop """
+            binary_restore = np.zeros(np.shape(depth_last))
+            binary_restore[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = binary
+            
+            
+            """ Then colocalize with coords to get mask """
+            labelled = measure.label(binary_restore)
+            cc_overlap = measure.regionprops(labelled)
+             
+            match = 0
+            matching_blob_coords = []
+            for cc in cc_overlap:
+                 coords_blob = cc['coords']
+                 for idx in coords_blob:     
+                     if (idx == np.asarray(overall_coord)).all():
+                         match = 1
+                 if match:
+                     match = 0
+                     matching_blob_coords = coords_blob
+                     print('matched')            
+                     
+            only_colocalized_mask = np.zeros(np.shape(depth_last))
+            for idx in range(len(matching_blob_coords)):
+                 only_colocalized_mask[matching_blob_coords[idx][0], matching_blob_coords[idx][1], matching_blob_coords[idx][2]] = 255
          
         return only_colocalized_mask, overall_coord

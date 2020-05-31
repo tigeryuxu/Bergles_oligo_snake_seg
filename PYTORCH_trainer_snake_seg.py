@@ -61,7 +61,7 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     print(device)
     
     
@@ -98,8 +98,9 @@ if __name__ == '__main__':
     
     #s_path = './(19) Checkpoint_AdamW_batch_norm_HD_and_CE/'
     
-    s_path = './(20) Checkpoint_AdamW_batch_norm_7x7/'
+    #s_path = './(20) Checkpoint_AdamW_batch_norm_7x7/'
     
+    s_path = './(21) Checkpoint_AdamW_batch_norm_3x_branched/'
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
     
@@ -120,7 +121,7 @@ if __name__ == '__main__':
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
     std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
 
-    num_workers = 1;
+    num_workers = 4;
  
     save_every_num_epochs = 1;
     plot_every_num_epochs = 1;
@@ -129,6 +130,7 @@ if __name__ == '__main__':
     #dist_loss = 0
     dist_loss = 0
     both = 0
+    branch_bool = 1
     if both:
         loss_function_2 = torch.nn.CrossEntropyLoss()
         #loss_function = HDDTBinaryLoss(); dist_loss = 1
@@ -161,8 +163,7 @@ if __name__ == '__main__':
         loss_function = torch.nn.CrossEntropyLoss(reduction='none')
         #kwargs = {"alpha": 0.5, "gamma": 2.0, "reduction": 'none'}
         #loss_function = kornia.losses.FocalLoss(**kwargs)
-        
-      
+
         
         """ ****** DISTANCE LOSS FUNCTIONS *** CHECK IF NEED TO BE (X,Y,Z) format??? """
         # DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
@@ -188,7 +189,7 @@ if __name__ == '__main__':
 
 
         """ Add scheduler """
-        
+
         # *** IF WITH ADAM CYCLING ==> set cycle_momentum == False
         #scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=1e-7, max_lr=1e-3, step_size_up=2000, step_size_down=None, 
         #                                              mode='triangular', gamma=1.0, scale_fn=None, scale_mode='cycle', 
@@ -269,17 +270,46 @@ if __name__ == '__main__':
 
         resume = 1
 
-
-
-
     """ Load filenames from tiff """
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
     images.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
     examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop')) for i in images]
     counter = list(range(len(examples)))
     
+    
+    """ Find all indices with _branch so can double them """
+    # images_branched = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop_BRANCHED.tif'))
+    # all_branch_idx = []
+    # for filename, idx in zip(images, range(len(images))):
+    #     for file_branch, branch_idx in zip(images_branched, range(len(images_branched))):
+    #         filename = filename.split('/')[-1]
+    #         filename = filename.split('crop.tif')[0]
+            
+    #         file_branch = file_branch.split('/')[-1]
+    #         file_branch = file_branch.split('crop_BRANCHED.tif')[0]
+            
+    #         if filename == file_branch:
+    #             #print('matched')
+    #             all_branch_idx.append(idx)
+    #             break;
+
+    # np.save(all_branch_idx, './normalize/all_branch_idx.npy')
+    
+    all_branch_idx = np.load('./normalize/all_branch_idx.npy')
+    
     if not resume:
         idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
+        
+        
+        ### DOUBLES anything that is a branch_idx
+        if branch_bool:
+            match = set(idx_train) & set(all_branch_idx)
+            idx_train = idx_train + list(match) + list(match)
+            
+            # match = set(idx_valid) & set(all_branch_idx)
+            # idx_valid = idx_valid + list(match) + list(match)
+            
+        
         
     training_set = Dataset_tiffs_snake_seg(idx_train, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = transforms)
     val_set = Dataset_tiffs_snake_seg(idx_valid, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = 0)

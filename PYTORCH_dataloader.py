@@ -257,7 +257,7 @@ def initialize_transforms_simple(p=0.5):
            #RandomBlur(std = (0, 4), p = p, seed=None),
            
            #RandomNoise(mean = 0, std = (0, 0.25), p = p, seed = None),
-           RescaleIntensity((0, 255))
+           #RescaleIntensity((0, 255))
            
      ]
      transform = Compose(transforms)

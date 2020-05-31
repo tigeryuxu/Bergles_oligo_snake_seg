@@ -32,6 +32,13 @@ from skimage.morphology import skeletonize_3d, skeletonize
 import skimage
 
 
+""" checks if nested lists are empty """
+def isListEmpty(inList):
+    if isinstance(inList, list): # Is a list
+        return all( map(isListEmpty, inList) )
+    return False # Not a list
+                        
+        
 """ dilates image by a spherical ball of size radius """
 def erode_by_ball_to_binary(input_im, radius):
      ball_obj = skimage.morphology.ball(radius=radius)
