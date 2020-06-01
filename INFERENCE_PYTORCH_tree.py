@@ -7,7 +7,6 @@ Created on Sunday Dec. 24th
 import matplotlib
 matplotlib.rc('xtick', labelsize=8) 
 matplotlib.rc('ytick', labelsize=8) 
-#matplotlib.use('Agg')
 matplotlib.use('Qt5Agg')
 
 
@@ -44,6 +43,9 @@ from tree_functions import *
 from skimage.morphology import skeletonize_3d, skeletonize
 
 
+from scipy.spatial import distance 
+from skimage.draw import line_nd
+
 """ Define GPU to use """
 import torch
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -56,7 +58,7 @@ pregenerated = 1
 check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1
 check_path ='./(15) Checkpoint_AdamW_batch_norm_SPATIALW/'; dilation = 1
 #check_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'; dilation = 1
-check_path = './(21) Checkpoint_AdamW_batch_norm_3x_branched/'; dilation = 1
+#check_path = './(21) Checkpoint_AdamW_batch_norm_3x_branched/'; dilation = 1
 
 s_path = check_path + 'TEST_inference/'
 try:
@@ -135,36 +137,39 @@ for i in range(len(examples)):
             
             if len(all_trees) == 1:
                 break
-
-        matplotlib.use('Agg')
  
         track_trees = np.zeros(np.shape(input_im))    
         num_tree = 0
+
+        """ Create box in middle to only get seed colocalized with middle after splitting branchpoints """
+        ball_in_middle = np.zeros([input_size,input_size, z_size])
+        ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
+        ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=10)
+        center_cube = ball_in_middle_dil
+
+
+        ball_in_middle = np.zeros([input_size,input_size, z_size])
+        ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
+        ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=4)
+        small_center_cube = ball_in_middle_dil
+        
+        
+        matplotlib.use('Agg')
+        
+        
         for tree in all_trees:
-             """ Create box in middle to only get seed colocalized with middle after splitting branchpoints """
-             ball_in_middle = np.zeros([input_size,input_size, z_size])
-             ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
-             ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=10)
-             center_cube = ball_in_middle_dil
-
-
-             ball_in_middle = np.zeros([input_size,input_size, z_size])
-             ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
-             ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=4)
-             small_center_cube = ball_in_middle_dil
-
                      
              """ Keep looping until everything has been visited """  
              iterator = 0    
              while np.asarray(tree.visited.isnull()).any():   
                  
                   unvisited_indices = np.where(tree.visited.isnull() == True)[0]
-                  first_ind = unvisited_indices[-1]
+                  first_ind = unvisited_indices[0]
 
                   """ GET ALL LAST 2 or 3 coords from parents as well """
                   parent_coords = get_parent_nodes(tree, start_ind=first_ind, num_parents=4, parent_coords=[])
                   
-                  if len(parent_coords) > 0:
+                  if len(parent_coords) > 0:  # check if empty
                       parent_coords = np.vstack(parent_coords)
                   
                   """ Get center of crop """
@@ -259,29 +264,17 @@ for i in range(len(examples)):
                            - ***WHAT IS THE BEST CROPPING +/- 1???
                            - *** ADD difference between branch point vs. end point in the tree!!! ==> discern by # of children???                                      
                            *** how to deal with edges being cut off???                                          
-                           
-                           
-                           
-                           
-                           more parents???
-                           dont delete small things???
-                           
-                           
+                                                     
                            maybe propagate slower??? move only 20 pixels at a time???
                            
                            ***also, dilation quite slow right now
-
-        
-                    
-                                ***why not linking nearby things???                 
-                                
+                                ***why not linking nearby things???                                                 
                                 
                                 *** why not continuing some seeds??? set the tree to terminate too early???
                                 *** need the spatial W one??? b/c super close to connecting some???
                                 *** what's up with the weird one that bends upwards???
                            
-                           
-                           
+                                                     
                            ***circle instead of cube subtraction??? ==> b/c creating bad cut-offs right now
                            ***linking is still missing a few obvious ones...
                            ***stop letting it propoagate like crazy if only next to nearby small ones
@@ -290,11 +283,43 @@ for i in range(len(examples)):
                                ***==> REMOVED PARENT node visited below!!!
                                ****** also added a dilation below
                                
-                           
-                           
+                                                     
                            ***spatial weight loss in center???
+                                                      
+                           *** STOP THE SPAGHETTI FROM FORMING ***                           
+                                   ***something to do with the dilation???
+                                   ***something to do with the fact that need to visit EVERYTHING now... grr...
+                                   ***OR can add a failsafe ==> if FOV doesn't move by x-y pixels, then terminate
                            
+                            
+                           *** Try starting from 0th instead of -1 for iteration
                            
+                           *** maybe backup each branchpoint on the subsequent iteration??? b/c missing some turns...
+                               ***actually, was due to the cropping being -1!!!
+                                                           
+                           ***don't subtract in z-axis off the top and bottom of the crop???
+                           
+                                                                                
+                           Today's updates:
+                               (1) use line_nd to connect end_points that touch during dilation(or just pixel coords match)
+                               (2) loop through and make sure doesn't connect any lines to itself
+                               (3) expand the current end point so that new nearby things are not saved as branches
+                               
+                               ***with these changes, remove the removal of small objects???
+
+
+                                ***one sided HD loss???
+
+
+                            
+
+
+
+                            ***gets confused in the center with super bright fluorescence
+                            ***try to do with automated seeds
+    
+    
+    
                       """
 
                   """ REMOVE EDGE """
@@ -324,53 +349,185 @@ for i in range(len(examples)):
                   im_dil = dilate_by_ball_to_binary(crop_prev, radius=3)
                   
                   ### ***but exclude the center for subtraction
-                  im_sub = subtract_im_no_sub_zero(im_dil, small_center_cube)
-                  
-
+                  #im_sub = subtract_im_no_sub_zero(im_dil, small_center_cube)
+                 
                   # subtract old parts of image that have been identified in past rounds of segmentation
-                  output_PYTORCH = subtract_im_no_sub_zero(output_PYTORCH, im_sub)
+                  output_PYTORCH = subtract_im_no_sub_zero(output_PYTORCH, im_dil)
+
 
                   """ delete all small objects """
-                  # labelled = measure.label(output_PYTORCH)
-                  # cc = measure.regionprops(labelled); 
-                  # cleaned = np.zeros(np.shape(output_PYTORCH))
-                  # for seg in cc:
-                  #      coord = seg['coords']; 
-                  #      if len(coord) > 10:
-                  #          cleaned[coord[:, 0], coord[:, 1], coord[:, 2]] = 1
-                           
-                           
-                  # output_PYTORCH = cleaned
+                  labelled = measure.label(output_PYTORCH)
+                  cc = measure.regionprops(labelled); 
+                  cleaned = np.zeros(np.shape(output_PYTORCH))
+                  for seg in cc:
+                         coord = seg['coords']; 
+                         if len(coord) > 10:
+                             cleaned[coord[:, 0], coord[:, 1], coord[:, 2]] = 1
+    
+                  output_PYTORCH = cleaned
+
                   
                   """ add in crop seed and subtract later??? """
                   output_PYTORCH = output_PYTORCH + crop_seed
                   output_PYTORCH[output_PYTORCH > 0] = 1
                   
-                  """ only keep anything colocalized with center 
                   
                   
-                  **** ONLY DILATE END POINTS THOUGH *** """
+                  
+                  """ LINK EVERY END POINT TOGETHER USING line_nd """    
+                  
+                  ### (1) Find cc of every object in the current crop
+                  labelled = measure.label(output_PYTORCH)
+                  cc = measure.regionprops(labelled)
+
+                  all_seg = []
+                  for cur in cc:
+                      cur_seg = {
+                              "coords": cur['coords'],
+                              "center_be": [],
+                              "expand_be": [],
+                              "bridges": [],
+                          }
+                      all_seg.append(cur_seg)
+                          
+
+                  ### (2) Find the end points AND(???) branchpoints
                   degrees, coordinates = bw_skel_and_analyze(output_PYTORCH)
-                  end_points = np.copy(degrees); end_points[end_points != 1] = 0
+                  be_points = np.copy(degrees); be_points[be_points == 2] = 0; be_points[be_points > 0] = 1;
+                  
+                  labelled = measure.label(be_points)
+                  cc_be = measure.regionprops(labelled)
+                  
+                  ### (3) get pixel indices of each be AND get the expanded version of the be neighborhood as well 
+                  # match the end point to the list of coords
+                  for seg in all_seg:
+                      cur_seg = seg['coords']
+                      for be in cc_be:
+                          cur_be = be['coords']
+                          if (cur_seg[:, None] == cur_be).all(-1).any():
+                              
+                              seg["center_be"].append(cur_be)
+                              
+                              ### expand the cur_be
+                              neighborhood_be = expand_coord_to_neighborhood(cur_be, lower=5, upper=6)
+                              if len(neighborhood_be) > 0:
+                                  neighborhood_be = np.vstack(neighborhood_be)
+                              seg["expand_be"].append(neighborhood_be)
+                              
+                              
+                  ### (4) loop through each cc and see if be neighborhood hits nearby cc EXCLUDING itself
+                  ### if it hits, use line_nd to make connection
+                  empty = np.zeros(np.shape(crop))
+                  for cur_seg, cur_idx in zip(all_seg, range(len(all_seg))):
+                      cur_expand = cur_seg['expand_be']
+                      if len(cur_expand) > 0:
+                          for cur_ex, idx_outer in zip(cur_expand, range(len(cur_expand))):  # loop through each be of current seg
+                               for next_seg, next_idx in zip(all_seg, range(len(all_seg))):  # loop through all other segs
+                                   if cur_idx == next_idx:
+                                       continue;   ### don't try to match with self
+                                   
+                                   ### (a) try to find an expanded neighborhood that matches
+                                   match = 0
+                                   next_expand = next_seg['expand_be']
+                                   if len(next_expand) > 0:
+                                       for be_ex, idx_inner in zip(next_expand, range(len(next_expand))): # loop through each be of next seg             
+                                             if (cur_ex[:, None] == be_ex).all(-1).any():  
+                                                 
+                                                 next_be = next_seg['center_be'][idx_inner][0]
+                                                 cur_be = cur_seg['center_be'][idx_outer][0]
+                                                 
+                                                 ### DRAW LINE
+                                                 line_coords = line_nd(cur_be, next_be, endpoint=False)
+                                                 line_coords = np.transpose(line_coords)
+                                                 cur_seg['bridges'].append(line_coords)
+                                                 match = 1
+                                                 #print('bridge')
+        
+                          
+                                   ### (b) then try to find coords that match ==> ***IF MATCHED, find CLOSEST
+                                   if not match:
+                                       next_coords = next_seg['coords']
+                                       if len(next_coords) > 0 and (cur_ex[:, None] == next_coords).all(-1).any():
+                                           cur_be = cur_seg['center_be'][idx_outer][0]
+                                           # find distance to all coords
+                                           
+                                           cur = np.transpose(np.vstack(cur_be))
+                                           dist = distance.cdist(cur, next_coords)
+                                           min_idx = np.argmin(dist)
+                                           
+                                           closest_point = next_coords[min_idx]
+                                          
+                                           ### DRAW LINE
+                                           line_coords = line_nd(cur_be, closest_point, endpoint=False)
+                                           line_coords = np.transpose(line_coords)
+                                           cur_seg['bridges'].append(line_coords)     
+                                           
+                                           print('body bridge')
+                                           print(cur_be)
+                                           
+                                           
+                                      
+                                      
+            
+                  ### debug: ensure proper points inserted
+                  """ get output image """
+                  output = np.zeros(np.shape(crop))
+                  for seg, idx in zip(all_seg, range(len(all_seg))):
+                       cur_expand = seg['bridges']
+                       if len(cur_expand) > 0:
+                           cur_expand = np.vstack(cur_expand)
+                           output[cur_expand[:, 0], cur_expand[:, 1], cur_expand[:, 2]] = 5
+
+                       cur_seg = seg['coords']
+                       if len(cur_seg) > 0:
+                            cur_seg = np.vstack(cur_seg)
+                            output[cur_seg[:, 0], cur_seg[:, 1], cur_seg[:, 2]] = idx + 1
+                          
+                       # cur_be = seg['center_be']
+                       # if len(cur_be) > 0:
+                       #     cur_be = np.vstack(cur_be)
+                       #     output[cur_be[:, 0], cur_be[:, 1], cur_be[:, 2]] = 2
+                           
+                       # cur_be = seg['expand_be']
+                       # if len(cur_be) > 0:
+                       #      cur_be = np.vstack(cur_be)
+                       #      output[cur_be[:, 0], cur_be[:, 1], cur_be[:, 2]] = 1
+                           
+                           
+                  plot_max(output, ax=-1)
+
+
+                  plot_save_max_project(fig_num=3, im=output, max_proj_axis=-1, title='output_be', 
+                                        name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_output_be.png', pause_time=0.001)
+                  output[output > 0] = 1
+                  
+                  output_PYTORCH = output
+                                            
                   
                   
-                  ### BUT ONLY THE END POINTS WITHIN THE CENTRAL CUBE
-                  # exclude_cube = np.copy(center_cube)
-                  # exclude_cube[exclude_cube > 0] = -1
-                  # exclude_cube[exclude_cube == 0] = 1
-                  # exclude_cube[exclude_cube == -1] = 0
-                  # end_points = subtract_im_no_sub_zero(end_points, exclude_cube)
+                  """ only keep anything colocalized with center 
+
+                  **** ONLY DILATE END POINTS THOUGH *** """
+                  # degrees, coordinates = bw_skel_and_analyze(output_PYTORCH)
+                  # end_points = np.copy(degrees); end_points[end_points != 1] = 0
                   
                   
-                  end_points = dilate_by_ball_to_binary(end_points, radius=5)       
+                  # ### BUT ONLY THE END POINTS WITHIN THE CENTRAL CUBE
+                  # # exclude_cube = np.copy(center_cube)
+                  # # exclude_cube[exclude_cube > 0] = -1
+                  # # exclude_cube[exclude_cube == 0] = 1
+                  # # exclude_cube[exclude_cube == -1] = 0
+                  # # end_points = subtract_im_no_sub_zero(end_points, exclude_cube)
                   
-                  """ added a little dilation for the output as well """
                   
-                  output_PYTORCH = dilate_by_ball_to_binary(output_PYTORCH, radius=1)  
-                  output_PYTORCH = output_PYTORCH + end_points
-                  output_PYTORCH[output_PYTORCH > 0] = 1
-                  output_PYTORCH = skeletonize_3d(output_PYTORCH)
-                  output_PYTORCH[output_PYTORCH > 0] = 1  # line before this sets all values to 255
+                  # end_points = dilate_by_ball_to_binary(end_points, radius=5)       
+                  
+                  # """ added a little dilation for the output as well """
+                  # #output_PYTORCH = dilate_by_ball_to_binary(output_PYTORCH, radius=1)  
+                  # output_PYTORCH = output_PYTORCH + end_points
+                  # output_PYTORCH[output_PYTORCH > 0] = 1
+                  # output_PYTORCH = skeletonize_3d(output_PYTORCH)
+                  # output_PYTORCH[output_PYTORCH > 0] = 1  # line before this sets all values to 255
                   
                 
                   # (1) use old start_coords to find only nearby segments
@@ -383,8 +540,8 @@ for i in range(len(examples)):
                   ### use to see if should skip
                   sub_seed = subtract_im_no_sub_zero(only_coloc, crop_seed)
                   
-                  # if iterator == 26:
-                  #      zzz
+                  # if iterator == 100:
+                  #       zzz
 
                   """ skip if everything was subtracted out last time: """
                   if np.count_nonzero(sub_seed) < 5:
@@ -399,7 +556,6 @@ for i in range(len(examples)):
 
                   else:
 
-                      
                       # (2) skeletonize the output to create "all_neighborhoods" and "all_hood_first_last"                                    
                       """ Add the old crop back in to ensure correct branch_points ect... 
                       
@@ -417,6 +573,21 @@ for i in range(len(examples)):
                       cur_end = np.copy(cur_be_end)
                       cur_end = scale_coords_of_crop_to_full(cur_end, -box_x_min - 1, -box_y_min - 1, -box_z_min - 1)
                       degrees[cur_end[:, 0], cur_end[:, 1], cur_end[:, 2]] = 4
+                      
+                      
+                      
+                      
+                      ###remove all the others that match this first one???
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
                       
 
                       plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 

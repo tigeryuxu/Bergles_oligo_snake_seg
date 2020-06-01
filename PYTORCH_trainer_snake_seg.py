@@ -61,7 +61,7 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     
     
@@ -102,6 +102,8 @@ if __name__ == '__main__':
     
     s_path = './(21) Checkpoint_AdamW_batch_norm_3x_branched/'
     
+    s_path = './(22) Checkpoint_AdamW_batch_norm_3x_branched_SPATIALW_e-6/'
+    
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
     
     
@@ -121,7 +123,7 @@ if __name__ == '__main__':
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
     std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
 
-    num_workers = 4;
+    num_workers = 2;
  
     save_every_num_epochs = 1;
     plot_every_num_epochs = 1;
@@ -180,7 +182,7 @@ if __name__ == '__main__':
         #lr = 1e-3; milestones = [20, 50, 100]  # with AdamW *** EXPLODED ***
         lr = 1e-3; milestones = [5, 50, 100]  # with AdamW
         lr = 1e-5; milestones = [50, 100]  # with AdamW slow down
-        lr = 1e-5; milestones = [100]  # with AdamW slow down
+        lr = 1e-6; milestones = [100]  # with AdamW slow down
 
         #optimizer = torch.optim.SGD(unet.parameters(), lr = lr, momentum=0.90)
         #optimizer = torch.optim.Adam(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
@@ -210,7 +212,7 @@ if __name__ == '__main__':
         #transforms = initialize_transforms_simple(p = 0.5)
         transforms = 0
         
-        sp_weight_bool = 0
+        sp_weight_bool = 1
  
     
 
@@ -306,11 +308,15 @@ if __name__ == '__main__':
             match = set(idx_train) & set(all_branch_idx)
             idx_train = idx_train + list(match) + list(match)
             
-            # match = set(idx_valid) & set(all_branch_idx)
-            # idx_valid = idx_valid + list(match) + list(match)
             
-        
-        
+        ### FOR VALIDATION DATA
+         
+        # if branch_bool:
+        #     match = set(idx_valid) & set(all_branch_idx)
+        #     idx_valid = idx_valid + list(match) + list(match)
+            
+    
+
     training_set = Dataset_tiffs_snake_seg(idx_train, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = transforms)
     val_set = Dataset_tiffs_snake_seg(idx_valid, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = 0)
     

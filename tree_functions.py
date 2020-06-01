@@ -110,6 +110,17 @@ def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp):
 
 
 
+""" expand coords into a neighborhood """
+def expand_coord_to_neighborhood(coords, lower, upper):
+    neighborhood_be = []
+    for idx in coords:
+        for x in range(-lower, upper):
+            for y in range(-lower, upper):
+                for z in range(-lower, upper):
+                    new_idx = [idx[0] + x, idx[1] + y, idx[2] + z]
+                    neighborhood_be.append(new_idx)    
+    return neighborhood_be
+
 
 """ Get neighborhoods from an image ==> include scaling??? """
 def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, box_z_min=0):
@@ -123,17 +134,11 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, 
       all_neighborhoods = []
       root_neighborhood = []
       
-      lower = 1
-      upper = 2
       for branch_end in cc_be:
           coords = branch_end['coords']
-          neighborhood_be = []
-          for idx in coords:
-              for x in range(-lower, upper):
-                  for y in range(-lower, upper):
-                      for z in range(-lower, upper):
-                          new_idx = [idx[0] + x, idx[1] + y, idx[2] + z]
-                          neighborhood_be.append(new_idx)
+          
+          neighborhood_be = expand_coord_to_neighborhood(coords, lower=1, upper=2)
+
           if (coords == coord_root).all(1).any():
               root_neighborhood.append(neighborhood_be)
           else:
