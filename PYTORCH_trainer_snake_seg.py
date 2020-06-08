@@ -16,6 +16,39 @@ TO DO snake seg:
     - add spatial weighting of loss 
 
 
+
+
+
+
+    TO TRY:
+        - with deep supervision
+        - with conv1 after upsampling
+        - with more filters per layer
+        - with upsample vs. conv
+        - setup on MARCC
+        - fix the broken data?
+        - more transforms??? ==> are they messing with the seed channel???
+        
+        
+        - no spatial weight with nested?
+        
+        
+        - ***slower training speed
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 """
 
 
@@ -55,13 +88,16 @@ from losses_pytorch.focal_loss import FocalLoss
 
 import kornia
 
+from unet_nested import *
+
+
 torch.backends.cudnn.benchmark = True  
 torch.backends.cudnn.enabled = True 
 
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     print(device)
     
     
@@ -85,7 +121,7 @@ if __name__ == '__main__':
     
     #s_path = './(14) Checkpoint_AdamW_batch_norm_HDBinary_loss/'
     
-    #s_path = './(15) Checkpoint_AdamW_batch_norm_SPATIALW/'
+    s_path = './(15) Checkpoint_AdamW_batch_norm_SPATIALW/'
     
     
     #s_path = './(16) Checkpoint_AdamW_batch_norm_DICE_CE/'
@@ -100,9 +136,29 @@ if __name__ == '__main__':
     
     #s_path = './(20) Checkpoint_AdamW_batch_norm_7x7/'
     
-    s_path = './(21) Checkpoint_AdamW_batch_norm_3x_branched/'
+    #s_path = './(21) Checkpoint_AdamW_batch_norm_3x_branched/'
     
-    s_path = './(22) Checkpoint_AdamW_batch_norm_3x_branched_SPATIALW_e-6/'
+    #s_path = './(22) Checkpoint_AdamW_batch_norm_3x_branched_SPATIALW_e-6/'
+    
+    
+    #s_path = './(23) Checkpoint_nested_unet/'
+    
+    s_path = './(24) Checkpoint_nested_unet_SPATIALW/'
+    
+    
+    #s_path = './(25) Checkpoint_nested_unet_SPATIALW_deepsupervision/'
+    
+    # s_path = './(26) Checkpoint_AdamW_batch_norm_SPATIALW_transforms/'
+    
+    # s_path = './(27) Checkpoint_AdamW_batch_norm_spatialW_1e-6/'
+    
+    
+    #s_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'
+    
+    s_path = './(29) Checkpoint_nested_unet_NO_SPATIALW/'
+    
+    #s_path = './(30) Checkpoint_nested_unet_SPATIALW_simple/'
+    
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
     
@@ -123,7 +179,7 @@ if __name__ == '__main__':
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
     std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
 
-    num_workers = 2;
+    num_workers = 4;
  
     save_every_num_epochs = 1;
     plot_every_num_epochs = 1;
@@ -132,7 +188,8 @@ if __name__ == '__main__':
     #dist_loss = 0
     dist_loss = 0
     both = 0
-    branch_bool = 1
+    branch_bool = 0
+    deep_supervision = False
     if both:
         loss_function_2 = torch.nn.CrossEntropyLoss()
         #loss_function = HDDTBinaryLoss(); dist_loss = 1
@@ -150,16 +207,24 @@ if __name__ == '__main__':
         iterations = 0;
         
         """ Start network """   
-        #kernel_size=5
-        #pad = int((kernel_size - 1)/2)
+        kernel_size = 5
+        pad = int((kernel_size - 1)/2)
         #unet = UNet(in_channel=1,out_channel=2, kernel_size=kernel_size, pad=pad)
         
-        kernel_size = 5
-        unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
-                           batch_norm=True, batch_norm_switchable=False, up_mode='upconv')
+        #kernel_size = 5
+        #unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
+        #                    batch_norm=True, batch_norm_switchable=False, up_mode='upsample')
+
+
+        unet = NestedUNet(num_classes=2, input_channels=2, deep_supervision=deep_supervision, padding=pad)
+        #unet = UNet_upsample(num_classes=2, input_channels=2, padding=pad)
+
+        
+        
         unet.train()
         unet.to(device)
         print('parameters:', sum(param.numel() for param in unet.parameters()))  
+        
     
         """ Select loss function """
         loss_function = torch.nn.CrossEntropyLoss(reduction='none')
@@ -182,7 +247,7 @@ if __name__ == '__main__':
         #lr = 1e-3; milestones = [20, 50, 100]  # with AdamW *** EXPLODED ***
         lr = 1e-3; milestones = [5, 50, 100]  # with AdamW
         lr = 1e-5; milestones = [50, 100]  # with AdamW slow down
-        lr = 1e-6; milestones = [100]  # with AdamW slow down
+        #lr = 1e-6; milestones = [1000]  # with AdamW slow down
 
         #optimizer = torch.optim.SGD(unet.parameters(), lr = lr, momentum=0.90)
         #optimizer = torch.optim.Adam(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
@@ -424,7 +489,23 @@ if __name__ == '__main__':
                     
                 
                 
-                loss = loss_function(output_train, labels)
+                """ calculate loss """
+                if deep_supervision:
+                                    
+                    # compute output
+                    loss = 0
+                    for output in output_train:
+                         loss += loss_function(output, labels)
+                    loss /= len(output_train)
+                    
+                    output_train = output_train[-1]  # set this so can eval jaccard later
+                
+                else:
+                
+                    loss = loss_function(output_train, labels)
+                
+                
+                """ weight loss """
                 if both:
                     loss_ce = loss_function_2(output_train.permute(0, 1, 4, 2, 3), labels.permute(0, 1, 4, 2, 3).squeeze())
                     
@@ -437,6 +518,10 @@ if __name__ == '__main__':
                      loss = torch.mean(weighted)
                 elif dist_loss:
                        loss  # do not do anything if do not need to reduce
+                       
+                elif deep_supervision:
+                        loss
+
                 else:
                      loss = torch.mean(loss)   
                      #loss
@@ -494,7 +579,21 @@ if __name__ == '__main__':
                             labels_val = labels_val.permute(0, 1, 3, 4, 2)
                             output_val = output_val.permute(0, 1, 3, 4, 2)                            
                                     
-                        loss = loss_function(output_val, labels_val)
+                        """ calculate loss """
+                        if deep_supervision:
+                                            
+                            # compute output
+                            loss = 0
+                            for output in output_val:
+                                 loss += loss_function(output, labels_val)
+                            loss /= len(output_val)
+                            
+                            output_val = output_val[-1]  # set this so can eval jaccard later
+                        
+                        else:
+                        
+                            loss = loss_function(output_val, labels_val)
+                
                         if both:
                             loss_ce = loss_function_2(output_val.permute(0, 1, 4, 2, 3), labels_val.permute(0, 1, 4, 2, 3).squeeze())
                             
@@ -536,14 +635,7 @@ if __name__ == '__main__':
                         """ Calculate sensitivity + precision as other metrics ==> only ever on ONE IMAGE of a batch"""
                         batch_y_val = batch_y_val.cpu().data.numpy() 
                         seg_val = np.argmax(output_val[0], axis=-1)  
-                        # TP, FN, FP = find_TP_FP_FN_from_im(seg_val, batch_y_val[0])
-                                       
-                        # if TP + FN == 0: TP;
-                        # else: sensitivity = TP/(TP + FN); sensitivity_val += sensitivity;    # PPV
-                                       
-                        # if TP + FP == 0: TP;
-                        # else: precision = TP/(TP + FP);  precision_val += precision    # precision             
-              
+
                         val_idx = val_idx + batch_size
                         print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
                         
@@ -554,9 +646,7 @@ if __name__ == '__main__':
                    val_loss_per_eval.append(loss_val/iter_cur_epoch)
                    val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       
                    
-                   #plot_prec.append(precision_val/(validation_size/batch_size))
-                   #plot_sens.append(sensitivity_val/(validation_size/batch_size))
-                   
+
                   
                    """ Add to scheduler to do LR decay """
                    scheduler.step()

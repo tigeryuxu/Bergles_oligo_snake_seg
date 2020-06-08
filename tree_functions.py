@@ -48,7 +48,7 @@ def get_parent_nodes(tree, start_ind, num_parents, parent_coords):
 
 
 """ Convert list into tree in pandas dataframe """
-def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp):
+def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp, all_coords_root):
     columns = {'coords', 'parent', 'child', 'depth', 'start_be_coord', 'end_be_coord', 'cur_idx', 'visited'}
     tree_df = pd.DataFrame(columns=columns)
     
@@ -80,33 +80,43 @@ def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp):
 
 
     """ HACK: find point closest to interactive scroller """
-    degrees_small[degrees_small > 0] = 1
-    only_colocalized_mask, overall_coord = GUI_cell_selector(degrees_small, crop_size=100, z_size=30,
-                                                            height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp, thresh=0)
+    # degrees_small[degrees_small > 0] = 1
+    # only_colocalized_mask, overall_coord = GUI_cell_selector(degrees_small, crop_size=100, z_size=30,
+    #                                                         height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp, thresh=0)
     
-    overall_coord = scale_coords_of_crop_to_full(np.transpose(np.vstack(overall_coord)), box_x_min, box_y_min, box_z_min)
+    # overall_coord = scale_coords_of_crop_to_full(np.transpose(np.vstack(overall_coord)), box_x_min, box_y_min, box_z_min)
 
 
     """ To find root ==> is side closest to middle of cell...??? """
-    vec_dist = np.abs(overall_coord) - np.abs(coords_end_points)
-    all_dist = []
-    for vec in vec_dist:
-        all_dist.append(np.linalg.norm(vec))
+    dist_to_root = []
+    for check_coord in all_coords_root:
+        vec_dist = check_coord - coords_end_points
+        all_dist = []
+        for vec in vec_dist:
+            all_dist.append(np.linalg.norm(vec))
+        
+        #idx_min = all_dist.index(np.min(all_dist))
+        dist_to_root.append(np.min(all_dist))
+        #coord_root = coords_end_points[idx_min]
+    idx_min = dist_to_root.index(np.min(dist_to_root))
+    coord_root = all_coords_root[idx_min]
     
-    idx_min = all_dist.index(np.min(all_dist))
-    coord_root = coords_end_points[idx_min]
     
-
     """ next find segment tied to each branchpoint by searching the +/- 1 neighborhood for matching indices
     """
     all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=coord_root)
+    
+    
+    
+    if len(root_neighborhood) == 0:
+        return [], []
         
    
     """ Create tree """
     depth = 0                 
-    tree_df = treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = 0, parent= -1)                 
+    tree_df, all_children = treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = 0, parent= -1)                 
 
-    return tree_df
+    return tree_df, all_children
 
 
 
@@ -139,8 +149,9 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, 
           
           neighborhood_be = expand_coord_to_neighborhood(coords, lower=1, upper=2)
 
-          if (coords == coord_root).all(1).any():
-              root_neighborhood.append(neighborhood_be)
+          if (np.vstack(neighborhood_be)[:, None] == coord_root).all(-1).any():
+              root_neighborhood.append(np.vstack(neighborhood_be))
+              print(neighborhood_be)
           else:
               neighborhood_be = np.vstack(neighborhood_be)
               if scale:

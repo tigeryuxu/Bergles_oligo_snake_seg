@@ -30,7 +30,7 @@ import scipy
 """ (1) Load input and parse into seeds """
 def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
      """ Load input image """
-     input_name = examples[im_num]['input']
+     input_name = examples[im_num]['input']     
      input_im = open_image_sequence_to_3D(input_name, width_max='default', height_max='default', depth='default')
      
      """ also detect shape of input_im and adapt accordingly """
@@ -45,11 +45,15 @@ def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
           
           seed_name = examples[im_num]['seeds']
           all_seeds = open_image_sequence_to_3D(seed_name, width_max='default', height_max='default', depth='default')             
-               
-          labelled=np.uint8(all_seeds)
+              
+          
+          all_seeds_no_50 = np.copy(all_seeds)
+          all_seeds_no_50[all_seeds_no_50 == 50] = 0
+          labelled=np.uint8(all_seeds_no_50)
           labelled = np.moveaxis(labelled, 0, -1)
           overall_coord = []
 
+          all_seeds = convert_multitiff_to_matrix(all_seeds)
           
      else:        
           """ Plotting as interactive scroller """
@@ -74,7 +78,7 @@ def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
           list_seeds.append(cc['coords'])
      sorted_list = sorted(list_seeds, key=len, reverse=True)  
  
-     return sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord
+     return sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds
 
 
 

@@ -55,12 +55,17 @@ print(device)
 pregenerated = 1
         
 """  Network Begins: """
-check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1
-check_path ='./(15) Checkpoint_AdamW_batch_norm_SPATIALW/'; dilation = 1
+#check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1
+#check_path ='./(15) Checkpoint_AdamW_batch_norm_SPATIALW/'; dilation = 1
 #check_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'; dilation = 1
 #check_path = './(21) Checkpoint_AdamW_batch_norm_3x_branched/'; dilation = 1
 
-s_path = check_path + 'TEST_inference/'
+
+#check_path = './(24) Checkpoint_nested_unet_SPATIALW/'; dilation = 1
+check_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'; dilation = 1
+
+
+s_path = check_path + 'TEST_inference_dense/'
 try:
     # Create target Directory
     os.mkdir(s_path)
@@ -70,6 +75,11 @@ except FileExistsError:
 
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation/'
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large/'
+
+
+input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/'
+
+input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/dense/'
 
 """ Load filenames from zip """
 images = glob.glob(os.path.join(input_path,'*input.tif*'))
@@ -92,7 +102,7 @@ checkpoint = num_check[0]
 checkpoint = 'check_' + checkpoint
 
 print('restoring weights')
-check = torch.load(check_path + checkpoint)
+check = torch.load(check_path + checkpoint, map_location=device)
 unet = check['model_type']
 unet.load_state_dict(check['model_state_dict']) 
 mean_arr = check['mean_arr']
@@ -112,19 +122,38 @@ z_size = depth
 
 for i in range(len(examples)):              
         """ (1) Loads data as sorted list of seeds """
-        sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
+        sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
 
-    
+        input_name = examples[i]['input']
+        filename = input_name.split('/')[-1]
+        filename = filename.split('.')[0:-1]
+        filename = '.'.join(filename)
         """ add seeds to form roots of tree """
         """ (1) First loop through and turn each seed into segments at branch points 
             (2) Then add to list with parent/child indices
         """
+    
+        """ only 50 """
+        all_seeds[all_seeds !=  50] = 0;
+        labelled = measure.label(all_seeds)
+        cc = measure.regionprops(labelled)
+        all_coords_root = []
+        for point in cc:
+            coord_point = point['coords']
+            all_coords_root.append(coord_point[0])
+        #all_coords_root = np.vstack(all_coords_root)
+
         all_trees = []
         for root in sorted_list:
-            tree_df, children = get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp)                              
+            tree_df, children = get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp, all_coords_root)                                          
+            
+            ### HACK: continue if empty
+            if len(tree_df) == 0:
+                continue;
+
             tmp_tree_im = np.zeros(np.shape(input_im))
             im = show_tree(tree_df, tmp_tree_im)
-            plot_max(im, ax=-1)
+            plot_max(im, ax=-1)                
                         
             ### set "visited" to correct value
             for idx, node in tree_df.iterrows():
@@ -135,8 +164,8 @@ for i in range(len(examples)):
             # append to all trees
             all_trees.append(tree_df)
             
-            if len(all_trees) == 1:
-                break
+            # if len(all_trees) == 1:
+            #     break
  
         track_trees = np.zeros(np.shape(input_im))    
         num_tree = 0
@@ -241,11 +270,11 @@ for i in range(len(examples)):
         
                   """ SAVE max projections"""
                   plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
-                                        name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_seed.png', pause_time=0.001)
+                                        name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator) + '_seed.png', pause_time=0.001)
                   plot_save_max_project(fig_num=2, im=output_PYTORCH, max_proj_axis=-1, title='segmentation', 
-                                        name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_segmentation.png', pause_time=0.001)
+                                        name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_segmentation.png', pause_time=0.001)
                   plot_save_max_project(fig_num=3, im=crop, max_proj_axis=-1, title='input', 
-                                        name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_input_im.png', pause_time=0.001)
+                                        name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_input_im.png', pause_time=0.001)
 
                   """ TURN SEGMENTATION INTO skeleton and assess branch points ect...                  
                           ***might need to smooth the skeleton???
@@ -317,6 +346,37 @@ for i in range(len(examples)):
 
                             ***gets confused in the center with super bright fluorescence
                             ***try to do with automated seeds
+                            
+                            
+                            
+                            
+                            ***missing the T-crossing after changed from 4 to 5???
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            crop 95 of -1 forward prop ==> maybe set end points at all connection points???
+                            
+                            ***how best to connect objects only once??? and not to spuriously connect???
+                            
+                            ***maybe don't just crop the middle of the seg??? at least for the dense network???
+                            
+                            
+                            
+                            
+                            
+                            
+                            
+                            ***REMOVE BODY CONNECTIONS???
+                            
+                            
+                            
+                            
+                            
     
     
     
@@ -324,7 +384,7 @@ for i in range(len(examples)):
 
                   """ REMOVE EDGE """
                   dist_xy = 10
-                  dist_z = 2
+                  dist_z = 1
                   
                   edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
                   edge[dist_xy:crop_size * 2-dist_xy, dist_xy:crop_size * 2-dist_xy, dist_z:z_size-dist_z] = 1
@@ -498,7 +558,7 @@ for i in range(len(examples)):
 
 
                   plot_save_max_project(fig_num=3, im=output, max_proj_axis=-1, title='output_be', 
-                                        name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_output_be.png', pause_time=0.001)
+                                        name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator) + '_output_be.png', pause_time=0.001)
                   output[output > 0] = 1
                   
                   output_PYTORCH = output
@@ -548,9 +608,9 @@ for i in range(len(examples)):
                           tree.visited[first_ind] = 1;
                           print('Finished')
                           plot_save_max_project(fig_num=9, im=only_coloc, max_proj_axis=-1, title='segmentation_deleted', 
-                                  name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001)                       
+                                  name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001)                       
                           plot_save_max_project(fig_num=10, im=only_coloc, max_proj_axis=-1, title='_final_added', 
-                                  name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_zfinal_added.png', pause_time=0.001) 
+                                  name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_zfinal_added.png', pause_time=0.001) 
                           iterator += 1
                           continue                      
 
@@ -591,7 +651,7 @@ for i in range(len(examples)):
                       
 
                       plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 
-                                  name=s_path + 'Crop_' + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001) 
+                                  name=s_path + filename + 'Crop_' + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001) 
                       
                       all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_x_min=box_x_min, box_y_min=box_y_min, box_z_min=box_z_min)
 
@@ -626,7 +686,7 @@ for i in range(len(examples)):
                             idx += 1
                      
                       plot_save_max_project(fig_num=10, im=check_debug, max_proj_axis=-1, title='_final_added', 
-                                  name=s_path + 'Crop_'  + str(num_tree) + '_' + str(iterator) + '_zfinal_added.png', pause_time=0.001) 
+                                  name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator) + '_zfinal_added.png', pause_time=0.001) 
                       
 
                       """ IF is empty (no following part) """
@@ -669,12 +729,12 @@ for i in range(len(examples)):
              """ Save max projections and pickle file """
              im = show_tree(tree, track_trees)
              plot_save_max_project(fig_num=6, im=im, max_proj_axis=-1, title='overall seg', 
-                                        name=s_path + 'overall_segmentation_' + str(num_tree) + '_.png', pause_time=0.001)
+                                        name=s_path + filename + '_overall_segmentation_' + str(num_tree) + '_.png', pause_time=0.001)
 
              """ Save max projections and pickle file """
              im[im > 0] = 1
              plot_save_max_project(fig_num=7, im=im, max_proj_axis=-1, title='overall seg', 
-                                        name=s_path + 'overall_segmentation_BW' + str(num_tree) + '_.png', pause_time=0.001)        
+                                        name=s_path + filename + '_overall_segmentation_BW' + str(num_tree) + '_.png', pause_time=0.001)        
 
 
         
@@ -682,18 +742,23 @@ for i in range(len(examples)):
 
         print('save entire tree')
         ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
+        
+        im = np.zeros(np.shape(input_im))
         for cur_tree in all_trees:
             im += show_tree(cur_tree, track_trees)
+            
+        color_im = np.copy(im)
         im[im > 0] = 1
         plot_save_max_project(fig_num=7, im=im, max_proj_axis=-1, title='overall seg', 
-                                   name=s_path + 'overall_segmentation_BW' + str(num_tree) + '_.png', pause_time=0.001)        
+                                   name=s_path + filename + '_overall_segmentation_BW' + str(num_tree) + '_.png', pause_time=0.001)        
 
         print("Saving after first iteration")
-        final_seg_overall = convert_matrix_to_multipage_tiff(final_seg_overall)
-        imsave(s_path + 'overall_output_1st_iteration.tif', np.asarray(final_seg_overall * 255, dtype=np.uint8))
+        im = convert_matrix_to_multipage_tiff(im)
+        imsave(s_path + filename + '_overall_output_1st_iteration.tif', np.asarray(im * 255, dtype=np.uint8))
 
-
-
+        print("Saving after first iteration")
+        color_im = convert_matrix_to_multipage_tiff(color_im)
+        imsave(s_path + filename + '_overall_output_1st_iteration_COLOR.tif', np.asarray(color_im * 255, dtype=np.uint8))
        
         
         

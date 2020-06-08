@@ -186,10 +186,23 @@ class Dataset_tiffs_snake_seg(data.Dataset):
 
 """ Calculate Jaccard on the GPU """
 def jacc_eval_GPU_torch(output, truth, ax_labels=-1, argmax_truth=1):
+    
       output = torch.argmax(output,axis=1)
       intersection = torch.sum(torch.sum(output * truth, axis=ax_labels),axis=ax_labels)
       union = torch.sum(torch.sum(torch.add(output, truth)>= 1, axis=ax_labels),axis=ax_labels) + 0.0000001
-      jaccard = torch.mean(intersection / union)  # find mean of jaccard over all slices        
+      jaccard = torch.mean(intersection / union)  # find mean of jaccard over all slices     
+          
+      
+      ### per image ==> is the same???
+      # all_jacc = [];
+      # for o_single, t_single in zip(output, truth):
+      #     o_single = torch.argmax(o_single,axis=0)
+      #     intersection = torch.sum(torch.sum(o_single * t_single, axis=ax_labels),axis=ax_labels)
+      #     union = torch.sum(torch.sum(torch.add(o_single, t_single)>= 1, axis=ax_labels),axis=ax_labels) + 0.0000001
+      #     jaccard = torch.mean(intersection / union)  # find mean of jaccard over all slices   
+      #     all_jacc.append(jaccard.cpu().data.numpy())
+
+          
       return jaccard
 
 """ Define transforms"""
