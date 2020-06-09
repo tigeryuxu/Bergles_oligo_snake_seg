@@ -65,7 +65,7 @@ pregenerated = 1
 check_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'; dilation = 1
 
 
-s_path = check_path + 'TEST_inference_dense/'
+s_path = check_path + 'TEST_inference/'
 try:
     # Create target Directory
     os.mkdir(s_path)
@@ -79,7 +79,7 @@ input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed g
 
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/'
 
-input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/dense/'
+#input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/dense/'
 
 """ Load filenames from zip """
 images = glob.glob(os.path.join(input_path,'*input.tif*'))
@@ -95,13 +95,13 @@ onlyfiles_check = glob.glob(os.path.join(check_path,'check_*'))
 onlyfiles_check.sort(key = natsort_key1)
     
 """ Find last checkpoint """       
-last_file = onlyfiles_check[-1]
+last_file = onlyfiles_check[-3]
 split = last_file.split('check_')[-1]
 num_check = split.split('.')
 checkpoint = num_check[0]
 checkpoint = 'check_' + checkpoint
 
-print('restoring weights')
+print('restoring weights of checkpoint: ' + str(num_check[0]))
 check = torch.load(check_path + checkpoint, map_location=device)
 unet = check['model_type']
 unet.load_state_dict(check['model_state_dict']) 
@@ -179,7 +179,7 @@ for i in range(len(examples)):
 
         ball_in_middle = np.zeros([input_size,input_size, z_size])
         ball_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
-        ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=4)
+        ball_in_middle_dil = dilate_by_cube_to_binary(ball_in_middle, width=8)
         small_center_cube = ball_in_middle_dil
         
         
@@ -193,7 +193,7 @@ for i in range(len(examples)):
              while np.asarray(tree.visited.isnull()).any():   
                  
                   unvisited_indices = np.where(tree.visited.isnull() == True)[0]
-                  first_ind = unvisited_indices[0]
+                  first_ind = unvisited_indices[-1]
 
                   """ GET ALL LAST 2 or 3 coords from parents as well """
                   parent_coords = get_parent_nodes(tree, start_ind=first_ind, num_parents=4, parent_coords=[])
@@ -377,14 +377,26 @@ for i in range(len(examples)):
                             
                             
                             
+                            *** removed dist_xy and dist_Z??? ==> but misses some due to travelling too fast???
+                            
+                            ***To check:
+                                
+                                
+                                
+                            *** TRY automatic ==> missing too many starting seeds
+                            
+                            
+                            
+                            
+                            
     
     
     
                       """
 
                   """ REMOVE EDGE """
-                  dist_xy = 10
-                  dist_z = 1
+                  dist_xy = 0
+                  dist_z = 0
                   
                   edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
                   edge[dist_xy:crop_size * 2-dist_xy, dist_xy:crop_size * 2-dist_xy, dist_z:z_size-dist_z] = 1
@@ -394,7 +406,11 @@ for i in range(len(examples)):
 
 
 
-                  """ ***FIND anything that has previously been identified """
+                  """ ***FIND anything that has previously been identified
+                  
+                      ***EXCLUDING CURRENT CROP_SEED
+                  
+                  """
                   ### Just current tree???
                   im = show_tree(tree, track_trees)
                                     
@@ -406,10 +422,18 @@ for i in range(len(examples)):
                   crop_prev, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
                   crop_prev = skeletonize_3d(crop_prev)
                                     
-                  im_dil = dilate_by_ball_to_binary(crop_prev, radius=3)
+
+                  ### EXCLUDE current crop seed
+                  im_sub = subtract_im_no_sub_zero(crop_prev, crop_seed)
+
+                    
+                  im_dil = dilate_by_ball_to_binary(im_sub, radius=3)
                   
                   ### ***but exclude the center for subtraction
                   #im_sub = subtract_im_no_sub_zero(im_dil, small_center_cube)
+                  
+                  
+
                  
                   # subtract old parts of image that have been identified in past rounds of segmentation
                   output_PYTORCH = subtract_im_no_sub_zero(output_PYTORCH, im_dil)
@@ -506,24 +530,24 @@ for i in range(len(examples)):
                           
                                    ### (b) then try to find coords that match ==> ***IF MATCHED, find CLOSEST
                                    if not match:
-                                       next_coords = next_seg['coords']
-                                       if len(next_coords) > 0 and (cur_ex[:, None] == next_coords).all(-1).any():
-                                           cur_be = cur_seg['center_be'][idx_outer][0]
-                                           # find distance to all coords
+                                        next_coords = next_seg['coords']
+                                        if len(next_coords) > 0 and (cur_ex[:, None] == next_coords).all(-1).any():
+                                            cur_be = cur_seg['center_be'][idx_outer][0]
+                                            # find distance to all coords
                                            
-                                           cur = np.transpose(np.vstack(cur_be))
-                                           dist = distance.cdist(cur, next_coords)
-                                           min_idx = np.argmin(dist)
+                                            cur = np.transpose(np.vstack(cur_be))
+                                            dist = distance.cdist(cur, next_coords)
+                                            min_idx = np.argmin(dist)
                                            
-                                           closest_point = next_coords[min_idx]
+                                            closest_point = next_coords[min_idx]
                                           
-                                           ### DRAW LINE
-                                           line_coords = line_nd(cur_be, closest_point, endpoint=False)
-                                           line_coords = np.transpose(line_coords)
-                                           cur_seg['bridges'].append(line_coords)     
+                                            ### DRAW LINE
+                                            line_coords = line_nd(cur_be, closest_point, endpoint=False)
+                                            line_coords = np.transpose(line_coords)
+                                            cur_seg['bridges'].append(line_coords)     
                                            
-                                           print('body bridge')
-                                           print(cur_be)
+                                            print('body bridge')
+                                            print(cur_be)
                                            
                                            
                                       
@@ -651,7 +675,7 @@ for i in range(len(examples)):
                       
 
                       plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 
-                                  name=s_path + filename + 'Crop_' + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001) 
+                                  name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001) 
                       
                       all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_x_min=box_x_min, box_y_min=box_y_min, box_z_min=box_z_min)
 

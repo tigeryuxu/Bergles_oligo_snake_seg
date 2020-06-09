@@ -34,16 +34,9 @@ TO DO snake seg:
         
         
         - ***slower training speed
-
-
-
-
-
-
-
-
-
-
+        
+        
+        ***TRANSFORMS WONT WORK WITH SPATIAL WEIGHT??? BECAUSE THE WEIGHT MAP NEEDS TO BE REMADE???
 
 
 
@@ -91,13 +84,18 @@ import kornia
 from unet_nested import *
 
 
+#import lovasz_losses as L
+
+
+
+
 torch.backends.cudnn.benchmark = True  
 torch.backends.cudnn.enabled = True 
 
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     
     
@@ -143,7 +141,7 @@ if __name__ == '__main__':
     
     #s_path = './(23) Checkpoint_nested_unet/'
     
-    s_path = './(24) Checkpoint_nested_unet_SPATIALW/'
+    #s_path = './(24) Checkpoint_nested_unet_SPATIALW/'
     
     
     #s_path = './(25) Checkpoint_nested_unet_SPATIALW_deepsupervision/'
@@ -158,6 +156,11 @@ if __name__ == '__main__':
     s_path = './(29) Checkpoint_nested_unet_NO_SPATIALW/'
     
     #s_path = './(30) Checkpoint_nested_unet_SPATIALW_simple/'
+    
+    
+    #s_path = './(31) Checkpoint_AdamW_batch_norm_SPATIALW_Lovasz/'
+    
+    
     
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
@@ -242,6 +245,10 @@ if __name__ == '__main__':
             
         #loss_function = FocalLoss(apply_nonlin=None, alpha=None, gamma=2, balance_index=0, smooth=1e-5, size_average=True)
         #loss_function = DC_and_CE_loss()
+        
+        
+        #loss_function = L.lovasz_hinge()
+        
 
         """ Select optimizer """
         #lr = 1e-3; milestones = [20, 50, 100]  # with AdamW *** EXPLODED ***
@@ -277,7 +284,7 @@ if __name__ == '__main__':
         #transforms = initialize_transforms_simple(p = 0.5)
         transforms = 0
         
-        sp_weight_bool = 1
+        sp_weight_bool = 0
  
     
 
@@ -419,6 +426,7 @@ if __name__ == '__main__':
     # lr_finder.reset()
 
     #zzz
+    
 
     """ Start training """
     for cur_epoch in range(len(train_loss_per_epoch), 10000):  
