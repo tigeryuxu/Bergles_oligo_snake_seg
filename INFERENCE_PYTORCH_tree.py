@@ -52,7 +52,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
-pregenerated = 1
+pregenerated = 0
         
 """  Network Begins: """
 #check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1
@@ -95,7 +95,7 @@ onlyfiles_check = glob.glob(os.path.join(check_path,'check_*'))
 onlyfiles_check.sort(key = natsort_key1)
     
 """ Find last checkpoint """       
-last_file = onlyfiles_check[-3]
+last_file = onlyfiles_check[-9]
 split = last_file.split('check_')[-1]
 num_check = split.split('.')
 checkpoint = num_check[0]
@@ -121,6 +121,7 @@ crop_size = int(input_size/2)
 z_size = depth
 
 for i in range(len(examples)):              
+
         """ (1) Loads data as sorted list of seeds """
         sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
 
@@ -140,7 +141,7 @@ for i in range(len(examples)):
         all_coords_root = []
         for point in cc:
             coord_point = point['coords']
-            all_coords_root.append(coord_point[0])
+            all_coords_root.append(coord_point)
         #all_coords_root = np.vstack(all_coords_root)
 
         all_trees = []
@@ -383,8 +384,20 @@ for i in range(len(examples)):
                                 
                                 
                                 
+                                
+                                0_38 ==> okay...
+                                0_59 ==> okay later
+                                
+                                0_90
+                                
                             *** TRY automatic ==> missing too many starting seeds
                             
+                            
+                            ***maybe neighborhood line connect is too lenient right now?
+                            
+                            
+                            ***if turn corner abruptly, often misses other side of turn
+                                ***maybe subtract 10 pixels from the placement of every seed???
                             
                             
                             
@@ -428,6 +441,13 @@ for i in range(len(examples)):
 
                     
                   im_dil = dilate_by_ball_to_binary(im_sub, radius=3)
+                  
+                  
+                  ### but add back in current crop seed (so now without dilation)
+                  im_dil = im_dil + crop_seed
+                  im_dil[im_dil > 0] = 1
+                  
+                  
                   
                   ### ***but exclude the center for subtraction
                   #im_sub = subtract_im_no_sub_zero(im_dil, small_center_cube)
@@ -656,6 +676,22 @@ for i in range(len(examples)):
                       """
                       cur_end = np.copy(cur_be_end)
                       cur_end = scale_coords_of_crop_to_full(cur_end, -box_x_min - 1, -box_y_min - 1, -box_z_min - 1)
+                      
+                      
+                      
+                      
+                      ### HACK: fix how so end points cant leave frame
+                      """ MIGHT GET TOO LARGE b/c of building up previous end points, so need to ensure crop """
+                      cur_end[np.where(cur_end[:, 0] >= crop_size * 2), 0] = crop_size * 2 - 1
+                      cur_end[np.where(cur_end[:, 1] >= crop_size * 2), 1] = crop_size * 2 - 1
+                      cur_end[np.where(cur_end[:, 2] >= depth), 2] = depth - 1
+                      
+                      
+                      
+                      
+                      
+                      
+                      ### Then set degrees
                       degrees[cur_end[:, 0], cur_end[:, 1], cur_end[:, 2]] = 4
                       
                       
@@ -663,16 +699,7 @@ for i in range(len(examples)):
                       
                       ###remove all the others that match this first one???
                       
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-                      
+                                           
 
                       plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 
                                   name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001) 

@@ -60,8 +60,8 @@ class UNet_upsample(nn.Module):
     def __init__(self, num_classes, input_channels=3, padding=1, **kwargs):
         super().__init__()
 
-        #nb_filter = [32, 64, 128, 256, 512]
-        nb_filter = [8, 16, 32, 64, 128]
+        nb_filter = [32, 64, 128, 256, 512]
+        #nb_filter = [8, 16, 32, 64, 128]
 
         self.up = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
 
@@ -162,8 +162,8 @@ class NestedUNet(nn.Module):
     def __init__(self, num_classes, input_channels=3, deep_supervision=False, padding=1, **kwargs):
         super().__init__()
 
-        #nb_filter = [32, 64, 128, 256, 512]
-        nb_filter = [8, 16, 32, 64, 128]
+        nb_filter = [32, 64, 128, 256, 512]
+        #nb_filter = [8, 16, 32, 64, 128]
         #nb_filter = [4, 8, 16, 32, 64]
 
         self.deep_supervision = deep_supervision

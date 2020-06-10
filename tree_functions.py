@@ -90,17 +90,10 @@ def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp, all_
     """ To find root ==> is side closest to middle of cell...??? """
     dist_to_root = []
     for check_coord in all_coords_root:
-        vec_dist = check_coord - coords_end_points
-        all_dist = []
-        for vec in vec_dist:
-            all_dist.append(np.linalg.norm(vec))
-        
-        #idx_min = all_dist.index(np.min(all_dist))
-        dist_to_root.append(np.min(all_dist))
-        #coord_root = coords_end_points[idx_min]
-    idx_min = dist_to_root.index(np.min(dist_to_root))
-    coord_root = all_coords_root[idx_min]
-    
+        expanded = expand_coord_to_neighborhood(check_coord, lower=1, upper=2)
+        if (np.vstack(expanded)[:, None] == coords_end_points).all(-1).any():            
+            coord_root = check_coord
+            
     
     """ next find segment tied to each branchpoint by searching the +/- 1 neighborhood for matching indices
     """

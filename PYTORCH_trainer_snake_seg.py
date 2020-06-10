@@ -95,7 +95,7 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     print(device)
     
     
@@ -158,7 +158,9 @@ if __name__ == '__main__':
     #s_path = './(30) Checkpoint_nested_unet_SPATIALW_simple/'
     
     
-    #s_path = './(31) Checkpoint_AdamW_batch_norm_SPATIALW_Lovasz/'
+    s_path = './(31) Checkpoint_nested_unet_SPATIALW_complex_3x3/'
+    
+    #s_path = './(32) Checkpoint_nested_unet_SPATIALW_complex_deep_supervision/'
     
     
     
@@ -284,7 +286,7 @@ if __name__ == '__main__':
         #transforms = initialize_transforms_simple(p = 0.5)
         transforms = 0
         
-        sp_weight_bool = 0
+        sp_weight_bool = 1
  
     
 

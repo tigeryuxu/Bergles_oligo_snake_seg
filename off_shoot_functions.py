@@ -20,7 +20,8 @@ from skimage.exposure import equalize_adapthist
 from matlab_crop_function import *
 import cv2 as cv2
 from skimage.filters import threshold_local
-
+from skimage.feature import hessian_matrix, hessian_matrix_eigvals
+from skimage.filters import gaussian
 
 import torch
 import scipy     
@@ -58,16 +59,16 @@ def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
      else:        
           """ Plotting as interactive scroller """
           only_colocalized_mask, overall_coord = GUI_cell_selector(input_im, crop_size=100, z_size=30,
-                                                                    height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
+                                                                    height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp, thresh=1)
           """ or auto-create seeds """
-          all_seeds, cropped_seed, binary = create_auto_seeds(input_im, only_colocalized_mask, overall_coord, 
+          all_seeds, cropped_seed, binary, all_seeds_no_50 = create_auto_seeds(input_im, only_colocalized_mask, overall_coord, 
                                         crop_size=100, z_size=30, height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
           
           plot_save_max_project(fig_num=88, im=cropped_seed, max_proj_axis=-1, title='all_seeds', 
                                           name=s_path + 'all_seeds.png', pause_time=0.001)
           plot_save_max_project(fig_num=89, im=binary, max_proj_axis=-1, title='all_seeds_binary', 
                                           name=s_path + 'all_seeds_binary.png', pause_time=0.001)
-          labelled = measure.label(all_seeds)
+          labelled = measure.label(all_seeds_no_50)
  
 
      """ Now start looping through each seed point to crop out the image """
@@ -240,7 +241,28 @@ def load_truth_seeds(input_counter, only_colocalized_mask, i, input_tmp_size, de
         all_seeds[mask == 0] = 0
         
         return cytosol_reordered
-   
+ 
+    
+ 
+    
+""" Extract ridges from 3D image """        
+def ridge_filter_3D(im, sigma=3):
+        #crop = gaussian(crop, sigma=1)
+        H_elems = hessian_matrix(im, sigma=sigma)
+        #i1, i2 = hessian_matrix_eigvals(hxx, hxy, hyy)
+        
+        eigs = hessian_matrix_eigvals(H_elems)
+    
+        LambdaAbs1=abs(eigs[0]);
+        LambdaAbs2=abs(eigs[1]);
+        LambdaAbs3=abs(eigs[2]);     
+        
+        return LambdaAbs1, LambdaAbs2, LambdaAbs3
+     
+     
+ 
+    
+ 
      
 """ automatically create seeds for analysis """
 def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size, z_size, height_tmp, width_tmp, depth_tmp):
@@ -261,24 +283,41 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
         only_colocalized_mask_crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(only_colocalized_mask, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
      
+        
+     
+        """ Use hessian??? """
+        LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=crop, sigma=3)
+
+        crop = LambdaAbs2;   # maybe this should be lambda 3???
+
+        thresh = threshold_otsu(crop)
+        binary = crop > thresh
+        
+        #plot_max(binary, ax=-1)
+        
+        # fig, ax = plt.subplots(1, 1)
+        # tracker = IndexTracker(ax, binary_otsu)
+        # fig.canvas.mpl_connect('scroll_event', tracker.onscroll)
+        # plt.show()        
+                
         """ Instead of loading truth image, just generate from binary image """
         
         """ Added adaptive cropping instead! on a per slice basis 
                   ***note: variable "C" is very finnicky... and determines a lot of threshold behavior
         """        
-        binary = np.zeros(np.shape(crop));
-        for crop_idx in range(len(crop[0, 0, :])):
-             cur_crop = crop[:, :, crop_idx]
+        # binary = np.zeros(np.shape(crop));
+        # for crop_idx in range(len(crop[0, 0, :])):
+        #      cur_crop = crop[:, :, crop_idx]
 
-             thresh_adapt = cv2.adaptiveThreshold(np.asarray(cur_crop, dtype=np.uint8), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                                  cv2.THRESH_BINARY, blockSize=25,C=-30) 
+        #      thresh_adapt = cv2.adaptiveThreshold(np.asarray(cur_crop, dtype=np.uint8), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        #                                           cv2.THRESH_BINARY, blockSize=25,C=-30) 
              
-             #thresh_adapt = threshold_local(cur_crop, block_size=35, method='gaussian',
-                                             #offset=0, mode='reflect', param=None, cval=0)
+        #      #thresh_adapt = threshold_local(cur_crop, block_size=35, method='gaussian',
+        #                                      #offset=0, mode='reflect', param=None, cval=0)
              
-             #np.unique(thresh_adapt)
-             #cur_crop = crop[:, :, crop_idx] > thresh_adapt
-             binary[:, :, crop_idx] = thresh_adapt
+        #      #np.unique(thresh_adapt)
+        #      #cur_crop = crop[:, :, crop_idx] > thresh_adapt
+        #      binary[:, :, crop_idx] = thresh_adapt
             
         
         #plt.figure(); plt.imshow(thresh_adapt)
@@ -296,8 +335,9 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         #dilated_image_large = dilate_by_ball_to_binary(only_colocalized_mask_crop, radius=20)
         
         dilated_image_small = dilate_by_ball_to_binary(only_colocalized_mask_crop, radius=10)
+        dilated_image_small = dilate_by_ball_to_binary(only_colocalized_mask_crop, radius=10)
 
-        """ subtract large - small to create seeds """
+        """ subtract dilated nucleus from image """
         #mask = dilated_image_large - dilated_image_small
         mask = dilated_image_small
         all_seeds = np.copy(cytosol_reordered)
@@ -305,24 +345,38 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         all_seeds[mask == 1] = 0
 
         
-        """ only keep things that are connected to the center cell body directly! """
-        dilated_image_small = dilate_by_ball_to_binary(dilated_image_small, radius=2)
+        """ only keep things that are connected to the center cell body directly! 
+        
+                ***cleans up by size later too
+        """
+        dilated_image_expanded = dilate_by_ball_to_binary(dilated_image_small, radius=2)
 
-        overlaped = all_seeds + dilated_image_small
+        overlaped = all_seeds + dilated_image_expanded
         cropped_seed = find_overlap_by_max_intensity(bw=all_seeds, intensity_map=overlaped, min_size_obj=10)        
 
         """ OPTIONAL:  *** can take out if makes seeds too sparse or loses too many seeds
              
              Delete all branch points to make more clean seeds """
-        degrees, coordinates = bw_skel_and_analyze(cropped_seed)
-        branch_points = np.copy(degrees); branch_points[branch_points != 3] = 0
-        cropped_seed[branch_points > 0] = 0
+        # degrees, coordinates = bw_skel_and_analyze(cropped_seed)
+        # branch_points = np.copy(degrees); branch_points[branch_points != 3] = 0
+        # cropped_seed[branch_points > 0] = 0
         
         """ restore crop """
-        all_seeds = np.zeros(np.shape(input_im))
+        all_seeds_no_50 = np.zeros(np.shape(input_im))
+        all_seeds_no_50[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = cropped_seed
+        
+        
+        
+        """ set cell as root coords for later """
+        all_seeds = np.copy(all_seeds_no_50)
+        cell_body = dilated_image_small
+        cropped_seed[cell_body > 0] = 50
         all_seeds[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = cropped_seed
         
-        return all_seeds, cropped_seed, binary
+        
+        
+        
+        return all_seeds, cropped_seed, binary, all_seeds_no_50
 
 
 """ run UNet inference """
