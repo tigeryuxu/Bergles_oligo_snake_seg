@@ -81,6 +81,10 @@ input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed g
 
 #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/dense/'
 
+#input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
+
+
+
 """ Load filenames from zip """
 images = glob.glob(os.path.join(input_path,'*input.tif*'))
 natsort_key1 = natsort_keygen(key = lambda y: y.lower())      # natural sorting order
@@ -120,14 +124,26 @@ depth = 16
 crop_size = int(input_size/2)
 z_size = depth
 
+scale_for_animation = 0.50
+
 for i in range(len(examples)):              
         """ (1) Loads data as sorted list of seeds """
         sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
+
 
         input_name = examples[i]['input']
         filename = input_name.split('/')[-1]
         filename = filename.split('.')[0:-1]
         filename = '.'.join(filename)
+        
+       
+        """ scale input im for animations """
+        if scale_for_animation:
+             input_im_rescaled = convert_matrix_to_multipage_tiff(input_im)   
+             input_im_rescaled = rescale(input_im_rescaled, scale_for_animation)
+             imsave(s_path +  '_ANIMATION_input_rescaled.tif', np.asarray(input_im_rescaled, dtype=np.uint8))
+       
+  
         """ add seeds to form roots of tree """
         """ (1) First loop through and turn each seed into segments at branch points 
             (2) Then add to list with parent/child indices
@@ -578,7 +594,7 @@ for i in range(len(examples)):
                        #      output[cur_be[:, 0], cur_be[:, 1], cur_be[:, 2]] = 1
                            
                            
-                  plot_max(output, ax=-1)
+                  #plot_max(output, ax=-1)
 
 
                   plot_save_max_project(fig_num=3, im=output, max_proj_axis=-1, title='output_be', 
@@ -745,6 +761,30 @@ for i in range(len(examples)):
         
                           print('Finished one iteration'); plt.close('all')
                           iterator += 1
+                          
+                          
+                          
+                          
+                          """ Save image for animation """
+                          if scale_for_animation:
+                               ### Just current tree???
+                               im = show_tree(tree, track_trees)
+                                                   
+                               ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
+                               for cur_tree in all_trees:
+                                     im += show_tree(cur_tree, track_trees)        
+                                     
+                               print("Saving animation")
+                               im = convert_matrix_to_multipage_tiff(im)                     
+                               from skimage.transform import rescale, resize, downscale_local_mean
+     
+                               im[im > 0] = 1
+                               image_rescaled = rescale(im, scale_for_animation)        
+                               image_rescaled[image_rescaled > 0.01] = 1   # binarize again
+                              
+                               imsave(s_path + filename + '_ANIMATION_crop_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(image_rescaled * 255, dtype=np.uint8)) 
+
+                                        
             
              num_tree += 1 
              print('Tree #: ' + str(num_tree) + " of possible: " + str(len(all_trees)))
