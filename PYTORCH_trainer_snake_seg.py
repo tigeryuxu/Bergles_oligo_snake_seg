@@ -37,6 +37,14 @@ TO DO snake seg:
         
         
         ***TRANSFORMS WONT WORK WITH SPATIAL WEIGHT??? BECAUSE THE WEIGHT MAP NEEDS TO BE REMADE???
+        
+        
+        
+        
+        
+        
+        
+        ***CLEAN GARBAGE WITHIN CELL BODIES IN TRAINING DATA!!!
 
 
 
@@ -95,9 +103,11 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     
+ 
+
     
     """" Input paths """    
     s_path = './(1) Checkpoint_PYTORCH/'
@@ -151,14 +161,14 @@ if __name__ == '__main__':
     # s_path = './(27) Checkpoint_AdamW_batch_norm_spatialW_1e-6/'
     
     
-    #s_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'
+    s_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'
     
-    s_path = './(29) Checkpoint_nested_unet_NO_SPATIALW/'
+    #s_path = './(29) Checkpoint_nested_unet_NO_SPATIALW/'
     
     #s_path = './(30) Checkpoint_nested_unet_SPATIALW_simple/'
     
     
-    s_path = './(31) Checkpoint_nested_unet_SPATIALW_complex_3x3/'
+    #s_path = './(31) Checkpoint_nested_unet_SPATIALW_complex_3x3/'
     
     #s_path = './(32) Checkpoint_nested_unet_SPATIALW_complex_deep_supervision/'
     
@@ -299,7 +309,7 @@ if __name__ == '__main__':
         checkpoint = 'check_' + checkpoint
 
         print('restoring weights')
-        check = torch.load(s_path + checkpoint)
+        check = torch.load(s_path + checkpoint, map_location=device)
         cur_epoch = check['cur_epoch']
         iterations = check['iterations']
         idx_train = check['idx_train']
@@ -345,6 +355,7 @@ if __name__ == '__main__':
         transforms = check['transforms']
 
         resume = 1
+ 
 
     """ Load filenames from tiff """
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
@@ -390,7 +401,13 @@ if __name__ == '__main__':
         #     idx_valid = idx_valid + list(match) + list(match)
             
     
+    """ For plotting ground truth """
+    #idx_train = np.sort(idx_train)
+    ### also need to set shuffle == False below
 
+
+
+    """ Create datasets for dataloader """
     training_set = Dataset_tiffs_snake_seg(idx_train, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = transforms)
     val_set = Dataset_tiffs_snake_seg(idx_valid, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = 0)
     
@@ -411,24 +428,7 @@ if __name__ == '__main__':
     train_steps_per_epoch = len(idx_train)/batch_size
     validation_size = len(idx_valid)
     epoch_size = len(idx_train)    
-
-
-
-
-    """ Find LR, to do so must: (1) uncomment section in dataloader """  
-    # from torch_lr_finder import LRFinder
-
-    # model = unet
-    # loss_function = torch.nn.CrossEntropyLoss()   # *** must use this loss function because dist_loss == mean
-    # optimizer = torch.optim.SGD(unet.parameters(), lr = 1e-5, momentum=0.99)
-    # #optimizer = torch.optim.AdamW(unet.parameters(), lr=1e-7, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
-    # lr_finder = LRFinder(model, optimizer, loss_function, device="cuda")
-    # lr_finder.range_test(training_generator, val_generator, start_lr=1e-5, end_lr=10, num_iter=50, diverge_th=100000)
-    # lr_finder.plot() # to inspect the loss-learning rate graph
-    # lr_finder.reset()
-
-    #zzz
-    
+   
 
     """ Start training """
     for cur_epoch in range(len(train_loss_per_epoch), 10000):  
@@ -437,7 +437,7 @@ if __name__ == '__main__':
          jacc_train = 0   
                   
          for param_group in optimizer.param_groups:
-              #param_group['lr'] = 1e-7   # manually sets learning rate
+              #param_group['lr'] = 1e-6   # manually sets learning rate
               cur_lr = param_group['lr']
               lr_plot.append(cur_lr)
               print('Current learning rate is: ' + str(cur_lr))
@@ -490,8 +490,8 @@ if __name__ == '__main__':
                 
                 """ forward + backward + optimize """
                 output_train = unet(inputs)
-                
-                
+
+
                 if dist_loss:  # for distance loss functions
                     labels = labels.unsqueeze(1)
                     labels = labels.permute(0, 1, 3, 4, 2)
@@ -560,6 +560,21 @@ if __name__ == '__main__':
                 iter_cur_epoch += 1
                 if iterations % 100 == 0:
                     print('Trained: %d' %(iterations))
+
+
+
+                """ Plot for ground truth """
+                # output_train = output_train.cpu().data.numpy()            
+                # output_train = np.moveaxis(output_train, 1, -1)              
+                # seg_train = np.argmax(output_train[0], axis=-1)  
+                  
+                # # convert back to CPU
+                # batch_x = batch_x.cpu().data.numpy() 
+                # batch_y = batch_y.cpu().data.numpy() 
+ 
+                # plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_train, batch_x[0], batch_x[0], batch_y[0], batch_y[0],
+                #                            s_path, iterations, plot_depth=8)
+
                 
                 
     

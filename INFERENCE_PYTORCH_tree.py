@@ -46,13 +46,15 @@ from skimage.morphology import skeletonize_3d, skeletonize
 from scipy.spatial import distance 
 from skimage.draw import line_nd
 
+from skimage.transform import rescale, resize, downscale_local_mean
+
 """ Define GPU to use """
 import torch
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
-pregenerated = 0
+pregenerated = 1
         
 """  Network Begins: """
 #check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1
@@ -64,6 +66,8 @@ pregenerated = 0
 #check_path = './(24) Checkpoint_nested_unet_SPATIALW/'; dilation = 1
 check_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'; dilation = 1
 
+
+check_path = './(31) Checkpoint_nested_unet_SPATIALW_complex_3x3/'; dilation = 1
 
 s_path = check_path + 'TEST_inference/'
 try:
@@ -80,6 +84,7 @@ input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed g
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/'
 
 #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/dense/'
+
 
 #input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
 
@@ -99,7 +104,7 @@ onlyfiles_check = glob.glob(os.path.join(check_path,'check_*'))
 onlyfiles_check.sort(key = natsort_key1)
     
 """ Find last checkpoint """       
-last_file = onlyfiles_check[-9]
+last_file = onlyfiles_check[-1]
 split = last_file.split('check_')[-1]
 num_check = split.split('.')
 checkpoint = num_check[0]
@@ -124,7 +129,7 @@ depth = 16
 crop_size = int(input_size/2)
 z_size = depth
 
-scale_for_animation = 0.50
+scale_for_animation = 0
 
 for i in range(len(examples)):              
 
@@ -142,7 +147,7 @@ for i in range(len(examples)):
         if scale_for_animation:
              input_im_rescaled = convert_matrix_to_multipage_tiff(input_im)   
              input_im_rescaled = rescale(input_im_rescaled, scale_for_animation)
-             imsave(s_path +  '_ANIMATION_input_rescaled.tif', np.asarray(input_im_rescaled, dtype=np.uint8))
+             
        
   
         """ add seeds to form roots of tree """
@@ -803,14 +808,17 @@ for i in range(len(examples)):
                                      
                                print("Saving animation")
                                im = convert_matrix_to_multipage_tiff(im)                     
-                               from skimage.transform import rescale, resize, downscale_local_mean
+                               
      
                                im[im > 0] = 1
                                image_rescaled = rescale(im, scale_for_animation)        
                                image_rescaled[image_rescaled > 0.01] = 1   # binarize again
+                               
+                               
+                              
                               
                                imsave(s_path + filename + '_ANIMATION_crop_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(image_rescaled * 255, dtype=np.uint8)) 
-
+                               imsave(s_path +  filename + '_ANIMATION_input_im_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(input_im_rescaled, dtype=np.uint8))
                                         
             
              num_tree += 1 
@@ -831,6 +839,7 @@ for i in range(len(examples)):
         
 
 
+        
         print('save entire tree')
         ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
         
@@ -850,6 +859,10 @@ for i in range(len(examples)):
         print("Saving after first iteration")
         color_im = convert_matrix_to_multipage_tiff(color_im)
         imsave(s_path + filename + '_overall_output_1st_iteration_COLOR.tif', np.asarray(color_im * 255, dtype=np.uint8))
+        
+        
+        
+
        
         
         

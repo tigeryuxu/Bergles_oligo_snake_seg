@@ -13,30 +13,37 @@ from layers import unetConv2
 from init_weights import init_weights
 '''
     UNet 3+
+    
+    (1) change everything to 3D
+    (2) rearrange order of batchnorm and RELU
+    (3) change filter sizes
+    (4) add padding
+    
+    
 '''
 class UNet_3Plus(nn.Module):
 
     def __init__(self, args):
         super(UNet_3Plus, self).__init__()
         self.args = args
-        in_channels = 4
-        n_classes = 3
-        feature_scale = 4
-        is_deconv = True
+        in_channels = 2
+        n_classes = 2
+        #feature_scale = 4
+        #is_deconv = True
         is_batchnorm = True
-        self.is_deconv = is_deconv
+        #self.is_deconv = is_deconv
         self.in_channels = in_channels
         self.is_batchnorm = is_batchnorm
-        self.feature_scale = feature_scale
+        #self.feature_scale = feature_scale
 
         filters = [64, 128, 256, 512, 1024]
 
         ## -------------Encoder--------------
         self.conv1 = unetConv2(self.in_channels, filters[0], self.is_batchnorm)
-        self.maxpool1 = nn.MaxPool2d(kernel_size=2)
+        self.maxpool1 = nn.MaxPool3d(kernel_size=2)
 
         self.conv2 = unetConv2(filters[0], filters[1], self.is_batchnorm)
-        self.maxpool2 = nn.MaxPool2d(kernel_size=2)
+        self.maxpool2 = nn.MaxPool3d(kernel_size=2)
 
         self.conv3 = unetConv2(filters[1], filters[2], self.is_batchnorm)
         self.maxpool3 = nn.MaxPool2d(kernel_size=2)

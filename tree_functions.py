@@ -89,6 +89,7 @@ def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp, all_
 
     """ To find root ==> is side closest to middle of cell...??? """
     dist_to_root = []
+    coord_root = [0, 0, 0]
     for check_coord in all_coords_root:
         expanded = expand_coord_to_neighborhood(check_coord, lower=1, upper=2)
         if (np.vstack(expanded)[:, None] == coords_end_points).all(-1).any():            
