@@ -25,8 +25,9 @@ class unetConv2(nn.Module):
         if is_batchnorm:
             for i in range(1, n + 1):
                 conv = nn.Sequential(nn.Conv3d(in_size, out_size, ks, s, p),
+                                     nn.ReLU(inplace=True), 
                                      nn.BatchNorm3d(out_size),
-                                     nn.ReLU(inplace=True), )
+                                     )   # SWITCHED SO RELU BEFORE BATCHNORM
                 setattr(self, 'conv%d' % i, conv)
                 in_size = out_size
 

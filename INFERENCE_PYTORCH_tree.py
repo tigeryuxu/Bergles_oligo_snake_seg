@@ -64,10 +64,17 @@ pregenerated = 1
 
 
 #check_path = './(24) Checkpoint_nested_unet_SPATIALW/'; dilation = 1
-check_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'; dilation = 1
+check_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'; dilation = 1; deep_supervision = False;
 
 
-check_path = './(31) Checkpoint_nested_unet_SPATIALW_complex_3x3/'; dilation = 1
+check_path = './(31) Checkpoint_nested_unet_SPATIALW_complex_3x3/'; dilation = 1;
+
+check_path = './(32) Checkpoint_nested_unet_SPATIALW_complex_deep_supervision/'; dilation = 1; deep_supervision = True;
+
+check_path = './(35) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM/'; dilation = 1; deep_supervision = False;
+
+
+check_path = './(36) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM_medium/'; dilation = 1; deep_supervision = False;
 
 s_path = check_path + 'TEST_inference/'
 try:
@@ -130,6 +137,7 @@ crop_size = int(input_size/2)
 z_size = depth
 
 scale_for_animation = 0
+#scale = 1
 
 for i in range(len(examples)):              
 
@@ -148,8 +156,7 @@ for i in range(len(examples)):
              input_im_rescaled = convert_matrix_to_multipage_tiff(input_im)   
              input_im_rescaled = rescale(input_im_rescaled, scale_for_animation)
              
-       
-  
+            
         """ add seeds to form roots of tree """
         """ (1) First loop through and turn each seed into segments at branch points 
             (2) Then add to list with parent/child indices
@@ -286,7 +293,7 @@ for i in range(len(examples)):
                   crop = np.asarray(crop, np.float32)
                   crop_seed[crop_seed > 0] = 255
                     
-                  output_PYTORCH = UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=device)
+                  output_PYTORCH = UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=device, deep_supervision=deep_supervision)
         
         
         

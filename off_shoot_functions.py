@@ -419,7 +419,7 @@ def UNet_inference(crop, crop_seed, batch_x, batch_y, weights, mean_arr, std_arr
 
 
 """ run UNet inference """
-def UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=None):
+def UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=None, deep_supervision=False):
    """ Combine seed mask with input im"""
    input_im_and_seeds = np.zeros(np.shape(crop) + (2, ))
    input_im_and_seeds[:, :, :, 0] = crop
@@ -440,6 +440,11 @@ def UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=None
    
    """ forward + backward + optimize """
    output = unet(inputs)
+   
+   
+   if deep_supervision:
+       output = output[-1]
+   
    output = output.data.cpu().numpy()
 
 

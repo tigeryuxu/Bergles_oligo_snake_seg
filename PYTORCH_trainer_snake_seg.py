@@ -15,11 +15,6 @@ TO DO snake seg:
 
     - add spatial weighting of loss 
 
-
-
-
-
-
     TO TRY:
         - with deep supervision
         - with conv1 after upsampling
@@ -29,30 +24,13 @@ TO DO snake seg:
         - fix the broken data?
         - more transforms??? ==> are they messing with the seed channel???
         
-        
         - no spatial weight with nested?
-        
-        
+                
         - ***slower training speed
-        
-        
+                
         ***TRANSFORMS WONT WORK WITH SPATIAL WEIGHT??? BECAUSE THE WEIGHT MAP NEEDS TO BE REMADE???
-        
-        
-        
-        
-        
-        
-        
         ***CLEAN GARBAGE WITHIN CELL BODIES IN TRAINING DATA!!!
-
-
-
-
-
 """
-
-
 
 """ ALLOWS print out of results on compute canada """
 import matplotlib
@@ -90,12 +68,13 @@ from losses_pytorch.focal_loss import FocalLoss
 import kornia
 
 from unet_nested import *
-
-
+from unet3_3D import *
+from switchable_BN import *
 #import lovasz_losses as L
 
-
-
+import napari
+# with napari.gui_qt():
+#     viewer = napari.view_image(seg_val)
 
 torch.backends.cudnn.benchmark = True  
 torch.backends.cudnn.enabled = True 
@@ -103,11 +82,9 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     print(device)
     
- 
-
     
     """" Input paths """    
     s_path = './(1) Checkpoint_PYTORCH/'
@@ -161,7 +138,7 @@ if __name__ == '__main__':
     # s_path = './(27) Checkpoint_AdamW_batch_norm_spatialW_1e-6/'
     
     
-    s_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'
+    #s_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'
     
     #s_path = './(29) Checkpoint_nested_unet_NO_SPATIALW/'
     
@@ -173,6 +150,18 @@ if __name__ == '__main__':
     #s_path = './(32) Checkpoint_nested_unet_SPATIALW_complex_deep_supervision/'
     
     
+    s_path = './(33) Checkpoint_UNET3_PLUS_SPATIALW_simpler/'
+    
+    
+    #s_path = './(34) Checkpoint_nested_unet_SPATIALW_complex_RETRAIN/'
+    
+    
+    s_path = './(35) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM/'
+    
+    
+    s_path = './(36) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM_medium/'
+    
+    s_path = './(37) Checkpoint_nested_unet_SPATIALW_complex/'
     
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
@@ -180,6 +169,8 @@ if __name__ == '__main__':
     
     #input_path = './Train_matched_quads_PYTORCH_256_64_MATCH_ILASTIK/'        
     input_path = '/media/user/storage/Data/(1) snake seg project/Train_SNAKE_SEG_scaled_cleaned/'
+    
+    input_path = '/media/user/My Book/7) Bergles lab data/NEW TRACES FILES/SingleOLEditing_Round2_ALL_PERFECT/MOBP909_4_Reg1_singleOL_5/TimeSeriesSplit/TRAINING FORWARD PROP ONLY SCALED/'
     #input_path = '/media/user/storage/Train/'
     #input_path = './Train_SNAKE_SEG_scaled_cleaned/'
 
@@ -231,16 +222,16 @@ if __name__ == '__main__':
         #                    batch_norm=True, batch_norm_switchable=False, up_mode='upsample')
 
 
-        unet = NestedUNet(num_classes=2, input_channels=2, deep_supervision=deep_supervision, padding=pad)
+        unet = NestedUNet(num_classes=2, input_channels=2, deep_supervision=deep_supervision, padding=pad, batch_norm_switchable=False)
         #unet = UNet_upsample(num_classes=2, input_channels=2, padding=pad)
 
-        
-        
+        #unet = UNet_3Plus(num_classes=2, input_channels=2, kernel_size=kernel_size, padding=pad)
+
         unet.train()
         unet.to(device)
         print('parameters:', sum(param.numel() for param in unet.parameters()))  
         
-    
+
         """ Select loss function """
         loss_function = torch.nn.CrossEntropyLoss(reduction='none')
         #kwargs = {"alpha": 0.5, "gamma": 2.0, "reduction": 'none'}
@@ -265,7 +256,7 @@ if __name__ == '__main__':
         """ Select optimizer """
         #lr = 1e-3; milestones = [20, 50, 100]  # with AdamW *** EXPLODED ***
         lr = 1e-3; milestones = [5, 50, 100]  # with AdamW
-        lr = 1e-5; milestones = [50, 100]  # with AdamW slow down
+        lr = 1e-5; milestones = [10, 100]  # with AdamW slow down
         #lr = 1e-6; milestones = [1000]  # with AdamW slow down
 
         #optimizer = torch.optim.SGD(unet.parameters(), lr = lr, momentum=0.90)
@@ -286,7 +277,7 @@ if __name__ == '__main__':
         
         """ Prints out all variables in current graph """
         # Required to initialize all
-        batch_size = 8;      
+        batch_size = 4;      
         test_size = 0.1
         """ Load training data """
         print('loading data')   
@@ -308,7 +299,8 @@ if __name__ == '__main__':
         checkpoint = num_check[0]
         checkpoint = 'check_' + checkpoint
 
-        print('restoring weights')
+        print('restoring weights from: ' + checkpoint)
+        #check = torch.load(s_path + checkpoint, map_location=lambda storage, loc: storage)
         check = torch.load(s_path + checkpoint, map_location=device)
         cur_epoch = check['cur_epoch']
         iterations = check['iterations']
@@ -354,6 +346,18 @@ if __name__ == '__main__':
         loss_function = check['loss_function']
         transforms = check['transforms']
 
+
+        print('parameters:', sum(param.numel() for param in unet.parameters()))  
+        
+        
+        
+        """ Clean up checkpoint file """
+        del check
+        torch.cuda.empty_cache()
+        
+        
+        
+        
         resume = 1
  
 
@@ -431,11 +435,23 @@ if __name__ == '__main__':
    
 
     """ Start training """
-    for cur_epoch in range(len(train_loss_per_epoch), 10000):  
+    for cur_epoch in range(len(train_loss_per_epoch), 10000): 
+         
          unet.train()         
+         """ set 0 momentum batchnorm """
+         # if  unet.training:
+         #       for module in unet.modules():
+         #           if isinstance(module, torch.nn.modules.BatchNorm3d):
+         #               print('setting track running stats to TRUE')
+         #               #print(module.momentum)
+         #               #module.track_running_stats = True
+         #               module.momentum = 0
+         #               # print(module.running_mean)
+         #               # print(module.running_var)
+
          loss_train = 0
          jacc_train = 0   
-                  
+             
          for param_group in optimizer.param_groups:
               #param_group['lr'] = 1e-6   # manually sets learning rate
               cur_lr = param_group['lr']
@@ -444,7 +460,7 @@ if __name__ == '__main__':
 
          iter_cur_epoch = 0;          
          for batch_x, batch_y, spatial_weight in training_generator:
-             
+                
                 """ Speed testing
                         
                     batch 8, no workers, 50, == 19.74
@@ -455,24 +471,7 @@ if __name__ == '__main__':
                     start = time.perf_counter()
                 if iterations == 50:
                     stop = time.perf_counter(); diff = stop - start; print(diff)
-                    
-
-                """ Plot for debug """ 
-                # if iterations % 1 == 0 and iterations != 0:
-                #     np_inputs = np.asarray(batch_x.numpy()[0], dtype=np.uint8)
-                #     np_labels = np.asarray(batch_y.numpy()[0], dtype=np.uint8)
-                #     np_labels[np_labels > 0] = 255
-                    
-                #     # imsave(s_path + str(iterations) + '_input.tif', np_inputs)
-                #     # imsave(s_path + str(iterations) + '_label.tif', np_labels)
-                    
-                #     in_max = plot_max(np_inputs[0], plot=0)
-                #     seed_max = plot_max(np_inputs[1], plot=0)
-                #     lb_max = plot_max(np_labels, plot=0)
-                    
-                #     imsave(s_path + str(iterations) + '_max_input.tif', in_max)
-                #     imsave(s_path + str(iterations) + '_max_crop_seed.tif', seed_max)
-                #     imsave(s_path + str(iterations) + '_max_label.tif', lb_max)                
+                                  
                 
                 """ Load data ==> shape is (batch_size, num_channels, depth, height, width)
                      (1) converts to Tensor
@@ -563,6 +562,18 @@ if __name__ == '__main__':
 
 
 
+                """ Troubleshoot batchnorm """
+                # if  unet.training:
+                #       for module in unet.modules():
+                #           if isinstance(module, SwitchNorm3d):
+                #           #if isinstance(module, torch.nn.modules.BatchNorm3d):
+                              
+                #               print('setting track running stats to TRUE')
+                #               #module.track_running_stats = True
+                #               print(module.running_mean)
+                #               print(module.running_var)
+                #               break
+
                 """ Plot for ground truth """
                 # output_train = output_train.cpu().data.numpy()            
                 # output_train = np.moveaxis(output_train, 1, -1)              
@@ -590,7 +601,17 @@ if __name__ == '__main__':
               with torch.set_grad_enabled(False):  # saves GPU RAM
                    unet.eval()
                    for batch_x_val, batch_y_val, spatial_weight in val_generator:
-                        
+                       
+                       
+                        """ set 0 momentum batchnorm """
+                        # if not unet.training:
+                        #     for module in unet.modules():
+                        #         if isinstance(module, torch.nn.modules.BatchNorm3d):
+                        #             print('setting track running stats to FALSE')
+                        #             module.track_running_stats = False
+                            
+                            
+                            
                         """ Transfer to GPU to normalize ect... """
                         inputs_val, labels_val = transfer_to_GPU(batch_x_val, batch_y_val, device, mean_arr, std_arr)
              
@@ -663,8 +684,39 @@ if __name__ == '__main__':
 
                         val_idx = val_idx + batch_size
                         print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
-                        
                         iter_cur_epoch += 1
+
+                        """ Plot for ground truth """
+                        # if loss.cpu().data.numpy() > 0.1:
+                        #     batch_x_val = batch_x_val.cpu().data.numpy() 
+
+                        #     print(loss.cpu().data.numpy())
+                        #     for b_x, b_y, out in zip(batch_x_val, batch_y_val, output_val):
+                        #         seg_val = np.argmax(out, axis=-1)  
+                        #         plot_trainer_3D_PYTORCH_snake_seg(seg_val, seg_val, b_x, b_x, b_y, b_y,
+                        #                                     s_path, val_idx, plot_depth=8)
+                                
+                        #         val_idx -= 1
+                                
+                        #     #zzz
+    
+    
+                        #     val_idx += batch_size
+                            
+
+
+
+                        # if not unet.training:
+                        #         for module in unet.modules():
+                        #             if isinstance(module, SwitchNorm3d):
+                        #             #if isinstance(module, torch.nn.modules.BatchNorm3d):
+                        #                 print('setting track running stats to TRUE')
+                        #                 #module.track_running_stats = True
+                        #                 print(module.running_mean)
+                        #                 print(module.running_var)
+                        #                 break
+                        #                 #               break
+                                
                 
               
                            
@@ -686,6 +738,10 @@ if __name__ == '__main__':
            
               plot_metric_fun(train_jacc_per_epoch, val_jacc_per_eval, class_name='', metric_name='jaccard', plot_num=32)
               plt.figure(32); plt.savefig(s_path + 'Jaccard.png')
+              
+              
+              
+              
                    
                  
               plot_metric_fun(train_loss_per_epoch, val_loss_per_eval, class_name='', metric_name='loss', plot_num=33)

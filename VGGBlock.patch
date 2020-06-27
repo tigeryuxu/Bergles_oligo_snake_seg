@@ -1,0 +1,100 @@
+--- /home/user/Documents/GitHub/Bergles_oligo_snake_seg/unet_nested.py
++++ /home/user/Documents/GitHub/Bergles_oligo_snake_seg/unet_nested.py
+@@ -1,40 +1,75 @@
+ class VGGBlock(nn.Module):
+-    def __init__(self, in_channels, middle_channels, out_channels, padding, batch_norm_switchable=False):
++    # def __init__(self, in_channels, middle_channels, out_channels, padding, batch_norm_switchable=False):
++    #     super().__init__()
++    #     self.relu = nn.ReLU(inplace=True)
++    #     self.conv1 = nn.Conv3d(in_channels, middle_channels, 5, padding=padding)
++    #     if not batch_norm_switchable:
++    #         self.bn1 = nn.BatchNorm3d(middle_channels)
++    #     else:
++    #         self.sn1 = SwitchNorm3d(middle_channels)
++
++
++    #     self.conv2 = nn.Conv3d(middle_channels, out_channels, 5, padding=padding)
++    #     if not batch_norm_switchable:
++    #         self.bn2 = nn.BatchNorm3d(out_channels)
++    #     else:
++    #         self.sn2 = SwitchNorm3d(out_channels)
++    #     self.batch_norm_switchable = batch_norm_switchable
++
++    # def forward(self, x):
++    #     out = self.conv1(x)
++    #     out = self.relu(out)        
++    #     if not self.batch_norm_switchable:
++    #        out = self.bn1(out)
++    #     else:
++    #         out = self.sn1(out)
++
++            
++        
++        
++    #     out = self.conv2(out)
++    #     out = self.relu(out)   # swapped relu to be before the batch norm ***ENABLES LEARNING!!!
++    #     if not self.batch_norm_switchable:
++    #        out = self.bn2(out)
++    #     else:
++    #         out = self.sn2(out)
++    #     return out
++
++
++    """ For old models without switch norm """
++    def __init__(self, in_channels, middle_channels, out_channels, padding):
+         super().__init__()
+         self.relu = nn.ReLU(inplace=True)
+         self.conv1 = nn.Conv3d(in_channels, middle_channels, 5, padding=padding)
+-        if not batch_norm_switchable:
+-            self.bn1 = nn.BatchNorm3d(middle_channels)
+-        else:
+-            self.sn1 = SwitchNorm3d(middle_channels)
++        #if not batch_norm_switchable:
++        self.bn1 = nn.BatchNorm3d(middle_channels)
++        #else:
++        #self.sn1 = SwitchNorm3d(middle_channels)
+ 
+ 
+         self.conv2 = nn.Conv3d(middle_channels, out_channels, 5, padding=padding)
+-        if not batch_norm_switchable:
+-            self.bn2 = nn.BatchNorm3d(out_channels)
+-        else:
+-            self.sn2 = SwitchNorm3d(out_channels)
+-        self.batch_norm_switchable = batch_norm_switchable
++        #if not batch_norm_switchable:
++        self.bn2 = nn.BatchNorm3d(out_channels)
++        # else:
++        #self.sn2 = SwitchNorm3d(out_channels)
++        #self.batch_norm_switchable = batch_norm_switchable
+ 
+     def forward(self, x):
+         out = self.conv1(x)
+         out = self.relu(out)        
+-        if not self.batch_norm_switchable:
+-            out = self.bn1(out)
+-        else:
+-            out = self.sn1(out)
++        #if not self.batch_norm_switchable:
++        out = self.bn1(out)
++        # else:
++        #out = self.sn1(out)
+ 
+-            
++       
+         
+         
+         out = self.conv2(out)
+         out = self.relu(out)   # swapped relu to be before the batch norm ***ENABLES LEARNING!!!
+-        if not self.batch_norm_switchable:
+-            out = self.bn2(out)
+-        else:
+-            out = self.sn2(out)
++        #if not self.batch_norm_switchable:
++        out = self.bn2(out)
++        #else:
++        #out = self.sn2(out)
+         return out
+ 
+-
+-    """ For old models without switch norm """
+-

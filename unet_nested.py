@@ -10,30 +10,85 @@ Created on Wed Jun  3 21:21:57 2020
 import torch
 from torch import nn
 import torch.nn.functional as F
-
+from switchable_BN import *
 
 __all__ = ['UNet_upsample', 'NestedUNet']
 
 
 class VGGBlock(nn.Module):
-    def __init__(self, in_channels, middle_channels, out_channels, padding):
+    def __init__(self, in_channels, middle_channels, out_channels, padding, batch_norm_switchable=False):
         super().__init__()
         self.relu = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv3d(in_channels, middle_channels, 5, padding=padding)
-        self.bn1 = nn.BatchNorm3d(middle_channels)
+        if not batch_norm_switchable:
+            self.bn1 = nn.BatchNorm3d(middle_channels)
+        else:
+            self.sn1 = SwitchNorm3d(middle_channels)
+
+
         self.conv2 = nn.Conv3d(middle_channels, out_channels, 5, padding=padding)
-        self.bn2 = nn.BatchNorm3d(out_channels)
+        if not batch_norm_switchable:
+            self.bn2 = nn.BatchNorm3d(out_channels)
+        else:
+            self.sn2 = SwitchNorm3d(out_channels)
+        self.batch_norm_switchable = batch_norm_switchable
 
     def forward(self, x):
         out = self.conv1(x)
-        out = self.relu(out)
-        out = self.bn1(out)
+        out = self.relu(out)        
+        if not self.batch_norm_switchable:
+            out = self.bn1(out)
+        else:
+            out = self.sn1(out)
+
+            
+        
         
         out = self.conv2(out)
         out = self.relu(out)   # swapped relu to be before the batch norm ***ENABLES LEARNING!!!
-        out = self.bn2(out)
-
+        if not self.batch_norm_switchable:
+            out = self.bn2(out)
+        else:
+            out = self.sn2(out)
         return out
+
+
+    """ For old models without switch norm """
+    # def __init__(self, in_channels, middle_channels, out_channels, padding):
+    #     super().__init__()
+    #     self.relu = nn.ReLU(inplace=True)
+    #     self.conv1 = nn.Conv3d(in_channels, middle_channels, 5, padding=padding)
+    #     #if not batch_norm_switchable:
+    #     self.bn1 = nn.BatchNorm3d(middle_channels)
+    #     #else:
+    #     #self.sn1 = SwitchNorm3d(middle_channels)
+
+
+    #     self.conv2 = nn.Conv3d(middle_channels, out_channels, 5, padding=padding)
+    #     #if not batch_norm_switchable:
+    #     self.bn2 = nn.BatchNorm3d(out_channels)
+    #     # else:
+    #     #self.sn2 = SwitchNorm3d(out_channels)
+    #     #self.batch_norm_switchable = batch_norm_switchable
+
+    # def forward(self, x):
+    #     out = self.conv1(x)
+    #     out = self.relu(out)        
+    #     #if not self.batch_norm_switchable:
+    #     out = self.bn1(out)
+    #     # else:
+    #     #out = self.sn1(out)
+
+       
+        
+        
+    #     out = self.conv2(out)
+    #     out = self.relu(out)   # swapped relu to be before the batch norm ***ENABLES LEARNING!!!
+    #     #if not self.batch_norm_switchable:
+    #     out = self.bn2(out)
+    #     #else:
+    #     #out = self.sn2(out)
+    #     return out
 
 
 
@@ -57,24 +112,24 @@ class upsampling(nn.Module):
 
 
 class UNet_upsample(nn.Module):
-    def __init__(self, num_classes, input_channels=3, padding=1, **kwargs):
+    def __init__(self, num_classes, input_channels=3, padding=1, batch_norm_switchable=False, **kwargs):
         super().__init__()
 
-        nb_filter = [32, 64, 128, 256, 512]
-        #nb_filter = [8, 16, 32, 64, 128]
+        #nb_filter = [32, 64, 128, 256, 512]
+        nb_filter = [16, 32, 64, 128, 256]
 
         self.up = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
 
-        self.conv0_0 = VGGBlock(input_channels, nb_filter[0], nb_filter[0], padding=padding)
-        self.conv1_0 = VGGBlock(nb_filter[0], nb_filter[1], nb_filter[1], padding=padding)
-        self.conv2_0 = VGGBlock(nb_filter[1], nb_filter[2], nb_filter[2], padding=padding)
-        self.conv3_0 = VGGBlock(nb_filter[2], nb_filter[3], nb_filter[3], padding=padding)
-        self.conv4_0 = VGGBlock(nb_filter[3], nb_filter[4], nb_filter[4], padding=padding)
+        self.conv0_0 = VGGBlock(input_channels, nb_filter[0], nb_filter[0], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv1_0 = VGGBlock(nb_filter[0], nb_filter[1], nb_filter[1], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv2_0 = VGGBlock(nb_filter[1], nb_filter[2], nb_filter[2], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv3_0 = VGGBlock(nb_filter[2], nb_filter[3], nb_filter[3], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv4_0 = VGGBlock(nb_filter[3], nb_filter[4], nb_filter[4], padding=padding, batch_norm_switchable=batch_norm_switchable)
 
-        self.conv3_1 = VGGBlock(nb_filter[3]+nb_filter[4], nb_filter[3], nb_filter[3], padding=padding)
-        self.conv2_2 = VGGBlock(nb_filter[2]+nb_filter[3], nb_filter[2], nb_filter[2], padding=padding)
-        self.conv1_3 = VGGBlock(nb_filter[1]+nb_filter[2], nb_filter[1], nb_filter[1], padding=padding)
-        self.conv0_4 = VGGBlock(nb_filter[0]+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding)
+        self.conv3_1 = VGGBlock(nb_filter[3]+nb_filter[4], nb_filter[3], nb_filter[3], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv2_2 = VGGBlock(nb_filter[2]+nb_filter[3], nb_filter[2], nb_filter[2], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv1_3 = VGGBlock(nb_filter[1]+nb_filter[2], nb_filter[1], nb_filter[1], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv0_4 = VGGBlock(nb_filter[0]+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding, batch_norm_switchable=batch_norm_switchable)
 
         self.final = nn.Conv3d(nb_filter[0], num_classes, kernel_size=1)
 
@@ -159,10 +214,11 @@ class UNet_upsample(nn.Module):
 
 
 class NestedUNet(nn.Module):
-    def __init__(self, num_classes, input_channels=3, deep_supervision=False, padding=1, **kwargs):
+    def __init__(self, num_classes, input_channels=3, deep_supervision=False, padding=1, batch_norm_switchable=False, **kwargs):
         super().__init__()
 
         nb_filter = [32, 64, 128, 256, 512]
+        #nb_filter = [16, 32, 64, 128, 256]
         #nb_filter = [8, 16, 32, 64, 128]
         #nb_filter = [4, 8, 16, 32, 64]
 
@@ -171,25 +227,25 @@ class NestedUNet(nn.Module):
         #self.pool = nn.MaxPool3d(2, 2, 2)
         self.up = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
 
-        self.conv0_0 = VGGBlock(input_channels, nb_filter[0], nb_filter[0], padding=padding)
-        self.conv1_0 = VGGBlock(nb_filter[0], nb_filter[1], nb_filter[1], padding=padding)
-        self.conv2_0 = VGGBlock(nb_filter[1], nb_filter[2], nb_filter[2], padding=padding)
-        self.conv3_0 = VGGBlock(nb_filter[2], nb_filter[3], nb_filter[3], padding=padding)
-        self.conv4_0 = VGGBlock(nb_filter[3], nb_filter[4], nb_filter[4], padding=padding)
+        self.conv0_0 = VGGBlock(input_channels, nb_filter[0], nb_filter[0], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv1_0 = VGGBlock(nb_filter[0], nb_filter[1], nb_filter[1], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv2_0 = VGGBlock(nb_filter[1], nb_filter[2], nb_filter[2], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv3_0 = VGGBlock(nb_filter[2], nb_filter[3], nb_filter[3], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv4_0 = VGGBlock(nb_filter[3], nb_filter[4], nb_filter[4], padding=padding, batch_norm_switchable=batch_norm_switchable)
 
-        self.conv0_1 = VGGBlock(nb_filter[0]+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding)
-        self.conv1_1 = VGGBlock(nb_filter[1]+nb_filter[2], nb_filter[1], nb_filter[1], padding=padding)
-        self.conv2_1 = VGGBlock(nb_filter[2]+nb_filter[3], nb_filter[2], nb_filter[2], padding=padding)
-        self.conv3_1 = VGGBlock(nb_filter[3]+nb_filter[4], nb_filter[3], nb_filter[3], padding=padding)
+        self.conv0_1 = VGGBlock(nb_filter[0]+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv1_1 = VGGBlock(nb_filter[1]+nb_filter[2], nb_filter[1], nb_filter[1], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv2_1 = VGGBlock(nb_filter[2]+nb_filter[3], nb_filter[2], nb_filter[2], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv3_1 = VGGBlock(nb_filter[3]+nb_filter[4], nb_filter[3], nb_filter[3], padding=padding, batch_norm_switchable=batch_norm_switchable)
 
-        self.conv0_2 = VGGBlock(nb_filter[0]*2+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding)
-        self.conv1_2 = VGGBlock(nb_filter[1]*2+nb_filter[2], nb_filter[1], nb_filter[1], padding=padding)
-        self.conv2_2 = VGGBlock(nb_filter[2]*2+nb_filter[3], nb_filter[2], nb_filter[2], padding=padding)
+        self.conv0_2 = VGGBlock(nb_filter[0]*2+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv1_2 = VGGBlock(nb_filter[1]*2+nb_filter[2], nb_filter[1], nb_filter[1], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv2_2 = VGGBlock(nb_filter[2]*2+nb_filter[3], nb_filter[2], nb_filter[2], padding=padding, batch_norm_switchable=batch_norm_switchable)
 
-        self.conv0_3 = VGGBlock(nb_filter[0]*3+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding)
-        self.conv1_3 = VGGBlock(nb_filter[1]*3+nb_filter[2], nb_filter[1], nb_filter[1], padding=padding)
+        self.conv0_3 = VGGBlock(nb_filter[0]*3+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding, batch_norm_switchable=batch_norm_switchable)
+        self.conv1_3 = VGGBlock(nb_filter[1]*3+nb_filter[2], nb_filter[1], nb_filter[1], padding=padding, batch_norm_switchable=batch_norm_switchable)
 
-        self.conv0_4 = VGGBlock(nb_filter[0]*4+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding)
+        self.conv0_4 = VGGBlock(nb_filter[0]*4+nb_filter[1], nb_filter[0], nb_filter[0], padding=padding, batch_norm_switchable=batch_norm_switchable)
 
         if self.deep_supervision:
             self.final1 = nn.Conv3d(nb_filter[0], num_classes, kernel_size=1)
