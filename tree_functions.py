@@ -127,7 +127,7 @@ def expand_coord_to_neighborhood(coords, lower, upper):
 
 
 """ Get neighborhoods from an image ==> include scaling??? """
-def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, box_z_min=0):
+def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, box_z_min=0, width=1000000000, height=100000000, depth=100000000):
       only_segments = np.copy(degrees); only_segments[only_segments != 2] = 0
       only_branch_ends = np.copy(degrees); only_branch_ends[only_branch_ends == 2] = 0; only_branch_ends[only_branch_ends > 0] = 3; 
       
@@ -173,13 +173,71 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, 
 
 
 
+""" Check size limits """
+def check_limits(all_neighborhoods, width_tmp, height_tmp, depth_tmp):
+    
+        """ Make sure nothing exceeds size limits """
+        idx = 0; 
+        for neighbor_be in all_neighborhoods:
+            
+            if len(neighbor_be) > 0:
+                if np.any(neighbor_be[:, 0] >= width_tmp):
+                    all_neighborhoods[idx][np.where(neighbor_be[:, 0] >= width_tmp), 0] = width_tmp - 1
+                    
+                if np.any(neighbor_be[:, 1] >= height_tmp):
+                    all_neighborhoods[idx][np.where(neighbor_be[:, 1] >= height_tmp), 1] = height_tmp - 1
+    
+                if np.any(neighbor_be[:, 2] >= depth_tmp):
+                    all_neighborhoods[idx][np.where(neighbor_be[:, 2] >= depth_tmp), 2] = depth_tmp - 1
+            idx += 1
+            
+        return all_neighborhoods   
+    
+
+
+
 """ Create tree """
-def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = 0, parent= -1, start=0):
+def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = 0, parent= -1, start=0, width_tmp=1000000000, height_tmp=100000000, depth_tmp=100000000):
+
+
+        """ Make sure nothing exceeds size limits """
+        all_neighborhoods = check_limits(all_neighborhoods, width_tmp, height_tmp, depth_tmp)
+        # idx = 0; 
+        # for neighbor_be in all_neighborhoods:
+            
+        #     if len(neighbor_be) > 0:
+        #         if np.any(neighbor_be[:, 0] >= width_tmp):
+        #             all_neighborhoods[idx][np.where(neighbor_be[:, 0] >= width_tmp), 0] = width_tmp - 1
+        #         if np.any(neighbor_be[:, 1] >= height_tmp):
+        #             all_neighborhoods[idx][np.where(neighbor_be[:, 1] >= height_tmp), 0] = height_tmp - 1
+    
+        #         if np.any(neighbor_be[:, 2] >= depth_tmp):
+        #             all_neighborhoods[idx][np.where(neighbor_be[:, 2] >= depth_tmp), 0] = depth_tmp - 1
+        #     idx += 1
+    
+    
+    
+        all_hood_first_last = check_limits(all_hood_first_last, width_tmp, height_tmp, depth_tmp)
+        # idx = 0; 
+        # for h_first_last in all_hood_first_last:
+            
+        #     if len(h_first_last) > 0:
+        #         if np.any(h_first_last[:, 0] >= width_tmp):
+        #             all_hood_first_last[idx][np.where(h_first_last[:, 0] >= width_tmp), 0] = width_tmp - 1
+        #         if np.any(h_first_last[:, 1] >= height_tmp):
+        #             all_hood_first_last[idx][np.where(h_first_last[:, 1] >= height_tmp), 0] = height_tmp - 1
+    
+        #         if np.any(h_first_last[:, 2] >= depth_tmp):
+        #             all_hood_first_last[idx][np.where(h_first_last[:, 2] >= depth_tmp), 0] = depth_tmp - 1
+        #     idx += 1    
+
         # IF ROOT (depth == 0) ==> then use root neighborhood
         if len(tree_df) == 0:
             cur_be = np.vstack(root_neighborhood[0])
         elif start:
             cur_be = np.vstack(root_neighborhood)
+                   
+            
         else:
             idx_parent_df = np.where(tree_df.cur_idx == parent)
             cur_be = np.vstack(tree_df.end_be_coord[idx_parent_df[0][0]])
@@ -233,7 +291,8 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                                                 
                     # recurse
                     tree_df, next_children = treeify(tree_df, depth + 1, 
-                                          root_neighborhood, all_neighborhoods_tmp, all_hood_first_last, cur_idx=cur_idx, parent=cur_idx) 
+                                          root_neighborhood, all_neighborhoods_tmp, all_hood_first_last, cur_idx=cur_idx, parent=cur_idx,
+                                          width_tmp=width_tmp, height_tmp=height_tmp, depth_tmp=depth_tmp) 
     
                     # add all children from next call
                     tree_df.child[cur_idx].append(next_children)

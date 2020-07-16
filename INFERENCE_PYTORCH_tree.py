@@ -71,10 +71,18 @@ check_path = './(31) Checkpoint_nested_unet_SPATIALW_complex_3x3/'; dilation = 1
 
 check_path = './(32) Checkpoint_nested_unet_SPATIALW_complex_deep_supervision/'; dilation = 1; deep_supervision = True;
 
-check_path = './(35) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM/'; dilation = 1; deep_supervision = False;
+#check_path = './(35) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM/'; dilation = 1; deep_supervision = False;
 
 
-check_path = './(36) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM_medium/'; dilation = 1; deep_supervision = False;
+#check_path = './(36) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM_medium/'; dilation = 1; deep_supervision = False;
+
+#check_path = './(37) Checkpoint_nested_unet_SPATIALW_complex/'; dilation = 1; deep_supervision = False;
+check_path = './(38) Checkpoint_nested_unet_SPATIALW_complex_batch_4_NEW_DATA/'; dilation = 1; deep_supervision = False;
+
+#check_path = './(39) Checkpoint_nested_unet_SPATIALW_simple_b4_NEW_DATA_SWITCH_NORM/'; dilation = 1; deep_supervision = False;
+
+
+
 
 s_path = check_path + 'TEST_inference/'
 try:
@@ -131,7 +139,7 @@ unet.eval()
 unet.to(device)
 
 input_size = 80
-depth = 16
+depth = 32
 
 crop_size = int(input_size/2)
 z_size = depth
@@ -246,6 +254,8 @@ for i in range(len(examples)):
                   if not np.isnan(tree.end_be_coord[first_ind]).any():   # if there's no end index for some reason, use starting one???
                       """ OR ==> should use parent??? """             
                       cur_be_end = tree.end_be_coord[first_ind]
+                      
+                      
                       centroid = cur_be_end[math.floor(len(cur_be_end)/2)]
                       cur_coords.append(centroid)                      
                   else:
@@ -260,6 +270,9 @@ for i in range(len(examples)):
                       cur_coords = np.transpose(cur_coords)
 
                   cur_seg_im = np.zeros(np.shape(input_im))   # maybe speed up here by not creating the image every time???
+                  
+                  
+                  
                   cur_seg_im[cur_coords[:, 0], cur_coords[:, 1], cur_coords[:, 2]] = 1
                   
                   # add the centroid as well
@@ -270,12 +283,15 @@ for i in range(len(examples)):
                       cur_seg_im[parent_coords[:, 0], parent_coords[:, 1], parent_coords[:, 2]] = 1
 
                   """ use centroid of object to make seed crop """
-                  crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
-                  crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(cur_seg_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
+                  crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
+                  crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
 
                     
                   """ Dilate the seed by sphere 1 to mimic training data """
                   # THIS IS ORIGINAL BALL DILATION 
+                  
+                  
+                  
                   crop_seed = dilate_by_ball_to_binary(crop_seed, radius=dilation)
 
 
@@ -296,6 +312,13 @@ for i in range(len(examples)):
                   output_PYTORCH = UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=device, deep_supervision=deep_supervision)
         
         
+        
+                  """ Since it's centered around crop, ensure doesn't go overboard """
+                  output_PYTORCH[boundaries_crop == 0] = 0
+        
+        
+                  if iterator == 200 or iterator == 201 or iterator == 202:
+                      print('201')
         
                   """ SAVE max projections"""
                   plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
@@ -460,7 +483,7 @@ for i in range(len(examples)):
                       im += show_tree(cur_tree, track_trees)
                   
                   im[im > 0] = 1
-                  crop_prev, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
+                  crop_prev, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
                   crop_prev = skeletonize_3d(crop_prev)
                                     
 
@@ -703,8 +726,10 @@ for i in range(len(examples)):
                               or add in the endpoint like I just said, but subtract it out to keep the crop_seed separate???                              
                       """
                       cur_end = np.copy(cur_be_end)
-                      cur_end = scale_coords_of_crop_to_full(cur_end, -box_x_min - 1, -box_y_min - 1, -box_z_min - 1)
+                      cur_end = scale_coords_of_crop_to_full(cur_end, -box_x_min, -box_y_min, -box_z_min)
                       
+                      ### check limits to ensure doesnt go out of frame
+                      cur_end = check_limits([cur_end], crop_size * 2, crop_size * 2, depth)[0]
                       
                       
                       
@@ -734,6 +759,11 @@ for i in range(len(examples)):
                       
                       all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_x_min=box_x_min, box_y_min=box_y_min, box_z_min=box_z_min)
 
+
+
+
+
+
                       """ Find which neighborhood_be matches with cur_be_end to set as new root!!! 
                               Then delete all the rest of the cur_segs that match with crop_seed
                       """
@@ -748,10 +778,15 @@ for i in range(len(examples)):
                              
                          else:
                              cur = np.copy(neighbor_be)
-                             cur = scale_coords_of_crop_to_full(cur, -box_x_min - 1, -box_y_min - 1, -box_z_min - 1)
+                             cur = scale_coords_of_crop_to_full(cur, -box_x_min, -box_y_min, -box_z_min)
+                             
+                             ### check limits to ensure doesnt go out of frame
+                             cur = check_limits([cur], crop_size * 2, crop_size * 2, depth)[0]
+                             
                              check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 1
                        
                          idx += 1
+                         
                       # delete cur_segs *** NOT NEEDED
                       idx = 0
                       for cur_seg in all_hood_first_last:
@@ -759,7 +794,10 @@ for i in range(len(examples)):
                                   all_hood_first_last[idx] = []
                             else:
                                cur = np.copy(cur_seg)
-                               cur = scale_coords_of_crop_to_full(cur, -box_x_min - 1, -box_y_min - 1, -box_z_min - 1)
+                               cur = scale_coords_of_crop_to_full(cur, -box_x_min, -box_y_min, -box_z_min)
+                               
+                               ### check limits to ensure doesnt go out of frame
+                               cur = check_limits([cur], crop_size * 2, crop_size * 2, depth)[0]
                                check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 1                 
                             
                             idx += 1
@@ -783,7 +821,8 @@ for i in range(len(examples)):
                           parent =  tree.parent[first_ind]
                           #root_neighborhood = all_neighborhoods[0]
                           
-                          tree, list_ = treeify(tree, depth_tree, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = cur_idx, parent= cur_idx, start=1)
+                          tree, list_ = treeify(tree, depth_tree, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = cur_idx, parent= cur_idx,
+                                                start=1, width_tmp=width_tmp, height_tmp=height_tmp, depth_tmp=depth_tmp)
 
                           ### set "visited" to correct value
                           # for idx, node in tree.iterrows():

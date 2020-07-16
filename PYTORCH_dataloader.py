@@ -15,11 +15,11 @@ import numpy as np
 
 import scipy
 import math
+import tifffile as tifffile
 
 """ Extended functions for SNAKE_SEG """
 
 """ Load data directly from tiffs with seed mask """
-import tifffile as tifffile
 class Dataset_tiffs_snake_seg(data.Dataset):
   def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0):
         'Initialization'
@@ -278,34 +278,6 @@ def initialize_transforms_simple(p=0.5):
 
 
 
-
-
-
-""" Get training data from bcolz file """
-def get_train_from_bcolz(X, Y, input_path, test_size = 0.1, start_idx=0, end_idx=-1, convert_float=1):
-
-    start = time.perf_counter()
-    
-    X_train = X[start_idx:end_idx]
-    X_valid = Y[start_idx:end_idx]
-    
-    stop = time.perf_counter()
-    acc_speed = stop - start
-    print(acc_speed)
-                
-    
-    start = time.perf_counter()    
-    
-    if convert_float:
-        X_train = np.asarray(X_train, np.float32)
-        X_valid = np.asarray(X_valid, np.float32)    
-    
-    stop = time.perf_counter()
-    diff = stop - start
-    print(diff)
-    return X_train, X_valid, acc_speed
-
-
 """ Do pre-processing on GPU
           ***can't do augmentation/transforms here because of CPU requirement for torchio
 
@@ -329,154 +301,7 @@ def transfer_to_GPU(X, Y, device, mean, std, transforms = 0):
 
 
 
-""" Create dataset from numpy """
-class Dataset_from_numpy(data.Dataset):
-  'Characterizes a dataset for PyTorch'
-  def __init__(self, list_IDs, data_train, data_truth, mean, std, transforms = 0):
-        'Initialization'
-        #self.labels = labels
-        self.list_IDs = list_IDs
-        self.data_train = data_train
-        self.data_truth = data_truth
-        self.mean = mean
-        self.std = std
-        self.transforms = transforms
-
-
-  def apply_transforms(self, image, mask):
-        """ should all this be done on GPU??? 
-        
-             ***need to be PIL images??? not numpy???
-        """ 
-        
-        """ maybe needs to loop to append to list o batch_size???"""
-
-        """ *** REMOVE THIS NORMALIZATION??? *** """
-        inputs = np.asarray(image, dtype=np.float32)
-        labels = mask
- 
-        inputs = torch.tensor(inputs, dtype = torch.float,requires_grad=False)
-        labels = torch.tensor(labels, dtype = torch.long, requires_grad=False)         
- 
-        subject_a = Subject(
-                one_image=Image(None,  torchio.INTENSITY, inputs),   # *** must be tensors!!!
-                a_segmentation=Image(None, torchio.LABEL, labels))
-          
-        subjects_list = [subject_a]
-
-        subjects_dataset = ImagesDataset(subjects_list, transform=self.transforms)
-        subject_sample = subjects_dataset[0]
-          
-          
-        X = subject_sample['one_image']['data'].numpy()
-        Y = subject_sample['a_segmentation']['data'].numpy()
-        
-        return X[0], Y[0]
-
-
-  def __len__(self):
-        'Denotes the total number of samples'
-        return len(self.list_IDs)
-
-  def __getitem__(self, index):
-        'Generates one sample of data'
-        # Select sample
-        ID = self.list_IDs[index]
-
-        # Load data and get label
-        #X = torch.load('data/' + ID + '.pt')
-        #y = self.labels[ID]
-
- 
-        X = self.data_train[ID]
-        Y = self.data_truth[ID]
-        
-        
-            
-          
-        """ If want to do transform on CPU """
-        if self.transforms:
-             X, Y = self.apply_transforms(X, Y)  
-        
-             
-        return X, Y
-
-
-
-
-""" From bcolz directly """
-import bcolz
-class Dataset(data.Dataset):
-  'Characterizes a dataset for PyTorch'
-  def __init__(self, list_IDs, input_path, transforms = 0):
-        'Initialization'
-        #self.labels = labels
-        self.list_IDs = list_IDs
-        self.input_path = input_path
-        self.transforms = transforms
-
-  def apply_transforms(self, image, mask):
-        """ should all this be done on GPU??? 
-        
-             ***need to be PIL images??? not numpy???
-        """ 
-        
-        """ maybe needs to loop to append to list o batch_size???"""
-
-        """ *** REMOVE THIS NORMALIZATION??? *** """
-        inputs = np.asarray(image, dtype=np.float32)
-        labels = mask
- 
-        inputs = torch.tensor(inputs, dtype = torch.float,requires_grad=False)
-        labels = torch.tensor(labels, dtype = torch.long, requires_grad=False)         
- 
-        subject_a = Subject(
-                one_image=Image(None,  torchio.INTENSITY, inputs),   # *** must be tensors!!!
-                a_segmentation=Image(None, torchio.LABEL, labels))
-          
-        subjects_list = [subject_a]
-
-        subjects_dataset = ImagesDataset(subjects_list, transform=self.transforms)
-        subject_sample = subjects_dataset[0]
-          
-          
-        X = subject_sample['one_image']['data'].numpy()
-        Y = subject_sample['a_segmentation']['data'].numpy()
-        
-        return X[0], Y[0]
-
-
-
-  def __len__(self):
-        'Denotes the total number of samples'
-        return len(self.list_IDs)
-
-  def __getitem__(self, index):
-        'Generates one sample of data'
-        # Select sample
-        ID = self.list_IDs[index]
-
-        # Load data and get label
-        #X = torch.load('data/' + ID + '.pt')
-        #y = self.labels[ID]
-
- 
-        X = bcolz.open(self.input_path + 'X_train', mode='r')[ID]
-        Y = bcolz.open(self.input_path + 'y_train', mode='r')[ID]
-
-
-        """ If want to do transform on CPU """
-        if self.transforms:
-             X, Y = self.apply_transforms(X, Y)  
-        
-             
-        return X, Y
-
-
-
-
 """ Load data directly from tiffs """
-import tifffile as tifffile
 class Dataset_tiffs(data.Dataset):
   'Characterizes a dataset for PyTorch'
   def __init__(self, list_IDs, examples, mean, std, transforms = 0):

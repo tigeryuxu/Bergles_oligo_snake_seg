@@ -16,6 +16,8 @@ __all__ = ['UNet_upsample', 'NestedUNet']
 
 
 class VGGBlock(nn.Module):
+    
+    """ For new models with switchnorm """
     def __init__(self, in_channels, middle_channels, out_channels, padding, batch_norm_switchable=False):
         super().__init__()
         self.relu = nn.ReLU(inplace=True)
@@ -115,8 +117,8 @@ class UNet_upsample(nn.Module):
     def __init__(self, num_classes, input_channels=3, padding=1, batch_norm_switchable=False, **kwargs):
         super().__init__()
 
-        #nb_filter = [32, 64, 128, 256, 512]
-        nb_filter = [16, 32, 64, 128, 256]
+        nb_filter = [32, 64, 128, 256, 512]
+        #nb_filter = [16, 32, 64, 128, 256]
 
         self.up = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
 
