@@ -8,6 +8,8 @@ Created on Sun Oct  6 11:55:06 2019
 import numpy as np
 from data_functions_CLEANED import *
 from data_functions_3D import *
+from plot_functions_CLEANED import *
+
 import matplotlib.pyplot as plt
 
 from scipy import ndimage as ndi
@@ -58,11 +60,11 @@ def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
           
      else:        
           """ Plotting as interactive scroller """
-          only_colocalized_mask, overall_coord = GUI_cell_selector(input_im, crop_size=100, z_size=30,
+          only_colocalized_mask, overall_coord = GUI_cell_selector(input_im, crop_size=100, z_size=80,
                                                                     height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp, thresh=1)
           """ or auto-create seeds """
           all_seeds, cropped_seed, binary, all_seeds_no_50 = create_auto_seeds(input_im, only_colocalized_mask, overall_coord, 
-                                        crop_size=100, z_size=30, height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
+                                        crop_size=100, z_size=80, height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
           
           plot_save_max_project(fig_num=88, im=cropped_seed, max_proj_axis=-1, title='all_seeds', 
                                           name=s_path + 'all_seeds.png', pause_time=0.001)
@@ -79,7 +81,7 @@ def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
           list_seeds.append(cc['coords'])
      sorted_list = sorted(list_seeds, key=len, reverse=True)  
  
-     return sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds
+     return sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds, all_seeds_no_50
 
 
 
@@ -285,6 +287,10 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
      
         
      
+        """ smooth first??? """
+        
+        
+        
         """ Use hessian??? """
         LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=crop, sigma=3)
 

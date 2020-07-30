@@ -3,6 +3,19 @@
 Created on Sunday Dec. 24th
 ============================================================
 @author: Tiger
+
+
+
+
+### TO DO:
+    # (1) setup full auto
+    # (2) setup validation
+    # (3) test different models
+
+    # (4) paranodes
+    # (5) plot single sample validation loss
+
+
 """
 import matplotlib
 matplotlib.rc('xtick', labelsize=8) 
@@ -28,7 +41,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from UNet_pytorch import *
 from UNet_pytorch_online import *
-from PYTORCH_dataloader import *
+#from PYTORCH_dataloader import *
 
 from sklearn.model_selection import train_test_split
 from losses_pytorch.boundary_loss import DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
@@ -54,7 +67,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
-pregenerated = 1
+pregenerated = 0
         
 """  Network Begins: """
 #check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1
@@ -82,7 +95,12 @@ check_path = './(38) Checkpoint_nested_unet_SPATIALW_complex_batch_4_NEW_DATA/';
 #check_path = './(39) Checkpoint_nested_unet_SPATIALW_simple_b4_NEW_DATA_SWITCH_NORM/'; dilation = 1; deep_supervision = False;
 
 
+check_path = './(40) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad/'; dilation = 1; deep_supervision = False;
 
+
+#check_path = './(41) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_crop_pad/'; dilation = 1; deep_supervision = False;
+
+#check_path = './(42) Checkpoint_nested_unet_SPATIALW_medium_b4_SWITCH_NORM_crop_pad/'
 
 s_path = check_path + 'TEST_inference/'
 try:
@@ -150,7 +168,7 @@ scale_for_animation = 0
 for i in range(len(examples)):              
 
         """ (1) Loads data as sorted list of seeds """
-        sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
+        sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds, all_seeds_no_50 = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
 
 
         input_name = examples[i]['input']

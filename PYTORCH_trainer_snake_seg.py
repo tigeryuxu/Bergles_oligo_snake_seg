@@ -127,8 +127,14 @@ if __name__ == '__main__':
     
     
     s_path = './(40) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad/'
-    
+
     #s_path = './(41) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_crop_pad/'
+    
+    #s_path = './(42) Checkpoint_nested_unet_SPATIALW_medium_b4_SWITCH_NORM_crop_pad/'
+    
+    
+    s_path = './(43) Checkpoint_nested_unet_SPATIALW_medium_b4_SWITCH_NORM_crop_pad_deep_sup/'
+    
     
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
@@ -159,7 +165,7 @@ if __name__ == '__main__':
     branch_bool = 0
     
     
-    deep_supervision = False
+    deep_supervision = True
     switch_norm = True
     if both:
         loss_function_2 = torch.nn.CrossEntropyLoss()
@@ -429,8 +435,8 @@ if __name__ == '__main__':
               print('Weight bool is: ' + str(sp_weight_bool))
               print('switch norm bool is: ' + str(switch_norm))
               print('batch_size is: ' + str(batch_size))
-              print('dataset is: ' + dataset)
-              
+              print('dataset is: ' + dataset)              
+              print('deep_supervision is: ' + str(deep_supervision))
               
          iter_cur_epoch = 0;   
          starter = 0;
@@ -508,9 +514,6 @@ if __name__ == '__main__':
                 elif dist_loss:
                        loss  # do not do anything if do not need to reduce
                        
-                elif deep_supervision:
-                        loss
-
                 else:
                      loss = torch.mean(loss)   
                      #loss
@@ -721,12 +724,24 @@ if __name__ == '__main__':
               
               
               
-              
-                   
                  
               plot_metric_fun(train_loss_per_epoch, val_loss_per_eval, class_name='', metric_name='loss', plot_num=33)
               plt.figure(33); plt.yscale('log'); plt.savefig(s_path + 'loss_per_epoch.png')          
+
+
+              plot_metric_fun(train_loss_per_epoch, val_loss_per_eval, class_name='', metric_name='loss', plot_num=40)
+              plt.figure(40); plt.savefig(s_path + 'loss_per_epoch_NO_LOG.png')         
                    
+              
+                
+              
+              """ VALIDATION LOSS PER BATCH??? """
+              plot_cost_fun(val_loss_per_batch, val_loss_per_batch)                   
+              plt.figure(18); plt.savefig(s_path + '_VAL_global_loss_VAL.png')
+              plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')
+              plt.figure(25); plt.savefig(s_path + '_VAL_global_loss_LOG_VAL.png')
+              plt.close('all')
+                
               
               plot_metric_fun(lr_plot, [], class_name='', metric_name='learning rate', plot_num=35)
               plt.figure(35); plt.savefig(s_path + 'lr_per_epoch.png') 
