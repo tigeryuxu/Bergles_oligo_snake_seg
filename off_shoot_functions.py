@@ -294,6 +294,9 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         """ Use hessian??? """
         LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=crop, sigma=3)
 
+        LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=LambdaAbs2, sigma=2)
+        LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=LambdaAbs2, sigma=1)
+
         crop = LambdaAbs2;   # maybe this should be lambda 3???
 
         thresh = threshold_otsu(crop)
@@ -376,7 +379,7 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         """ set cell as root coords for later """
         all_seeds = np.copy(all_seeds_no_50)
         cell_body = dilated_image_small
-        cropped_seed[cell_body > 0] = 50
+        cropped_seed[cell_body > 0] = 5
         all_seeds[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = cropped_seed
         
         

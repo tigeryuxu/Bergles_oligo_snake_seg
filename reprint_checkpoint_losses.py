@@ -114,6 +114,8 @@ if __name__ == '__main__':
     #s_path = './(43) Checkpoint_nested_unet_SPATIALW_medium_b4_SWITCH_NORM_crop_pad_deep_sup/';  deep_supervision = True
     
     
+
+    
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
     #input_path = '/media/user/storage/Data/(1) snake seg project/Train_SNAKE_SEG_scaled_cleaned/'; dataset = 'old' ### OLD DATA 80 x 80 x16

@@ -69,6 +69,11 @@ from switchable_BN import *
 #import lovasz_losses as L
 
 import napari
+
+
+from losses_pytorch.HD_loss_REAL import *
+
+
 # with napari.gui_qt():
 #     viewer = napari.view_image(seg_val)
 
@@ -83,40 +88,6 @@ if __name__ == '__main__':
     
     
     """" Input paths """    
-    s_path = './(1) Checkpoint_PYTORCH/'
-    s_path = './(2) Checkpoint_PYTORCH_spatial_weight/'
-    s_path = './(3) Checkpoint_SGD_spatial/'
-    s_path = './(4) Checkpoint_AdamW_spatial/'
-    #s_path = './(5) Checkpoint_AdamW/'
-    #s_path = './(6) Checkpoint_AdamW_FOCALLOSS/'
-    #s_path = './(7) Checkpoint_AdamW_spatial_batch_1/'
-    #s_path = './(8) Checkpoint_SGD_cyclic_batch_norm/'
-    s_path = './(9) Checkpoint_AdamW_batch_norm/'
-    #s_path = './(10) Checkpoint_AdamW_batch_norm_SWITCH/'
-    #s_path = './(11) Checkpoint_SGD_batch_norm/'
-    #s_path = './(12) Checkpoint_AdamW_batch_norm_CYCLIC/'
-    #s_path = './(13) Checkpoint_AdamW_batch_norm_DC_and_HDBinary_loss/'
-    #s_path = './(14) Checkpoint_AdamW_batch_norm_HDBinary_loss/'
-    #s_path = './(15) Checkpoint_AdamW_batch_norm_SPATIALW/'
-    #s_path = './(16) Checkpoint_AdamW_batch_norm_DICE_CE/'
-    #s_path = './(17) Checkpoint_AdamW_batch_norm_FOCALLOSS/'
-    #s_path = './(18) Checkpoint_AdamW_batch_norm_SPATIALW_CYCLIC/'
-    #s_path = './(19) Checkpoint_AdamW_batch_norm_HD_and_CE/'
-    #s_path = './(20) Checkpoint_AdamW_batch_norm_7x7/'
-    #s_path = './(21) Checkpoint_AdamW_batch_norm_3x_branched/'
-    #s_path = './(22) Checkpoint_AdamW_batch_norm_3x_branched_SPATIALW_e-6/'
-    #s_path = './(23) Checkpoint_nested_unet/'
-    #s_path = './(24) Checkpoint_nested_unet_SPATIALW/'
-    #s_path = './(25) Checkpoint_nested_unet_SPATIALW_deepsupervision/'
-    # s_path = './(26) Checkpoint_AdamW_batch_norm_SPATIALW_transforms/'
-    # s_path = './(27) Checkpoint_AdamW_batch_norm_spatialW_1e-6/'
-    #s_path = './(28) Checkpoint_nested_unet_SPATIALW_complex/'
-    #s_path = './(29) Checkpoint_nested_unet_NO_SPATIALW/'
-    #s_path = './(30) Checkpoint_nested_unet_SPATIALW_simple/'
-    #s_path = './(31) Checkpoint_nested_unet_SPATIALW_complex_3x3/'
-    #s_path = './(32) Checkpoint_nested_unet_SPATIALW_complex_deep_supervision/'
-    #s_path = './(33) Checkpoint_UNET3_PLUS_SPATIALW_simpler/'
-    #s_path = './(34) Checkpoint_nested_unet_SPATIALW_complex_RETRAIN/'
     s_path = './(35) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM/'
     #s_path = './(36) Checkpoint_nested_unet_SPATIALW_complex_SWITCH_NORM_medium/'
     #s_path = './(37) Checkpoint_nested_unet_SPATIALW_complex/'
@@ -141,7 +112,16 @@ if __name__ == '__main__':
     
     cont_HD = 0
     
-    s_path = './(45) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_CONTINUE_Haussdorf/'; cont_HD = 1
+    #s_path = './(45) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_CONTINUE_Haussdorf/'; cont_HD = 1
+    
+    
+    #s_path = './(46) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf/';  HD = 1; alpha = 0.001;
+    
+    
+    #s_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
+    
+    
+    s_path = './(48) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
     
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
@@ -182,6 +162,12 @@ if __name__ == '__main__':
         """ Get metrics per batch """
         train_loss_per_batch = []; train_jacc_per_batch = []
         val_loss_per_batch = []; val_jacc_per_batch = []
+        
+        
+        train_ce_pb = []; train_hd_pb = []; train_dc_pb = [];
+        
+        
+        
         """ Get metrics per epoch"""
         train_loss_per_epoch = []; train_jacc_per_epoch = []
         val_loss_per_eval = []; val_jacc_per_eval = []
@@ -265,7 +251,7 @@ if __name__ == '__main__':
         #transforms = initialize_transforms_simple(p = 0.5)
         transforms = 0
         
-        sp_weight_bool = 1
+        sp_weight_bool = 0
  
     
 
@@ -303,6 +289,16 @@ if __name__ == '__main__':
         val_loss_per_batch = check['val_loss_per_batch']
         val_jacc_per_batch = check['val_jacc_per_batch']
      
+        
+        if HD:
+            train_ce_pb  = check['train_ce_pb']
+            train_hd_pb  = check['train_hd_pb']
+            train_dc_pb  = check['train_dc_pb']
+            alpha = check['alpha']
+            
+        
+     
+        
         """ Restore per epoch """
         train_loss_per_epoch = check['train_loss_per_epoch']
         train_jacc_per_epoch = check['train_jacc_per_epoch']
@@ -359,24 +355,6 @@ if __name__ == '__main__':
     counter = list(range(len(examples)))
     
     
-    """ Find all indices with _branch so can double them """
-    # images_branched = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop_BRANCHED.tif'))
-    # all_branch_idx = []
-    # for filename, idx in zip(images, range(len(images))):
-    #     for file_branch, branch_idx in zip(images_branched, range(len(images_branched))):
-    #         filename = filename.split('/')[-1]
-    #         filename = filename.split('crop.tif')[0]
-            
-    #         file_branch = file_branch.split('/')[-1]
-    #         file_branch = file_branch.split('crop_BRANCHED.tif')[0]
-            
-    #         if filename == file_branch:
-    #             #print('matched')
-    #             all_branch_idx.append(idx)
-    #             break;
-
-    # np.save(all_branch_idx, './normalize/all_branch_idx.npy')
-    
     all_branch_idx = np.load('./normalize/all_branch_idx.npy')
     
     if not resume:
@@ -429,22 +407,16 @@ if __name__ == '__main__':
     for cur_epoch in range(len(train_loss_per_epoch), 10000): 
          
          unet.train()         
-         """ set 0 momentum batchnorm """
-         # if  unet.training:
-         #       for module in unet.modules():
-         #           if isinstance(module, torch.nn.modules.BatchNorm3d):
-         #               print('setting track running stats to TRUE')
-         #               #print(module.momentum)
-         #               #module.track_running_stats = True
-         #               module.momentum = 0
-         #               # print(module.running_mean)
-         #               # print(module.running_var)
 
          loss_train = 0
          jacc_train = 0   
+         
+         
+         ce_train = 0; dc_train = 0; hd_train = 0;
+         
              
          for param_group in optimizer.param_groups:
-              param_group['lr'] = 1e-6   # manually sets learning rate
+              #param_group['lr'] = 1e-6   # manually sets learning rate
               cur_lr = param_group['lr']
               lr_plot.append(cur_lr)
               print('Current learning rate is: ' + str(cur_lr))
@@ -453,6 +425,7 @@ if __name__ == '__main__':
               print('batch_size is: ' + str(batch_size))
               print('dataset is: ' + dataset)              
               print('deep_supervision is: ' + str(deep_supervision))
+              print('alpha is: ' + str(alpha))
               
          iter_cur_epoch = 0;   
          starter = 0;
@@ -516,24 +489,56 @@ if __name__ == '__main__':
                     loss = loss_function(output_train, labels)
                 
                 
-                """ weight loss """
-                if both:
-                    loss_ce = loss_function_2(output_train.permute(0, 1, 4, 2, 3), labels.permute(0, 1, 4, 2, 3).squeeze())
+                """ Include HD loss functions """
+                if HD:
+                    loss_ce = F.cross_entropy(output_train, labels)
+                    outputs_soft = F.softmax(output_train, dim=1)
+                    loss_seg_dice = dice_loss(outputs_soft[:, 1, :, :, :], labels == 1)
+                    # compute distance maps and hd loss
+                    with torch.no_grad():
+                        # defalut using compute_dtm; however, compute_dtm01 is also worth to try;
+                        gt_dtm_npy = compute_dtm(labels.cpu().numpy(), outputs_soft.shape)
+                        gt_dtm = torch.from_numpy(gt_dtm_npy).float().cuda(outputs_soft.device.index)
+                        seg_dtm_npy = compute_dtm(outputs_soft[:, 1, :, :, :].cpu().numpy()>0.5, outputs_soft.shape)
+                        seg_dtm = torch.from_numpy(seg_dtm_npy).float().cuda(outputs_soft.device.index)
+        
+                    loss_hd = hd_loss(outputs_soft, labels, seg_dtm, gt_dtm)
                     
-                    loss = loss + loss_ce
-                
+                    
+                    
+                    #loss = alpha*(loss_ce+loss_seg_dice) + (1 - alpha) * loss_hd
 
-                if torch.is_tensor(spatial_weight):
-                     spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
-                     weighted = loss * spatial_tensor
-                     loss = torch.mean(weighted)
-                elif dist_loss:
-                       loss  # do not do anything if do not need to reduce
-                       
+                    # alpha -= 0.001
+                    # if alpha <= 0.001:
+                    #     alpha = 0.001
+        
+        
+                    loss = alpha*(loss_ce+loss_seg_dice) + loss_hd
+        
+
+                        
+                    
+                    train_ce_pb.append(loss_ce.cpu().data.numpy())
+                    train_dc_pb.append(loss_seg_dice.cpu().data.numpy())
+                    train_hd_pb.append(loss_hd.cpu().data.numpy())
+                    
+                    ce_train += loss_ce.cpu().data.numpy()
+                    dc_train += loss_seg_dice.cpu().data.numpy()
+                    hd_train += loss_hd.cpu().data.numpy()                    
+
                 else:
-                     loss = torch.mean(loss)   
-                     #loss
-                
+
+                    if torch.is_tensor(spatial_weight):
+                         spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                         weighted = loss * spatial_tensor
+                         loss = torch.mean(weighted)
+                    elif dist_loss:
+                           loss  # do not do anything if do not need to reduce
+                           
+                    else:
+                         loss = torch.mean(loss)   
+                         #loss
+                    
                 
                 loss.backward()
                 optimizer.step()
@@ -546,6 +551,11 @@ if __name__ == '__main__':
                 """ ********************* figure out how to do spatial weighting??? """
                 train_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
                 loss_train += loss.cpu().data.numpy()
+                
+                
+                
+
+                
    
                 """ Calculate Jaccard on GPU """                 
                 jacc = jacc_eval_GPU_torch(output_train, labels)
@@ -559,19 +569,6 @@ if __name__ == '__main__':
                 if iterations % 100 == 0:
                     print('Trained: %d' %(iterations))
 
-
-
-                """ Troubleshoot batchnorm """
-                # if  unet.training:
-                #       for module in unet.modules():
-                #           if isinstance(module, SwitchNorm3d):
-                #           #if isinstance(module, torch.nn.modules.BatchNorm3d):
-                              
-                #               print('setting track running stats to TRUE')
-                #               #module.track_running_stats = True
-                #               print(module.running_mean)
-                #               print(module.running_var)
-                #               break
 
                 """ Plot for ground truth """
                 # output_train = output_train.cpu().data.numpy()            
@@ -589,7 +586,20 @@ if __name__ == '__main__':
                 
     
          train_loss_per_epoch.append(loss_train/iter_cur_epoch)
-         train_jacc_per_epoch.append(jacc_train/iter_cur_epoch)              
+         train_jacc_per_epoch.append(jacc_train/iter_cur_epoch)        
+         
+         
+         """ calculate new alpha for next epoch """
+         
+         if HD:
+              mean_ce = ce_train/iter_cur_epoch
+              mean_dc = dc_train/iter_cur_epoch
+              mean_combined = (mean_ce + mean_dc)/2
+             
+              mean_hd = hd_train/iter_cur_epoch
+             
+              alpha = mean_hd/(mean_combined)
+             
     
          """ Should I keep track of loss on every single sample? and iteration? Just not plot it??? """   
          loss_val = 0; jacc_val = 0
@@ -601,16 +611,7 @@ if __name__ == '__main__':
                    unet.eval()
                    for batch_x_val, batch_y_val, spatial_weight in val_generator:
                        
-                       
-                        """ set 0 momentum batchnorm """
-                        # if not unet.training:
-                        #     for module in unet.modules():
-                        #         if isinstance(module, torch.nn.modules.BatchNorm3d):
-                        #             print('setting track running stats to FALSE')
-                        #             module.track_running_stats = False
-                            
-                            
-                            
+
                         """ Transfer to GPU to normalize ect... """
                         inputs_val, labels_val = transfer_to_GPU(batch_x_val, batch_y_val, device, mean_arr, std_arr)
              
@@ -639,23 +640,37 @@ if __name__ == '__main__':
                         
                             loss = loss_function(output_val, labels_val)
                 
-                        if both:
-                            loss_ce = loss_function_2(output_val.permute(0, 1, 4, 2, 3), labels_val.permute(0, 1, 4, 2, 3).squeeze())
-                            
-                            loss = loss + loss_ce
 
 
+                        """ Include HD loss functions """
+                        if HD:
+                            loss_ce = F.cross_entropy(output_val, labels_val)
+                            outputs_soft = F.softmax(output_val, dim=1)
+                            loss_seg_dice = dice_loss(outputs_soft[:, 1, :, :, :], labels_val == 1)
+                            # compute distance maps and hd loss
+                            with torch.no_grad():
+                                # defalut using compute_dtm; however, compute_dtm01 is also worth to try;
+                                gt_dtm_npy = compute_dtm(labels_val.cpu().numpy(), outputs_soft.shape)
+                                gt_dtm = torch.from_numpy(gt_dtm_npy).float().cuda(outputs_soft.device.index)
+                                seg_dtm_npy = compute_dtm(outputs_soft[:, 1, :, :, :].cpu().numpy()>0.5, outputs_soft.shape)
+                                seg_dtm = torch.from_numpy(seg_dtm_npy).float().cuda(outputs_soft.device.index)
+                
+                            loss_hd = hd_loss(outputs_soft, labels_val, seg_dtm, gt_dtm)
+                            loss = alpha*(loss_ce+loss_seg_dice) + (1 - alpha) * loss_hd
+                
 
-                        if torch.is_tensor(spatial_weight):
-                               spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
-                               weighted = loss * spatial_tensor
-                               loss = torch.mean(weighted)
-                        elif dist_loss:
-                               loss  # do not do anything if do not need to reduce
                             
                         else:
-                               loss = torch.mean(loss)  
-                               
+                            if torch.is_tensor(spatial_weight):
+                                   spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                                   weighted = loss * spatial_tensor
+                                   loss = torch.mean(weighted)
+                            elif dist_loss:
+                                   loss  # do not do anything if do not need to reduce
+                                
+                            else:
+                                   loss = torch.mean(loss)  
+                                   
                                
                         if dist_loss:  # for distance loss functions
                             labels_val = labels_val.permute(0, 1, 4, 2, 3)
@@ -750,6 +765,27 @@ if __name__ == '__main__':
                    
               
                 
+              """ Separate losses """
+              if HD:
+                  plot_cost_fun(train_ce_pb, train_ce_pb)                   
+                  plt.figure(18); plt.savefig(s_path + '_global_loss_CE.png')
+                  #plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')
+                  plt.figure(25); plt.savefig(s_path + '_global_loss_LOG_CE.png')
+                  plt.close('all')
+    
+                  plot_cost_fun(train_hd_pb, train_hd_pb)                   
+                  plt.figure(18); plt.savefig(s_path + '_global_loss_HD.png')
+                  #plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')
+                  plt.figure(25); plt.savefig(s_path + '_global_loss_LOG_HD.png')
+                  plt.close('all')
+    
+                  plot_cost_fun(train_dc_pb, train_dc_pb)                   
+                  plt.figure(18); plt.savefig(s_path + '_global_loss_DC.png')
+                  #plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')
+                  plt.figure(25); plt.savefig(s_path + '_global_loss_LOG_DC.png')
+                  plt.close('all')                  
+                  
+                
               
               """ VALIDATION LOSS PER BATCH??? """
               plot_cost_fun(val_loss_per_batch, val_loss_per_batch)                   
@@ -816,6 +852,13 @@ if __name__ == '__main__':
                 'train_jacc_per_batch': train_jacc_per_batch,
                 'val_loss_per_batch': val_loss_per_batch,
                 'val_jacc_per_batch': val_jacc_per_batch,
+                
+                
+                'train_ce_pb': train_ce_pb,
+                'train_hd_pb': train_hd_pb,
+                'train_dc_pb': train_dc_pb,
+                'alpha': alpha,
+                
                 
                 'train_loss_per_epoch': train_loss_per_epoch,
                 'train_jacc_per_epoch': train_jacc_per_epoch,
