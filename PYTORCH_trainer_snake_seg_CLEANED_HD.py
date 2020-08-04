@@ -121,7 +121,10 @@ if __name__ == '__main__':
     #s_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
     
     
-    s_path = './(48) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
+    #s_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
+    
+
+    s_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
     
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
@@ -504,7 +507,7 @@ if __name__ == '__main__':
         
                     loss_hd = hd_loss(outputs_soft, labels, seg_dtm, gt_dtm)
                     
-                    
+                   
                     
                     #loss = alpha*(loss_ce+loss_seg_dice) + (1 - alpha) * loss_hd
 
@@ -566,8 +569,8 @@ if __name__ == '__main__':
    
                 iterations = iterations + 1       
                 iter_cur_epoch += 1
-                if iterations % 100 == 0:
-                    print('Trained: %d' %(iterations))
+                #if iterations % 100 == 0:
+                print('Trained: %d' %(iterations))
 
 
                 """ Plot for ground truth """
