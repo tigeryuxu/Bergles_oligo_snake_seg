@@ -72,7 +72,7 @@ import napari
 
 
 from losses_pytorch.HD_loss_REAL import *
-
+from torch.cuda.amp import *
 
 # with napari.gui_qt():
 #     viewer = napari.view_image(seg_val)
@@ -83,7 +83,7 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     
     
@@ -124,7 +124,9 @@ if __name__ == '__main__':
     #s_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
     
 
-    s_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
+    FP_16 = 0
+
+    s_path = './(50) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance_FP16/';  HD = 1; alpha = 1; FP_16 = 1;
     
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
@@ -255,6 +257,12 @@ if __name__ == '__main__':
         transforms = 0
         
         sp_weight_bool = 0
+        
+        
+        
+        if FP_16:
+            scaler = GradScaler()
+        
  
     
 
@@ -466,89 +474,126 @@ if __name__ == '__main__':
                 optimizer.zero_grad()       
                 
                 """ forward + backward + optimize """
-                output_train = unet(inputs)
-
-
-                if dist_loss:  # for distance loss functions
-                    labels = labels.unsqueeze(1)
-                    labels = labels.permute(0, 1, 3, 4, 2)
-                    output_train = output_train.permute(0, 1, 3, 4, 2)
+                if not FP_16:
+                    output_train = unet(inputs)                    
                     
-                
-                
-                """ calculate loss """
-                if deep_supervision:
-                                    
-                    # compute output
-                    loss = 0
-                    for output in output_train:
-                         loss += loss_function(output, labels)
-                    loss /= len(output_train)
+                    """ calculate loss """
+                    if deep_supervision:
+                                        
+                        # compute output
+                        loss = 0
+                        for output in output_train:
+                             loss += loss_function(output, labels)
+                        loss /= len(output_train)
+                        
+                        output_train = output_train[-1]  # set this so can eval jaccard later
                     
-                    output_train = output_train[-1]  # set this so can eval jaccard later
-                
-                else:
-                
-                    loss = loss_function(output_train, labels)
-                
-                
-                """ Include HD loss functions """
-                if HD:
-                    loss_ce = F.cross_entropy(output_train, labels)
-                    outputs_soft = F.softmax(output_train, dim=1)
-                    loss_seg_dice = dice_loss(outputs_soft[:, 1, :, :, :], labels == 1)
-                    # compute distance maps and hd loss
-                    with torch.no_grad():
-                        # defalut using compute_dtm; however, compute_dtm01 is also worth to try;
-                        gt_dtm_npy = compute_dtm(labels.cpu().numpy(), outputs_soft.shape)
-                        gt_dtm = torch.from_numpy(gt_dtm_npy).float().cuda(outputs_soft.device.index)
-                        seg_dtm_npy = compute_dtm(outputs_soft[:, 1, :, :, :].cpu().numpy()>0.5, outputs_soft.shape)
-                        seg_dtm = torch.from_numpy(seg_dtm_npy).float().cuda(outputs_soft.device.index)
-        
-                    loss_hd = hd_loss(outputs_soft, labels, seg_dtm, gt_dtm)
+                    else:
                     
-                   
+                        loss = loss_function(output_train, labels)
                     
-                    #loss = alpha*(loss_ce+loss_seg_dice) + (1 - alpha) * loss_hd
-
-                    # alpha -= 0.001
-                    # if alpha <= 0.001:
-                    #     alpha = 0.001
-        
-        
-                    loss = alpha*(loss_ce+loss_seg_dice) + loss_hd
-        
-
+                    
+                    """ Include HD loss functions """
+                    if HD:
+                        loss_ce = F.cross_entropy(output_train, labels)
+                        outputs_soft = F.softmax(output_train, dim=1)
+                        loss_seg_dice = dice_loss(outputs_soft[:, 1, :, :, :], labels == 1)
+                        # compute distance maps and hd loss
+                        with torch.no_grad():
+                            # defalut using compute_dtm; however, compute_dtm01 is also worth to try;
+                            gt_dtm_npy = compute_dtm(labels.cpu().numpy(), outputs_soft.shape)
+                            gt_dtm = torch.from_numpy(gt_dtm_npy).float().cuda(outputs_soft.device.index)
+                            seg_dtm_npy = compute_dtm(outputs_soft[:, 1, :, :, :].cpu().numpy()>0.5, outputs_soft.shape)
+                            seg_dtm = torch.from_numpy(seg_dtm_npy).float().cuda(outputs_soft.device.index)
+            
+                        loss_hd = hd_loss(outputs_soft, labels, seg_dtm, gt_dtm)
+                        
+                        loss = alpha*(loss_ce+loss_seg_dice) + loss_hd
+            
+                        train_ce_pb.append(loss_ce.cpu().data.numpy())
+                        train_dc_pb.append(loss_seg_dice.cpu().data.numpy())
+                        train_hd_pb.append(loss_hd.cpu().data.numpy())
+                        
+                        ce_train += loss_ce.cpu().data.numpy()
+                        dc_train += loss_seg_dice.cpu().data.numpy()
+                        hd_train += loss_hd.cpu().data.numpy()                    
+    
+                    else:
+    
+                        if torch.is_tensor(spatial_weight):
+                             spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                             weighted = loss * spatial_tensor
+                             loss = torch.mean(weighted)
+                               
+                        else:
+                             loss = torch.mean(loss)   
+                             #loss
                         
                     
-                    train_ce_pb.append(loss_ce.cpu().data.numpy())
-                    train_dc_pb.append(loss_seg_dice.cpu().data.numpy())
-                    train_hd_pb.append(loss_hd.cpu().data.numpy())
-                    
-                    ce_train += loss_ce.cpu().data.numpy()
-                    dc_train += loss_seg_dice.cpu().data.numpy()
-                    hd_train += loss_hd.cpu().data.numpy()                    
-
-                else:
-
-                    if torch.is_tensor(spatial_weight):
-                         spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
-                         weighted = loss * spatial_tensor
-                         loss = torch.mean(weighted)
-                    elif dist_loss:
-                           loss  # do not do anything if do not need to reduce
-                           
-                    else:
-                         loss = torch.mean(loss)   
-                         #loss
-                    
-                
-                loss.backward()
-                optimizer.step()
+                    loss.backward()
+                    optimizer.step()
                
-                if dist_loss:  # for distance loss functions
-                    labels = labels.permute(0, 1, 4, 2, 3)
-                    output_train = output_train.permute(0, 1, 4, 2, 3)
+                else:
+                    with autocast():
+                        output_train = unet(inputs)                    
+                        
+                        """ calculate loss """
+                        if deep_supervision:
+                                            
+                            # compute output
+                            loss = 0
+                            for output in output_train:
+                                 loss += loss_function(output, labels)
+                            loss /= len(output_train)
+                            
+                            output_train = output_train[-1]  # set this so can eval jaccard later
+                        
+                        else:
+                        
+                            loss = loss_function(output_train, labels)
+                        
+                        
+                        """ Include HD loss functions """
+                        if HD:
+                            loss_ce = F.cross_entropy(output_train, labels)
+                            outputs_soft = F.softmax(output_train, dim=1)
+                            loss_seg_dice = dice_loss(outputs_soft[:, 1, :, :, :], labels == 1)
+                            # compute distance maps and hd loss
+                            with torch.no_grad():
+                                # defalut using compute_dtm; however, compute_dtm01 is also worth to try;
+                                gt_dtm_npy = compute_dtm(labels.cpu().numpy(), outputs_soft.shape)
+                                gt_dtm = torch.from_numpy(gt_dtm_npy).float().cuda(outputs_soft.device.index)
+                                seg_dtm_npy = compute_dtm(outputs_soft[:, 1, :, :, :].cpu().numpy()>0.5, outputs_soft.shape)
+                                seg_dtm = torch.from_numpy(seg_dtm_npy).float().cuda(outputs_soft.device.index)
+                
+                            loss_hd = hd_loss(outputs_soft, labels, seg_dtm, gt_dtm)
+                            
+                            loss = alpha*(loss_ce+loss_seg_dice) + loss_hd
+                
+                            train_ce_pb.append(loss_ce.cpu().data.numpy())
+                            train_dc_pb.append(loss_seg_dice.cpu().data.numpy())
+                            train_hd_pb.append(loss_hd.cpu().data.numpy())
+                            
+                            ce_train += loss_ce.cpu().data.numpy()
+                            dc_train += loss_seg_dice.cpu().data.numpy()
+                            hd_train += loss_hd.cpu().data.numpy()                    
+        
+                        else:
+        
+                            if torch.is_tensor(spatial_weight):
+                                 spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                                 weighted = loss * spatial_tensor
+                                 loss = torch.mean(weighted)
+                                   
+                            else:
+                                 loss = torch.mean(loss)   
+                                 #loss
+                            
+                        
+                        scaler.scale(loss).backward()
+                        scaler.step(optimizer)
+                        scaler.update()
+
                 
                 """ Training loss """
                 """ ********************* figure out how to do spatial weighting??? """
@@ -569,8 +614,8 @@ if __name__ == '__main__':
    
                 iterations = iterations + 1       
                 iter_cur_epoch += 1
-                #if iterations % 100 == 0:
-                print('Trained: %d' %(iterations))
+                if iterations % 100 == 0:
+                    print('Trained: %d' %(iterations))
 
 
                 """ Plot for ground truth """
