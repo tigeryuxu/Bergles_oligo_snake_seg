@@ -18,6 +18,14 @@ Created on Sunday Dec. 24th
     
     # (6) setup MARCC training
     # (7) msg Cody
+    
+    
+    ***upgrade pytorch:
+              conda update pytorch torchvision -c pytorch
+              
+    *** to downgrade pytorch:
+              conda install pytorch=0.1.10 -c soumith          
+    
 
 
 """
@@ -67,7 +75,7 @@ from skimage.transform import rescale, resize, downscale_local_mean
 
 """ Define GPU to use """
 import torch
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
@@ -106,10 +114,10 @@ check_path = './(40) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_
 
 #check_path = './(42) Checkpoint_nested_unet_SPATIALW_medium_b4_SWITCH_NORM_crop_pad/'
 
-#check_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
+check_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
 
 
-check_path = './(48) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'
+#check_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'
 
 s_path = check_path + 'TEST_inference/'
 try:
@@ -128,7 +136,7 @@ input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed g
 #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/dense/'
 
 
-#input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
+input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
 
 
 
@@ -182,7 +190,7 @@ for i in range(len(examples)):
   
 
         input_name = examples[i]['input']
-        filename = input_name.split('/')[-1]
+        filename = input_name.split('\\')[-1]
         filename = filename.split('.')[0:-1]
         filename = '.'.join(filename)
         
@@ -895,6 +903,10 @@ for i in range(len(examples)):
                                imsave(s_path +  filename + '_ANIMATION_input_im_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(input_im_rescaled, dtype=np.uint8))
                                         
             
+               
+             """ Add expanded tree back into all_trees """
+             all_trees[num_tree] = tree
+               
              num_tree += 1 
              print('Tree #: ' + str(num_tree) + " of possible: " + str(len(all_trees)))
              
@@ -934,10 +946,88 @@ for i in range(len(examples)):
         color_im = convert_matrix_to_multipage_tiff(color_im)
         imsave(s_path + filename + '_overall_output_1st_iteration_COLOR.tif', np.asarray(color_im * 255, dtype=np.uint8))
         
+
+        """ Turn tree into .obj file
         
+             v x y z
+             l a b c d e f...
+             
+        
+        """
+
+        def linearize_tree(tree, cur_idx, list_lines):
+               if len(tree.child[cur_idx]) == 0:
+                    #print(len(tree.child[cur_idx]))
+                    return list_lines  # hit bottom of tree
+               
+               else:
+                    child_idx = 0;
+                    
+                    for child in tree.child[cur_idx]:
+                         #print(child_idx)
+                         #print(child)
+                          
+                         if child_idx == 0:   ### append directly if it's the first child
+                              list_lines[-1].append(child + 1)
+                              list_lines = linearize_tree(tree, child, list_lines)
+                         else:
+                              list_lines.append([cur_idx + 1])   ### include parent in line to be complete (at least 2 points to form each line)
+                              list_lines[-1].append(child + 1)
+                              
+                              list_lines = linearize_tree(tree, child, list_lines)
+                              
+                         
+                         child_idx += 1;
+          
+               return list_lines  
+        
+        file = open("sample.obj", "w")
+        for tree in all_trees:
+             ### (1) first get vertices, which is just end coords + root coord
+             
+             ### ***must also include the root index??? but then would misalign with the rest of the line coords???
+                  ###***so... maybe add as -1, or just don't add it???
+                       ###***will result in extra error? or just remove from MATLAB output as well (from simple neurite tracer)
+             
+             ### (a) must first actually make sure that all children are associated with their parents
+             all_vertices = []
+             
+             
+             for index, vertex in tree.iterrows():
+                  cur_idx = vertex.cur_idx
+                  children = np.where(tree.parent == cur_idx)
+                  
+                  vertex.child = children[0]
+                   
+                  if not np.isnan(vertex.start_be_coord).any():
+                       
+                       all_vertices.append(vertex.start_be_coord[round(len(vertex.start_be_coord)/2)])
+                  
+             ### (2) then, find order with which coords are connected
+                  ### ***must be + 1 to child b/c 0 vertex doesn't exist
+                          
+             cur_idx = 0;
+             list_lines = [[1]];
+             list_lines = linearize_tree(tree, cur_idx, list_lines)
+             
+             
+             
+             ### (3) save as .obj file
+             for v in all_vertices:
+               file.write("v %d %d %d\n" %(v[0], v[1],  v[2]))
+             
+               
+             #file.write("World\n")
+             #for l in list_lines:
+             file.write("l ")
+             file.write("\nl ".join(" ".join(map(str, x)) for x in list_lines))
+             print()
+             
+        file.close()
+
         
 
-       
+        zzz
         
         
         
