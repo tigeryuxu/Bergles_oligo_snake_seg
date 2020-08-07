@@ -152,7 +152,24 @@ def gaussian(X, sigma):
 #set the input parameters
 sigma = 10
 GTfile = "04_GT.obj"
-Tfile = "04_Ta.obj"
+Tfile = "04_Tb.obj"
+
+GTfile = "03_GT.obj"
+Tfile = "03_T.obj"
+
+
+GTfile = "00_GT.obj"
+Tfile = "00_T.obj"
+
+
+GTfile = "sample.obj"
+Tfile = "sample_alt.obj"
+
+
+#GTfile = "h2_GT.obj"
+#Tfile = "h2_T.obj"
+
+
 
 #tunable constants
 subdiv = 4                                                            #fraction of sigma used to sample each network
@@ -189,5 +206,25 @@ plt.scatter(P_T[:, 0], P_T[:, 1], s=sigma, c=T_metric, cmap = "plasma")
 plt.subplot(1, 2, 2)
 plt.scatter(P_T[:, 0], P_T[:, 1], s=sigma*shadow, c="grey")
 plt.scatter(P_GT[:, 0], P_GT[:, 1], s=sigma, c=GT_metric, cmap = "plasma")
+
+from mpl_toolkits.mplot3d import Axes3D
+fig = plt.figure()
+ax = Axes3D(fig)
+ax.scatter(P_GT[:, 0], P_GT[:, 1], P_GT[:, 2], s=sigma*shadow, c="grey")
+ax.scatter(P_T[:, 0], P_T[:, 1], P_T[:, 2], s=sigma * shadow * 10, c=T_metric, cmap = "plasma")
+
+
+fig = plt.figure()
+ax = Axes3D(fig)
+ax.scatter(P_T[:, 0], P_T[:, 1], P_T[:, 2], s=sigma*shadow, c="grey")
+ax.scatter(P_GT[:, 0], P_GT[:, 1], P_GT[:, 2], s=sigma, c=GT_metric, cmap = "plasma")
+
+
+
+
+
+
+
+
 
 
