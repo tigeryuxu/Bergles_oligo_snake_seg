@@ -36,7 +36,7 @@ if(MSVC)
 endif(MSVC)
 
 #find OpenCV
-find_package(OpenCV REQUIRED)
+find_package(OpenCV REQUIRED PATHS ~/opencv_build/opencv/build DEFAULT_PATH  )
 add_definitions(-DUSING_OPENCV)
 
 #find the pthreads package
@@ -70,7 +70,7 @@ include_directories(
 #create an executable file
 cuda_add_executable(netmets main.cu)
 
-message(${GLEW_GLEW_LIBRARY})
+#message(${GLEW_GLEW_LIBRARY})
 #set the link libraries
 target_link_libraries(netmets
 #						${OpenGL_LIBRARIES}

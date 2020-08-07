@@ -219,8 +219,8 @@ class NestedUNet(nn.Module):
     def __init__(self, num_classes, input_channels=3, deep_supervision=False, padding=1, batch_norm_switchable=False, **kwargs):
         super().__init__()
 
-        nb_filter = [32, 64, 128, 256, 512]
-        #nb_filter = [16, 32, 64, 128, 256]
+        #nb_filter = [32, 64, 128, 256, 512]
+        nb_filter = [16, 32, 64, 128, 256]
         #nb_filter = [8, 16, 32, 64, 128]
         #nb_filter = [4, 8, 16, 32, 64]
 

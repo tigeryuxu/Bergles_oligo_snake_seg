@@ -121,12 +121,15 @@ if __name__ == '__main__':
     #s_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
     
     
-    #s_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
+    s_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
+    
+    
+    #s_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; HD = 1; alpha = 1;
     
 
     FP_16 = 0
 
-    s_path = './(50) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance_FP16/';  HD = 1; alpha = 1; FP_16 = 1;
+    #s_path = './(50) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance_FP16/';  HD = 1; alpha = 1; FP_16 = 1;
     
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
@@ -186,7 +189,6 @@ if __name__ == '__main__':
         pad = int((kernel_size - 1)/2)
         #unet = UNet(in_channel=1,out_channel=2, kernel_size=kernel_size, pad=pad)
         
-        #kernel_size = 5
         #unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
         #                    batch_norm=True, batch_norm_switchable=False, up_mode='upsample')
 
@@ -449,7 +451,7 @@ if __name__ == '__main__':
                 
                 """
                 starter += 1
-                if starter == 1:
+                if starter == 2:
                     start = time.perf_counter()
                 if starter == 50:
                     stop = time.perf_counter(); diff = stop - start; print(diff)
@@ -590,9 +592,13 @@ if __name__ == '__main__':
                                  #loss
                             
                         
-                        scaler.scale(loss).backward()
-                        scaler.step(optimizer)
-                        scaler.update()
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+
+
+                    #loss.backward()
+                    #optimizer.step()
 
                 
                 """ Training loss """
