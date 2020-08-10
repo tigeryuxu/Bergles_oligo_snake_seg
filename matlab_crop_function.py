@@ -78,9 +78,9 @@ def crop_around_centroid(input_im, y, x, z, crop_size, z_size, height, width, de
      
      
 def crop_around_centroid_with_pads(input_im, y, x, z, crop_size, z_size, height, width, depth):
-     box_x_max = int(x + crop_size); box_x_min = int(x - crop_size);
-     box_y_max = int(y + crop_size); box_y_min = int(y - crop_size);
-     box_z_max = int(z + z_size/2); box_z_min = int(z - z_size/2);
+     box_x_max = int(x + crop_size) + 1; box_x_min = int(x - crop_size) + 1;
+     box_y_max = int(y + crop_size) + 1; box_y_min = int(y - crop_size) + 1;
+     box_z_max = int(z + z_size/2) + 1; box_z_min = int(z - z_size/2) + 1;
      
      im_size_x = width;
      im_size_y = height;

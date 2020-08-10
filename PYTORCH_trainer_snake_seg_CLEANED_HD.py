@@ -785,8 +785,18 @@ if __name__ == '__main__':
                         #                 break
                         #                 #               break
                                 
-                
-              
+                        """ Plot for ground truth """
+                        # output_val = output_val.cpu().data.numpy()            
+                        # output_val = np.moveaxis(output_val, 1, -1)              
+                        # seg_val = np.argmax(output_val[0], axis=-1)  
+                          
+                        # # convert back to CPU
+                        # batch_x_val = batch_x_val.cpu().data.numpy() 
+                        # batch_y_val = batch_y_val.cpu().data.numpy() 
+         
+                        # plot_trainer_3D_PYTORCH_snake_seg(seg_val, seg_val, batch_x_val[0], batch_x_val[0], batch_y_val[0], batch_y_val[0],
+                        #                             s_path, iterations, plot_depth=8)                
+                      
                            
                    val_loss_per_eval.append(loss_val/iter_cur_epoch)
                    val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       

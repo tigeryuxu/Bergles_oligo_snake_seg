@@ -113,8 +113,8 @@ if __name__ == '__main__':
     
     #s_path = './(43) Checkpoint_nested_unet_SPATIALW_medium_b4_SWITCH_NORM_crop_pad_deep_sup/';  deep_supervision = True
     
-    
-
+        
+    s_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/redo/'; HD = 1; alpha = 1;
     
     
     """ Add Hausdorff + CE??? or + DICE???  + spatial W???"""
@@ -370,6 +370,21 @@ if __name__ == '__main__':
                        val_idx = val_idx + batch_size
                        print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
                        iter_cur_epoch += 1
+
+
+
+                       """ Plot for ground truth """
+                       #output_val = output_val.cpu().data.numpy()            
+                       #output_val = np.moveaxis(output_val, 1, -1)              
+                       seg_val = np.argmax(output_val[0], axis=-1)  
+                          
+                       # convert back to CPU
+                       batch_x_val = batch_x_val.cpu().data.numpy() 
+                       #batch_y_val = batch_y_val.cpu().data.numpy() 
+         
+                       plot_trainer_3D_PYTORCH_snake_seg(seg_val, seg_val, batch_x_val[0], batch_x_val[0], batch_y_val[0], batch_y_val[0],
+                                                    s_path, iter_cur_epoch, plot_depth=8)     
+
     
                           
                   val_loss_per_eval.append(loss_val/iter_cur_epoch)

@@ -166,6 +166,10 @@ GTfile = "sample.obj"
 Tfile = "sample_alt.obj"
 
 
+GTfile = "sample_FULL.obj"
+Tfile = "sample_FULL_alt.obj"
+
+
 #GTfile = "h2_GT.obj"
 #Tfile = "h2_T.obj"
 

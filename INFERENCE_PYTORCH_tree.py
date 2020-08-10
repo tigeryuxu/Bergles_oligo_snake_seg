@@ -119,6 +119,9 @@ check_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NO
 
 #check_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'
 
+
+check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
+
 s_path = check_path + 'TEST_inference/'
 try:
     # Create target Directory
@@ -136,7 +139,7 @@ input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed g
 #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/dense/'
 
 
-input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
+#input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
 
 
 
@@ -190,7 +193,7 @@ for i in range(len(examples)):
   
 
         input_name = examples[i]['input']
-        filename = input_name.split('\\')[-1]
+        filename = input_name.split('/')[-1]
         filename = filename.split('.')[0:-1]
         filename = '.'.join(filename)
         
@@ -320,6 +323,9 @@ for i in range(len(examples)):
 
                   """ use centroid of object to make seed crop """
                   crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
+                  
+                  
+                  #cur_seg_im[x,y,z] = 2   ### IF WANT TO SEE WHAT THE CROP IS CENTERING ON
                   crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
 
                     
@@ -543,7 +549,7 @@ for i in range(len(examples)):
 
                  
                   # subtract old parts of image that have been identified in past rounds of segmentation
-                  output_PYTORCH = subtract_im_no_sub_zero(output_PYTORCH, im_dil)
+                  #output_PYTORCH = subtract_im_no_sub_zero(output_PYTORCH, im_dil)
 
 
                   """ delete all small objects """
@@ -600,7 +606,7 @@ for i in range(len(examples)):
                               seg["center_be"].append(cur_be)
                               
                               ### expand the cur_be
-                              neighborhood_be = expand_coord_to_neighborhood(cur_be, lower=5, upper=6)
+                              neighborhood_be = expand_coord_to_neighborhood(cur_be, lower=4, upper=5)
                               if len(neighborhood_be) > 0:
                                   neighborhood_be = np.vstack(neighborhood_be)
                               seg["expand_be"].append(neighborhood_be)
@@ -733,6 +739,14 @@ for i in range(len(examples)):
                   
                   # if iterator == 100:
                   #       zzz
+
+
+                  """ moved here: subtract out past identified regions LAST to not prevent propagation """
+
+                  # subtract old parts of image that have been identified in past rounds of segmentation
+                  sub_seed = subtract_im_no_sub_zero(sub_seed, im_dil)
+
+
 
                   """ skip if everything was subtracted out last time: """
                   if np.count_nonzero(sub_seed) < 5:
@@ -980,48 +994,88 @@ for i in range(len(examples)):
                          child_idx += 1;
           
                return list_lines  
+           
+            
+        all_trees_copy = all_trees.copy()           
+        ### (0) actually have to combine all branches together first
+
+        
+        all_starting_indices = [];
+        idx = 0;
+        for tree in all_trees:
+
+            """ first clean up parent/child associations """
+            for index, vertex in tree.iterrows():
+                 cur_idx = vertex.cur_idx
+                 children = np.where(tree.parent == cur_idx)
+                 
+                 vertex.child = children[0]
+                 
+                 
+            if idx == 0:
+                all_trees_appended = all_trees[0]
+                all_starting_indices.append(0)
+                idx += 1
+                continue
+            
+
+                 
+                 
+            tree.child = tree.child + len(all_trees_appended) 
+            tree.parent = tree.parent + len(all_trees_appended) 
+            tree.cur_idx = tree.cur_idx + len(all_trees_appended) 
+            
+            all_trees_appended = all_trees_appended.append(tree, ignore_index=True)
+            
+            all_starting_indices.append(len(all_trees_appended))
+            
+            idx += 1
+
         
         file = open("sample.obj", "w")
-        for tree in all_trees:
-             ### (1) first get vertices, which is just end coords + root coord
+        ### (1) first get vertices, which is just end coords + root coord
+        
+        ### ***must also include the root index??? but then would misalign with the rest of the line coords???
+             ###***so... maybe add as -1, or just don't add it???
+                  ###***will result in extra error? or just remove from MATLAB output as well (from simple neurite tracer)
+        
+        ### (a) must first actually make sure that all children are associated with their parents
+        all_vertices = []
+        
+        
+        for index, vertex in all_trees_appended.iterrows():
+             # cur_idx = vertex.cur_idx
+             # children = np.where(all_trees_appended.parent == cur_idx)
              
-             ### ***must also include the root index??? but then would misalign with the rest of the line coords???
-                  ###***so... maybe add as -1, or just don't add it???
-                       ###***will result in extra error? or just remove from MATLAB output as well (from simple neurite tracer)
-             
-             ### (a) must first actually make sure that all children are associated with their parents
-             all_vertices = []
-             
-             
-             for index, vertex in tree.iterrows():
-                  cur_idx = vertex.cur_idx
-                  children = np.where(tree.parent == cur_idx)
+             # vertex.child = children[0]
+              
+             if not np.isnan(vertex.start_be_coord).any():
                   
-                  vertex.child = children[0]
-                   
-                  if not np.isnan(vertex.start_be_coord).any():
-                       
-                       all_vertices.append(vertex.start_be_coord[round(len(vertex.start_be_coord)/2)])
-                  
-             ### (2) then, find order with which coords are connected
-                  ### ***must be + 1 to child b/c 0 vertex doesn't exist
-                          
-             cur_idx = 0;
-             list_lines = [[1]];
-             list_lines = linearize_tree(tree, cur_idx, list_lines)
-             
-             
-             
-             ### (3) save as .obj file
-             for v in all_vertices:
-               file.write("v %d %d %d\n" %(v[0], v[1],  v[2]))
-             
-               
-             #file.write("World\n")
-             #for l in list_lines:
-             file.write("l ")
-             file.write("\nl ".join(" ".join(map(str, x)) for x in list_lines))
-             print()
+                  all_vertices.append(vertex.start_be_coord[round(len(vertex.start_be_coord)/2)])
+
+        ### (3) save as .obj file
+        for v in all_vertices:
+          file.write("v %d %d %d\n" %(v[0], v[1],  v[2]))                
+
+
+        ### (2) then, find order with which coords are connected
+             ### ***must be + 1 to child b/c 0 vertex doesn't exist
+
+                     
+        for cur_idx in all_starting_indices:
+            
+            if cur_idx == all_starting_indices[-1]:   # skip last one
+                continue
+            
+            list_lines = [[cur_idx + 1]];
+            list_lines = linearize_tree(all_trees_appended, cur_idx, list_lines)
+          
+            #file.write("World\n")
+            #for l in list_lines:
+            file.write("l ")
+            file.write("\nl ".join(" ".join(map(str, x)) for x in list_lines))
+            file.write("\n")
+            print()
              
         file.close()
 
