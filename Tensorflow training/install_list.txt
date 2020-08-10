@@ -1,5 +1,0 @@
-keras
-sickit-image
-pillow
-natsort
-mahotas???

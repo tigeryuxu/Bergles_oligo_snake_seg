@@ -17,6 +17,22 @@ import scipy
 import math
 import tifffile as tifffile
 
+# import torchio
+# from torchio.transforms import (
+#     RescaleIntensity,
+#     RandomFlip,
+#     RandomAffine,
+#     RandomElasticDeformation,
+#     RandomMotion,
+#     RandomBiasField,
+#     RandomBlur,
+#     RandomNoise,
+#     Interpolation,
+#     Compose
+# )
+# from torchio import Image, Subject, ImagesDataset
+
+
 """ Extended functions for SNAKE_SEG """
 
 """ Load data directly from tiffs with seed mask """
@@ -206,20 +222,7 @@ def jacc_eval_GPU_torch(output, truth, ax_labels=-1, argmax_truth=1):
       return jaccard
 
 """ Define transforms"""
-import torchio
-from torchio.transforms import (
-    RescaleIntensity,
-    RandomFlip,
-    RandomAffine,
-    RandomElasticDeformation,
-    RandomMotion,
-    RandomBiasField,
-    RandomBlur,
-    RandomNoise,
-    Interpolation,
-    Compose
-)
-from torchio import Image, Subject, ImagesDataset
+
 
 def initialize_transforms(p=0.5):
      transforms = [
