@@ -1155,6 +1155,8 @@ for i in range(len(examples)):
 
 
 
+        """ *** PRIOR to this final step, also make sure to combine all non-branched together to make less vertices!!! """
+
 
 
 
