@@ -77,7 +77,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
-pregenerated = 0
+pregenerated = 1
         
 """  Network Begins: """
 #check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1
@@ -280,6 +280,17 @@ for i in range(len(examples)):
 
                   ### Get start of crop
                   cur_be_start = tree.start_be_coord[first_ind]
+                  
+                  """ For some reason, some of these getting super large??? """
+                  print("length of starting segment: " + str(len(cur_be_start)))
+                  if len(cur_be_start) >= 4000:
+                      tree.visited[first_ind] = 1;
+                      print('TOO LONG???')
+                      iterator += 1
+                          
+                      continue;
+                  
+                  
                   centroid = cur_be_start[math.floor(len(cur_be_start)/2)]
                   cur_coords.append(centroid)
  
@@ -1078,6 +1089,78 @@ for i in range(len(examples)):
         file.close()
 
         
+
+        """ Save as .swc output file:
+            
+            
+            columns:
+                index | type (soma, dendrite, ect...) | X | Y | Z |radius (0.5 or 0) | parent   (-1) for root
+            
+            Types:
+                0 - undefined
+                1 - soma
+                2 - axon
+                3 - (basal) dendrite
+                4 - apical dendrite
+                5+ - custom
+            
+            ***IN microns!!!
+            
+            """
+            
+
+        tree = all_trees_appended
+        all_vertices = []
+        for index, vertex in tree.iterrows():
+             if not np.isnan(vertex.start_be_coord).any():
+                  all_vertices.append(vertex.start_be_coord[round(len(vertex.start_be_coord)/2)])        
+
+        all_vertices = np.vstack(all_vertices)  # stack into single array
+        
+        all_x = all_vertices[:, 0]
+        all_y = all_vertices[:, 1]
+        all_z = all_vertices[:, 2]
+
+        file = open("sample.swc", "w")
+        
+        scale_xy = 0.20756792660398113 ###... um / px
+        scale_z = 1
+        
+        col1_index = np.asarray(tree.cur_idx)
+        col2_type = [2] * len(col3_x)
+        col3_x = all_x * scale_xy
+        col4_y = all_y * scale_xy
+        col5_z = all_z * scale_z
+        col6_radi = [0.5] * len(col3_x)
+        col7_parent = np.asarray(tree.parent)
+
+        full_arr = np.transpose(np.array([col1_index, col2_type, col3_x, col4_y, col5_z, col6_radi, col7_parent]))
+
+
+        datafile_path = "./sample.swc"
+        with open(datafile_path, 'w+') as datafile_id:
+        #here you open the ascii file
+        
+            np.savetxt(datafile_id, full_arr, fmt=['%d','%d', '%.5f','%.5f', '%.5f','%.5f', '%d'])
+
+
+
+
+
+        """ Convert imageJ file to .swc with correct radii thickness 
+        
+                read in file
+                output file
+        """
+
+
+
+
+
+
+
+
+
 
         zzz
         

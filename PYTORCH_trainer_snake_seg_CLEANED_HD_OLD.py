@@ -58,7 +58,7 @@ from PYTORCH_dataloader import *
 from functional.plot_functions_CLEANED import *
 from functional.data_functions_CLEANED import *
 from functional.data_functions_3D import *
-from functional.train_tracker import *
+from functional.tracker import *
 
 
 from layers.UNet_pytorch_online import *
@@ -424,7 +424,7 @@ if __name__ == '__main__':
          
              
          for param_group in optimizer.param_groups:
-              #param_group['lr'] = 1e-6   # manually sets learning rate
+              param_group['lr'] = 1e-5   # manually sets learning rate
               cur_lr = param_group['lr']
               lr_plot.append(cur_lr)
               print('Current learning rate is: ' + str(cur_lr))
@@ -435,6 +435,7 @@ if __name__ == '__main__':
               print('deep_supervision is: ' + str(deep_supervision))
               print('alpha is: ' + str(alpha))
               
+        
          iter_cur_epoch = 0;   
          starter = 0;
          for batch_x, batch_y, spatial_weight in training_generator:
