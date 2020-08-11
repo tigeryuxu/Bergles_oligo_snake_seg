@@ -37,9 +37,9 @@ matplotlib.use('Qt5Agg')
 
 """ Libraries to load """
 import numpy as np
-from plot_functions_CLEANED import *
-from data_functions_CLEANED import *
-from data_functions_3D import *
+from functional.plot_functions_CLEANED import *
+from functional.data_functions_CLEANED import *
+from functional.data_functions_3D import *
 import glob, os
 import datetime
 import time
@@ -51,13 +51,11 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
-from UNet_pytorch import *
-from UNet_pytorch_online import *
+from layers.UNet_pytorch import *
+from layers.UNet_pytorch_online import *
 #from PYTORCH_dataloader import *
 
 from sklearn.model_selection import train_test_split
-from losses_pytorch.boundary_loss import DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
-
 
 torch.backends.cudnn.benchmark = True  
 torch.backends.cudnn.enabled = True 
@@ -79,7 +77,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
-pregenerated = 1
+pregenerated = 0
         
 """  Network Begins: """
 #check_path ='./(9) Checkpoint_AdamW_batch_norm/'; dilation = 1

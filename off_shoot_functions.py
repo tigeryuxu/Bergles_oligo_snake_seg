@@ -6,9 +6,9 @@ Created on Sun Oct  6 11:55:06 2019
 """
 
 import numpy as np
-from data_functions_CLEANED import *
-from data_functions_3D import *
-from plot_functions_CLEANED import *
+from functional.data_functions_CLEANED import *
+from functional.data_functions_3D import *
+from functional.plot_functions_CLEANED import *
 
 import matplotlib.pyplot as plt
 
@@ -379,7 +379,7 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         """ set cell as root coords for later """
         all_seeds = np.copy(all_seeds_no_50)
         cell_body = dilated_image_small
-        cropped_seed[cell_body > 0] = 5
+        cropped_seed[cell_body > 0] = 50
         all_seeds[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = cropped_seed
         
         

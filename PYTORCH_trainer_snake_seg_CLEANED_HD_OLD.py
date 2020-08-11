@@ -36,43 +36,38 @@ matplotlib.rc('ytick', labelsize=8)
 import matplotlib.pyplot as plt
 
 """ Libraries to load """
-import numpy as np
-from plot_functions_CLEANED import *
-from data_functions_CLEANED import *
-from data_functions_3D import *
-import glob, os
-import datetime
-import time
-import bcolz
-from natsort import natsort_keygen, ns
-natsort_key1 = natsort_keygen(key = lambda y: y.lower())      # natural sorting order
-
 import torch
 from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
-from UNet_pytorch import *
-from UNet_pytorch_online import *
-from PYTORCH_dataloader import *
 
+
+import matplotlib.pyplot as plt
+import numpy as np
+import glob, os
+import datetime
+import time
+import bcolz
 from sklearn.model_selection import train_test_split
 
-from losses_pytorch.boundary_loss import DC_and_HDBinary_loss, BDLoss, HDDTBinaryLoss
-from losses_pytorch.dice_loss import FocalTversky_loss, DC_and_CE_loss
-from losses_pytorch.focal_loss import FocalLoss
-
-import kornia
-
-from unet_nested import *
-from unet3_3D import *
-from switchable_BN import *
-#import lovasz_losses as L
-
-import napari
+from natsort import natsort_keygen, ns
+natsort_key1 = natsort_keygen(key = lambda y: y.lower())      # natural sorting order
 
 
-from losses_pytorch.HD_loss_REAL import *
-from torch.cuda.amp import *
+from PYTORCH_dataloader import *
+from functional.plot_functions_CLEANED import *
+from functional.data_functions_CLEANED import *
+from functional.data_functions_3D import *
+from functional.train_tracker import *
+
+
+from layers.UNet_pytorch_online import *
+from layers.unet_nested import *
+from layers.unet3_3D import *
+from layers.switchable_BN import *
+
+from losses_pytorch.HD_loss import *
+
 
 # with napari.gui_qt():
 #     viewer = napari.view_image(seg_val)
@@ -83,7 +78,7 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     print(device)
     
     
@@ -121,10 +116,10 @@ if __name__ == '__main__':
     #s_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
     
     
-    s_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
+    #s_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/';  HD = 1; alpha = 1;
     
     
-    #s_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; HD = 1; alpha = 1;
+    s_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; HD = 1; alpha = 1;
     
 
     FP_16 = 0

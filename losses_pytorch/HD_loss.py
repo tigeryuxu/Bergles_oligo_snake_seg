@@ -31,6 +31,55 @@ from torchvision.utils import make_grid
 from scipy.ndimage import distance_transform_edt as distance
 
 
+""" Steps alpha after each epoch """
+def alpha_step(ce, dc, hd, iter_cur_epoch):
+     mean_ce = ce/iter_cur_epoch
+     mean_dc = dc/iter_cur_epoch
+     mean_combined = (mean_ce + mean_dc)/2
+    
+     mean_hd = hd/iter_cur_epoch
+    
+     alpha = mean_hd/(mean_combined)
+     
+     return alpha
+
+""" computes composite (DICE + CE) + alpha * HD loss """
+def compute_HD_loss(output, labels, alpha, tracker, ce, dc, hd, val_bool=0):
+    loss_ce = F.cross_entropy(output, labels)
+    outputs_soft = F.softmax(output, dim=1)
+    loss_seg_dice = dice_loss(outputs_soft[:, 1, :, :, :], labels == 1)
+    # compute distance maps and hd loss
+    with torch.no_grad():
+        # defalut using compute_dtm; however, compute_dtm01 is also worth to try;
+        gt_dtm_npy = compute_dtm(labels.cpu().numpy(), outputs_soft.shape)
+        gt_dtm = torch.from_numpy(gt_dtm_npy).float().cuda(outputs_soft.device.index)
+        seg_dtm_npy = compute_dtm(outputs_soft[:, 1, :, :, :].cpu().numpy()>0.5, outputs_soft.shape)
+        seg_dtm = torch.from_numpy(seg_dtm_npy).float().cuda(outputs_soft.device.index)
+
+    loss_hd = hd_loss(outputs_soft, labels, seg_dtm, gt_dtm)
+    
+    loss = alpha*(loss_ce+loss_seg_dice) + loss_hd
+
+    
+    if not val_bool:   ### append to training trackers if not validation
+        tracker.train_ce_pb.append(loss_ce.cpu().data.numpy())
+        tracker.train_dc_pb.append(loss_seg_dice.cpu().data.numpy())
+        tracker.train_hd_pb.append(loss_hd.cpu().data.numpy())
+
+    else:
+        tracker.val_ce_pb.append(loss_ce.cpu().data.numpy())
+        tracker.val_dc_pb.append(loss_seg_dice.cpu().data.numpy())
+        tracker.val_hd_pb.append(loss_hd.cpu().data.numpy())        
+
+    
+    ce += loss_ce.cpu().data.numpy()
+    dc += loss_seg_dice.cpu().data.numpy()
+    hd += loss_hd.cpu().data.numpy()    
+    
+    return loss, tracker, ce, dc, hd
+
+
+
 def dice_loss(score, target):
     target = target.float()
     smooth = 1e-5

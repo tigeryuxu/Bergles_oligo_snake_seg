@@ -11,9 +11,9 @@ import numpy as np
 from matlab_crop_function import *
 from off_shoot_functions import *
 
-from plot_functions_CLEANED import *
-from data_functions_CLEANED import *
-from data_functions_3D import *
+from functional.plot_functions_CLEANED import *
+from functional.data_functions_CLEANED import *
+from functional.data_functions_3D import *
 import pandas as pd
 
 
