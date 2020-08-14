@@ -63,6 +63,7 @@ if __name__ == '__main__':
     input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; dataset = 'new crop pads'
     #input_path = 'E:/7) Bergles lab data/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; 
 
+    #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
 
     """ Load filenames from tiff """
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
@@ -158,14 +159,14 @@ if __name__ == '__main__':
 
                 
     """ Create datasets for dataloader """
-    training_set = Dataset_tiffs_snake_seg(tracker.idx_train, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = transforms)
-    val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples, mean_arr, std_arr, sp_weight_bool=sp_weight_bool, transforms = 0)
+    training_set = Dataset_tiffs_snake_seg(tracker.idx_train, examples, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms)
+    val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = 0)
     
     """ Create training and validation generators"""
-    val_generator = data.DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers,
+    val_generator = data.DataLoader(val_set, batch_size=tracker.batch_size, shuffle=False, num_workers=num_workers,
                     pin_memory=True, drop_last = True)
 
-    training_generator = data.DataLoader(training_set, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+    training_generator = data.DataLoader(training_set, batch_size=tracker.batch_size, shuffle=True, num_workers=num_workers,
                       pin_memory=True, drop_last=True)
          
     print('Total # training images per epoch: ' + str(len(training_set)))
@@ -173,9 +174,9 @@ if __name__ == '__main__':
     
 
     """ Epoch info """
-    train_steps_per_epoch = len(idx_train)/batch_size
-    validation_size = len(idx_valid)
-    epoch_size = len(idx_train)    
+    train_steps_per_epoch = len(tracker.idx_train)/tracker.batch_size
+    validation_size = len(tracker.idx_valid)
+    epoch_size = len(tracker.idx_train)    
    
     """ Start training """
     for cur_epoch in range(len(tracker.train_loss_per_epoch), 10000): 
@@ -189,14 +190,15 @@ if __name__ == '__main__':
 
          unet.train()  ### set PYTORCH to training mode
 
+         start_time_epoch = time.perf_counter();
          loss_train = 0; jacc_train = 0; ce_train = 0; dc_train = 0; hd_train = 0;
          iter_cur_epoch = 0; starter = 0;
          for batch_x, batch_y, spatial_weight in training_generator:
                 ### Test speed for debug
                 starter += 1
                 if starter == 2:  start = time.perf_counter()
-                if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff); break
-                                      
+                if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
+                     
                 """ Load data ==> shape is (batch_size, num_channels, depth, height, width)
                      (1) converts to Tensor
                      (2) normalizes + applies other transforms on GPU   ***INPUT LABELS MUST BE < 255??? or else get CudNN error
@@ -336,7 +338,9 @@ if __name__ == '__main__':
                         val_idx = val_idx + batch_size
                         print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
                         iter_cur_epoch += 1
-                        
+
+                        #if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
+
                            
                    tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
                    tracker.val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       
@@ -373,6 +377,8 @@ if __name__ == '__main__':
               
          """ To save tracker and model (every x iterations) """
          if cur_epoch % save_every_num_epochs == 0:           
+               stop_time_epoch = time.perf_counter(); diff = stop_time_epoch - start_time_epoch; print(diff); 
+              
                save_name = s_path + 'check_' +  str(tracker.iterations)               
                torch.save({
                 'tracker': tracker,
