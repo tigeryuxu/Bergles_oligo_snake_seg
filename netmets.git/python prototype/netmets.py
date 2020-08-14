@@ -170,9 +170,9 @@ GTfile = "sample_FULL.obj"
 Tfile = "sample_FULL_alt.obj"
 
 
-#GTfile = "h2_GT.obj"
-#Tfile = "h2_T.obj"
 
+GTfile = "1to1pair_b_series_t1_eLOSTpairbbslnannot-005_object.obj"
+Tfile = "1to1pair_b_series_t1_seed_end_1_input_0_output.obj"
 
 
 #tunable constants

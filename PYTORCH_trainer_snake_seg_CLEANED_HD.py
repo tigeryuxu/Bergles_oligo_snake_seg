@@ -22,7 +22,6 @@ import numpy as np
 import glob, os
 import datetime
 import time
-import bcolz
 from sklearn.model_selection import train_test_split
 
 from natsort import natsort_keygen, ns
@@ -124,7 +123,7 @@ if __name__ == '__main__':
         idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
         
         """ initialize training_tracker """
-        tracker = tracker(mean_arr, std_arr, batch_size, test_size, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=alpha, HD=HD,
+        tracker = tracker(batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=alpha, HD=HD,
                                           sp_weight_bool=sp_weight_bool, transforms=transforms, dataset=input_path)
 
     else:             
@@ -196,7 +195,7 @@ if __name__ == '__main__':
                 ### Test speed for debug
                 starter += 1
                 if starter == 2:  start = time.perf_counter()
-                if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff)
+                if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff); break
                                       
                 """ Load data ==> shape is (batch_size, num_channels, depth, height, width)
                      (1) converts to Tensor
@@ -337,6 +336,7 @@ if __name__ == '__main__':
                         val_idx = val_idx + batch_size
                         print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
                         iter_cur_epoch += 1
+                        
                            
                    tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
                    tracker.val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       

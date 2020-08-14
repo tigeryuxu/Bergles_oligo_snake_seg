@@ -47,7 +47,6 @@ import numpy as np
 import glob, os
 import datetime
 import time
-import bcolz
 from sklearn.model_selection import train_test_split
 
 from natsort import natsort_keygen, ns

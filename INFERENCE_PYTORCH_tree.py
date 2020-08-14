@@ -40,10 +40,10 @@ import numpy as np
 from functional.plot_functions_CLEANED import *
 from functional.data_functions_CLEANED import *
 from functional.data_functions_3D import *
+from functional.IO_func import *
 import glob, os
 import datetime
 import time
-import bcolz
 from natsort import natsort_keygen, ns
 natsort_key1 = natsort_keygen(key = lambda y: y.lower())      # natural sorting order
 
@@ -73,7 +73,7 @@ from skimage.transform import rescale, resize, downscale_local_mean
 
 """ Define GPU to use """
 import torch
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
@@ -118,7 +118,8 @@ check_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NO
 #check_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'
 
 
-check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
+#check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
+check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/train with 1e6 after here/'; dilation = 1; deep_supervision = False;
 
 s_path = check_path + 'TEST_inference/'
 try:
@@ -500,13 +501,6 @@ for i in range(len(examples)):
                             
                             ***if turn corner abruptly, often misses other side of turn
                                 ***maybe subtract 10 pixels from the placement of every seed???
-                            
-                            
-                            
-                            
-    
-    
-    
                       """
 
                   """ REMOVE EDGE """
@@ -968,67 +962,24 @@ for i in range(len(examples)):
         print("Saving after first iteration")
         color_im = convert_matrix_to_multipage_tiff(color_im)
         imsave(s_path + filename + '_overall_output_1st_iteration_COLOR.tif', np.asarray(color_im * 255, dtype=np.uint8))
-        
-
-        """ Turn tree into .obj file
-        
-             v x y z
-             l a b c d e f...
-             
-        
-        """
-
-        def linearize_tree(tree, cur_idx, list_lines):
-               if len(tree.child[cur_idx]) == 0:
-                    #print(len(tree.child[cur_idx]))
-                    return list_lines  # hit bottom of tree
-               
-               else:
-                    child_idx = 0;
-                    
-                    for child in tree.child[cur_idx]:
-                         #print(child_idx)
-                         #print(child)
-                          
-                         if child_idx == 0:   ### append directly if it's the first child
-                              list_lines[-1].append(child + 1)
-                              list_lines = linearize_tree(tree, child, list_lines)
-                         else:
-                              list_lines.append([cur_idx + 1])   ### include parent in line to be complete (at least 2 points to form each line)
-                              list_lines[-1].append(child + 1)
-                              
-                              list_lines = linearize_tree(tree, child, list_lines)
-                              
-                         
-                         child_idx += 1;
-          
-               return list_lines  
            
-            
         all_trees_copy = all_trees.copy()           
-        ### (0) actually have to combine all branches together first
-
-        
         all_starting_indices = [];
         idx = 0;
         for tree in all_trees:
-
+        
             """ first clean up parent/child associations """
             for index, vertex in tree.iterrows():
                  cur_idx = vertex.cur_idx
                  children = np.where(tree.parent == cur_idx)
                  
                  vertex.child = children[0]
-                 
-                 
+                                  
             if idx == 0:
                 all_trees_appended = all_trees[0]
                 all_starting_indices.append(0)
                 idx += 1
                 continue
-            
-
-                 
                  
             tree.child = tree.child + len(all_trees_appended) 
             tree.parent = tree.parent + len(all_trees_appended) 
@@ -1038,131 +989,34 @@ for i in range(len(examples)):
             
             all_starting_indices.append(len(all_trees_appended))
             
-            idx += 1
+            idx += 1       
 
-        
-        file = open("sample.obj", "w")
-        ### (1) first get vertices, which is just end coords + root coord
-        
-        ### ***must also include the root index??? but then would misalign with the rest of the line coords???
-             ###***so... maybe add as -1, or just don't add it???
-                  ###***will result in extra error? or just remove from MATLAB output as well (from simple neurite tracer)
-        
-        ### (a) must first actually make sure that all children are associated with their parents
-        all_vertices = []
-        
-        
-        for index, vertex in all_trees_appended.iterrows():
-             # cur_idx = vertex.cur_idx
-             # children = np.where(all_trees_appended.parent == cur_idx)
-             
-             # vertex.child = children[0]
-              
-             if not np.isnan(vertex.start_be_coord).any():
-                  
-                  all_vertices.append(vertex.start_be_coord[round(len(vertex.start_be_coord)/2)])
+        """ Saves tree as swc file """ 
+        save_tree_to_swc(all_trees_appended, s_path, filename = filename + 'output.swc', scale_xy=0.20756792660398113, scale_z=1)
 
-        ### (3) save as .obj file
-        for v in all_vertices:
-          file.write("v %d %d %d\n" %(v[0], v[1],  v[2]))                
-
-
-        ### (2) then, find order with which coords are connected
-             ### ***must be + 1 to child b/c 0 vertex doesn't exist
-
-                     
-        for cur_idx in all_starting_indices:
-            
-            if cur_idx == all_starting_indices[-1]:   # skip last one
-                continue
-            
-            list_lines = [[cur_idx + 1]];
-            list_lines = linearize_tree(all_trees_appended, cur_idx, list_lines)
-          
-            #file.write("World\n")
-            #for l in list_lines:
-            file.write("l ")
-            file.write("\nl ".join(" ".join(map(str, x)) for x in list_lines))
-            file.write("\n")
-            print()
-             
-        file.close()
-
+        ### also save each individual tree???
+        for counter, tree in enumerate(all_trees):
+            save_tree_to_swc(tree, s_path, filename = filename + '_' + str(counter) + '_output.swc', scale_xy=0.20756792660398113, scale_z=1)
         
 
-        """ Save as .swc output file:
-            
-            
-            columns:
-                index | type (soma, dendrite, ect...) | X | Y | Z |radius (0.5 or 0) | parent   (-1) for root
-            
-            Types:
-                0 - undefined
-                1 - soma
-                2 - axon
-                3 - (basal) dendrite
-                4 - apical dendrite
-                5+ - custom
-            
-            ***IN microns!!!
-            
-            """
-            
 
-        tree = all_trees_appended
-        all_vertices = []
-        for index, vertex in tree.iterrows():
-             if not np.isnan(vertex.start_be_coord).any():
-                  all_vertices.append(vertex.start_be_coord[round(len(vertex.start_be_coord)/2)])        
 
-        all_vertices = np.vstack(all_vertices)  # stack into single array
+        """ Save tree as obj file """
+        save_tree_to_obj(all_trees, s_path, filename = filename + 'output.obj')
+
+        ### also save individual trees
+        for counter, tree in enumerate(all_trees):
+            save_tree_to_obj([tree], s_path, filename = filename + '_' + str(counter) + '_output.obj')
+
+
+        """ *** PRIOR to this final step, also make sure to combine all non-branched together to make less vertices!!! 
         
-        all_x = all_vertices[:, 0]
-        all_y = all_vertices[:, 1]
-        all_z = all_vertices[:, 2]
-
-        file = open("sample.swc", "w")
+                /media/user/storage/Data/(1) snake seg project/Traces files/swc files
+                
+                ***also combine all .swc into one single file?
+                
         
-        scale_xy = 0.20756792660398113 ###... um / px
-        scale_z = 1
-        
-        col1_index = np.asarray(tree.cur_idx)
-        col2_type = [2] * len(col3_x)
-        col3_x = all_x * scale_xy
-        col4_y = all_y * scale_xy
-        col5_z = all_z * scale_z
-        col6_radi = [0.5] * len(col3_x)
-        col7_parent = np.asarray(tree.parent)
-
-        full_arr = np.transpose(np.array([col1_index, col2_type, col3_x, col4_y, col5_z, col6_radi, col7_parent]))
-
-
-        datafile_path = "./sample.swc"
-        with open(datafile_path, 'w+') as datafile_id:
-        #here you open the ascii file
-        
-            np.savetxt(datafile_id, full_arr, fmt=['%d','%d', '%.5f','%.5f', '%.5f','%.5f', '%d'])
-
-
-
-
-
-        """ Convert imageJ file to .swc with correct radii thickness 
-        
-                read in file
-                output file
         """
-
-
-
-        """ *** PRIOR to this final step, also make sure to combine all non-branched together to make less vertices!!! """
-
-
-
-
-
-
-
 
         zzz
         

@@ -60,3 +60,7 @@ netmets.git/01_GT.obj
 netmets.git/00_T.obj
 netmets.git/00_GT.swc
 netmets.git/00_GT.obj
+*.obj
+*.swc
+*.obj
+sample.swc
