@@ -215,7 +215,7 @@ def fix_SNT_outputs_radii():
                 
 
                 """ If reformat all into axons """                
-                #line[1] = 2   ### make all into axons
+                line[1] = 2   ### make all into axons
                 
                 """ NEEDS A SOMA FOR MORPHOPY TO WORK"""
                 if first_line == 0:

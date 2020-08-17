@@ -24,9 +24,9 @@ s_path = '../(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NOR
 N = fm.load_swc_file(s_path + filename)
 
 
-#filename = '1to1pair_b_series_t1_eLOSTpairbbslnannot-005_reformated_all_ax.swc'
-#s_path = '/media/user/storage/Data/(1) snake seg project/Traces files/swc files/reformated_all_ax/'
-#N = fm.load_swc_file(s_path + filename)
+# filename = '1to1pair_b_series_t1_eLOSTpairbbslnannot-005_reformated.swc'
+# s_path = '/media/user/storage/Data/(1) snake seg project/Traces files/swc files/reformated_single_nuc/'
+# N = fm.load_swc_file(s_path + filename)
 
 
 import seaborn as sns
@@ -252,7 +252,13 @@ A special distribution not mentioned yet is the Sholl intersection profile. It c
 """
 Computing the Persistence Diagram
 
-By default MorphoPy implements four different distance functions for persistence diagrams: radial distance to soma, path length to soma, height to soma, and branch order (to be found in computations.persistence_functions).
+By default MorphoPy implements four different distance functions for persistence diagrams: 
+    - radial distance to soma
+    - path length to soma
+    - height to soma
+    - and branch order
+(to be found in computations.persistence_functions).
+
 """
     
 from morphopy.computation.persistence_functions import path_length, radial_distance, height, branch_order
@@ -265,29 +271,45 @@ df = get_persistence(N.get_topological_minor(), f=filter_function)
 df.head()
 
 
+### (1) plot persistence barcode
+plt.figure(); 
+for idx, row in df.iterrows():
+    
+    plt.plot([row.birth, row.death], [idx, idx])
+
+
+
+### (2) plot persistence diagram
+plt.figure(); plt.scatter(df.birth, df.death)
+
+
+
+
 """
 
-However, one can also provide a custom distance function. It only needs to follow the form function(networkx.DiGraph(), node_id_end, node_id_start) and return the distance between start node and end node.
+However, one can also provide a custom distance function. 
+It only needs to follow the form function(networkx.DiGraph(), node_id_end, node_id_start) 
+and return the distance between start node and end node.
 """
 
-import numpy as np
-def custom_distance(G, u, v):
-    """
-    Returns a distance between nodes u and v, which both are part of the graph given in G.
-    """
-    if np.float(nx.__version__) < 2: 
-        n = G.node[u]['pos']
-        r = G.node[v]['pos']
-    else:
-        n = G.nodes[u]['pos']
-        r = G.nodes[v]['pos']
-    return np.dot(n - r, [0,0,1])
+# import numpy as np
+# def custom_distance(G, u, v):
+#     """
+#     Returns a distance between nodes u and v, which both are part of the graph given in G.
+#     """
+#     if np.float(nx.__version__) < 2: 
+#         n = G.node[u]['pos']
+#         r = G.node[v]['pos']
+#     else:
+#         n = G.nodes[u]['pos']
+#         r = G.nodes[v]['pos']
+#     return np.dot(n - r, [0,0,1])
 
 
 
-df = get_persistence(N.get_topological_minor(), f=custom_distance) 
-# we pass the topological minor here since persistence only operates on branch points anyways
-df.head()
+# df = get_persistence(N.get_topological_minor(), f=custom_distance) 
+# # we pass the topological minor here since persistence only operates on branch points anyways
+# df.head()
 
 
 

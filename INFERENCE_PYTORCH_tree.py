@@ -116,8 +116,6 @@ check_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NO
 
 
 #check_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'
-
-
 #check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
 check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/train with 1e6 after here/'; dilation = 1; deep_supervision = False;
 
@@ -133,7 +131,8 @@ input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed g
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large/'
 
 
-input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/'
+#input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/'
+input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px_NEW/'
 
 #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px/dense/'
 
@@ -177,9 +176,21 @@ unet.to(device)
 
 input_size = 80
 depth = 32
-
 crop_size = int(input_size/2)
 z_size = depth
+
+
+""" Change to scaling per crop??? """
+original_scaling = 0.2076;
+target_scale = 0.20;
+scale_factor = original_scaling/target_scale;
+scaled_crop_size = round(input_size/scale_factor);
+scaled_crop_size = math.ceil(scaled_crop_size / 2.) * 2  ### round up to even num
+
+#crop_size = scaled_crop_size/2;
+
+
+
 
 scale_for_animation = 0
 #scale = 1
@@ -232,9 +243,9 @@ for i in range(len(examples)):
                         
             ### set "visited" to correct value
             for idx, node in tree_df.iterrows():
-                if not isListEmpty(node.child):
-                    node.visited = 1
-                else:
+                # if not isListEmpty(node.child):
+                #     node.visited = 1
+                # else:
                     node.visited = np.nan            
             # append to all trees
             all_trees.append(tree_df)
@@ -278,18 +289,20 @@ for i in range(len(examples)):
                   
                   """ Get center of crop """
                   cur_coords = []
+                  
+                
 
                   ### Get start of crop
                   cur_be_start = tree.start_be_coord[first_ind]
                   
                   """ For some reason, some of these getting super large??? """
-                  print("length of starting segment: " + str(len(cur_be_start)))
-                  if len(cur_be_start) >= 4000:
-                      tree.visited[first_ind] = 1;
-                      print('TOO LONG???')
-                      iterator += 1
+                  # print("length of starting segment: " + str(len(cur_be_start)))
+                  # if len(cur_be_start) >= 4000:
+                  #     tree.visited[first_ind] = 1;
+                  #     print('TOO LONG???')
+                  #     iterator += 1
                           
-                      continue;
+                  #     continue;
                   
                   
                   centroid = cur_be_start[math.floor(len(cur_be_start)/2)]
@@ -331,6 +344,7 @@ for i in range(len(examples)):
                   if len(parent_coords) > 0:
                       cur_seg_im[parent_coords[:, 0], parent_coords[:, 1], parent_coords[:, 2]] = 1
 
+
                   """ use centroid of object to make seed crop """
                   crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
                   
@@ -364,13 +378,14 @@ for i in range(len(examples)):
                   output_PYTORCH = UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=device, deep_supervision=deep_supervision)
         
         
-        
+            
                   """ Since it's centered around crop, ensure doesn't go overboard """
                   output_PYTORCH[boundaries_crop == 0] = 0
         
         
-                  if iterator == 200 or iterator == 201 or iterator == 202:
-                      print('201')
+                  # if iterator == 200 or iterator == 53 or iterator == 202:
+                  #     zzz
+                  #     print('201')
         
                   """ SAVE max projections"""
                   plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
@@ -380,6 +395,8 @@ for i in range(len(examples)):
                   plot_save_max_project(fig_num=3, im=crop, max_proj_axis=-1, title='input', 
                                         name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_input_im.png', pause_time=0.001)
 
+
+             
                   """ TURN SEGMENTATION INTO skeleton and assess branch points ect...                  
                           ***might need to smooth the skeleton???
                           (0) pre-process unlinked portions that are very close by???                          
@@ -810,7 +827,7 @@ for i in range(len(examples)):
                       plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 
                                   name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator) + '_segmentation_deleted.png', pause_time=0.001) 
                       
-                      all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_x_min=box_x_min, box_y_min=box_y_min, box_z_min=box_z_min)
+                      all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_x_min=box_x_min, box_y_min=box_y_min, box_z_min=box_z_min, order=1)
 
 
 

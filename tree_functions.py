@@ -16,8 +16,46 @@ from functional.data_functions_CLEANED import *
 from functional.data_functions_3D import *
 import pandas as pd
 
+from scipy.sparse.csgraph import depth_first_order
 
+""" Try to order skeleton points """
+#skel = skeletonize_3d(output_PYTORCH)
 
+def order_skeleton_list(coords):
+     ### plot out what it looks like before/after sorting
+     #skel = np.zeros([crop_size * 2, crop_size * 2, z_size])
+     skel = np.zeros([80, 80, 32])
+     for cur in coords:
+          skel[int(cur[0]), int(cur[1]), int(cur[2])] = 1    
+          
+     graph = skeleton_to_csgraph(skel)
+     node_order, predecessors = depth_first_order(graph[0], 1)
+     all_nodes = graph[1]
+     ordered_nodes = []
+     #im_empty = np.zeros(np.shape(skel))
+     itern = 1;
+     for ord_num in node_order:
+         ordered_nodes.append(all_nodes[ord_num, :])
+         
+         cur = all_nodes[ord_num, :]
+         #im_empty[int(cur[0]), int(cur[1]), int(cur[2])] = itern   
+         
+         itern += 1
+         
+         
+     return np.asarray(np.vstack(ordered_nodes), dtype=np.uint32)
+                          
+     ### plot out what it looks like before/after sorting
+     # labels = measure.label(skel)
+     # cc_be = measure.regionprops(labels)
+     # coords = cc_be[0]['coords']
+     
+     # im_empty_unord = np.zeros(np.shape(skel))
+     # itern = 1;
+     # for cur in coords:
+     #     im_empty_unord[int(cur[0]), int(cur[1]), int(cur[2])] = itern   
+         
+     #     itern += 1           
 
 """ Returns the coordinates of the parents of the current starting index """
 def get_parent_nodes(tree, start_ind, num_parents, parent_coords):
@@ -127,7 +165,7 @@ def expand_coord_to_neighborhood(coords, lower, upper):
 
 
 """ Get neighborhoods from an image ==> include scaling??? """
-def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, box_z_min=0, width=1000000000, height=100000000, depth=100000000):
+def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, box_z_min=0, order=0, width=1000000000, height=100000000, depth=100000000):
       only_segments = np.copy(degrees); only_segments[only_segments != 2] = 0
       only_branch_ends = np.copy(degrees); only_branch_ends[only_branch_ends == 2] = 0; only_branch_ends[only_branch_ends > 0] = 3; 
       
@@ -161,7 +199,13 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, 
       idx = 0
       for seg in cc_segs:
           coords = np.vstack(coords)
-          coords = seg['coords']       
+          coords = seg['coords']   
+          
+          """ ORDER THE LIST """
+          #if order:
+          coords = order_skeleton_list(coords)
+          
+          
           if scale:
               coords = scale_coords_of_crop_to_full(coords, box_x_min, box_y_min, box_z_min)
               

@@ -53,7 +53,7 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     print(device)
     
     """" path to checkpoints """       
@@ -69,9 +69,21 @@ if __name__ == '__main__':
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
     images.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
     examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop')) for i in images]
+    
+    
+    # ### REMOVE IMAGE 1 from training data
+    # idx_skip = []
+    # for idx, im in enumerate(examples):
+    #     filename = im['input']
+    #     if '1to1pair_b_series_t1_input' in filename:
+    #         print('skip')
+    #         idx_skip.append(idx)
+    
+    # examples = [i for j, i in enumerate(examples) if j not in idx_skip]
+
+    
+    
     counter = list(range(len(examples)))
-    
-    
 
     # """ load mean and std for normalization later """  
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
@@ -85,7 +97,7 @@ if __name__ == '__main__':
     # Read in file names
     onlyfiles_check = glob.glob(os.path.join(s_path,'check_*'))
     onlyfiles_check.sort(key = natsort_key1)
-
+    
     if not onlyfiles_check:   ### if no old checkpoints found, start new network and tracker
  
         """ Hyper-parameters """
@@ -124,7 +136,7 @@ if __name__ == '__main__':
         idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
         
         """ initialize training_tracker """
-        tracker = tracker(batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=alpha, HD=HD,
+        tracker = tracker(batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=tracker.alpha, HD=HD,
                                           sp_weight_bool=sp_weight_bool, transforms=transforms, dataset=input_path)
 
     else:             
@@ -203,7 +215,7 @@ if __name__ == '__main__':
                      (1) converts to Tensor
                      (2) normalizes + applies other transforms on GPU   ***INPUT LABELS MUST BE < 255??? or else get CudNN error
                 """
-                inputs, labels = transfer_to_GPU(batch_x, batch_y, device, mean_arr, std_arr)
+                inputs, labels = transfer_to_GPU(batch_x, batch_y, device, tracker.mean_arr, tracker.std_arr)
                 inputs = inputs[:, 0, ...]
 
                 # PRINT OUT THE SHAPE OF THE INPUT
@@ -216,8 +228,8 @@ if __name__ == '__main__':
                 output_train = unet(inputs)  ### forward + backward + optimize
                                   
                 """ calculate loss: includes HD loss functions """
-                if HD:
-                    loss, tracker, ce_train, dc_train, hd_train = compute_HD_loss(output_train, labels, alpha, tracker, 
+                if tracker.HD:
+                    loss, tracker, ce_train, dc_train, hd_train = compute_HD_loss(output_train, labels, tracker.alpha, tracker, 
                                                                                   ce_train, dc_train, hd_train, val_bool=0)
                 else:
                     if deep_sup:   ### IF DEEP SUPERVISION
@@ -278,8 +290,8 @@ if __name__ == '__main__':
          
          
          """ calculate new alpha for next epoch """   
-         if HD:
-             alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch)
+         if tracker.HD:
+             tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch)
 
     
          """ Should I keep track of loss on every single sample? and iteration? Just not plot it??? """   
@@ -292,7 +304,7 @@ if __name__ == '__main__':
                    for batch_x_val, batch_y_val, spatial_weight in val_generator:
                       
                         """ Transfer to GPU to normalize ect... """
-                        inputs_val, labels_val = transfer_to_GPU(batch_x_val, batch_y_val, device, mean_arr, std_arr)
+                        inputs_val, labels_val = transfer_to_GPU(batch_x_val, batch_y_val, device, tracker.mean_arr, tracker.std_arr)
                         inputs_val = inputs_val[:, 0, ...]   
              
                         # forward pass to check validation
@@ -300,8 +312,8 @@ if __name__ == '__main__':
 
                         """ calculate loss 
                                 include HD loss functions """
-                        if HD:
-                            loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, alpha, tracker, 
+                        if tracker.HD:
+                            loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
                                                                                           ce_val, dc_val, hd_val, val_bool=1)
                         else:
                             if deep_sup:                                                
@@ -335,7 +347,7 @@ if __name__ == '__main__':
                         jacc_val += jacc
                         tracker.val_jacc_per_batch.append(jacc)   
 
-                        val_idx = val_idx + batch_size
+                        val_idx = val_idx + tracker.batch_size
                         print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
                         iter_cur_epoch += 1
 

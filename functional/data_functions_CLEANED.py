@@ -53,6 +53,20 @@ def dilate_by_ball_to_binary(input_im, radius):
      input_im[input_im > 0] = 1
      return input_im
 
+
+
+
+""" Use MATLAB dilation """
+# import matlab.engine
+# eng = matlab.engine.start_matlab()
+# def dilate_by_ball_MATLAB(input_im, radius):
+#       strel = eng.strel('sphere', matlab.double([1]))
+#       #eng.getfield(disk, 'Neighborhood')
+#       dilated = eng.imdilate(matlab.double(input_im.tolist()), strel)
+#       py_arr = np.asarray(dilated)
+
+
+
 """ dilates image by a spherical ball of size radius """
 def dilate_by_disk_to_binary(input_im, radius):
      ball_obj = skimage.morphology.disk(radius=radius)
