@@ -21,6 +21,7 @@ from scipy.sparse.csgraph import depth_first_order
 """ Try to order skeleton points """
 #skel = skeletonize_3d(output_PYTORCH)
 
+
 def order_skeleton_list(coords):
      ### plot out what it looks like before/after sorting
      #skel = np.zeros([crop_size * 2, crop_size * 2, z_size])
@@ -203,7 +204,7 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, 
           
           """ ORDER THE LIST """
           #if order:
-          coords = order_skeleton_list(coords)
+          #     coords = order_skeleton_list(coords)
           
           
           if scale:
