@@ -17,46 +17,168 @@ from functional.data_functions_3D import *
 import pandas as pd
 
 from scipy.sparse.csgraph import depth_first_order
+from sklearn.neighbors import NearestNeighbors
+import networkx as nx
+from skimage.draw import line_nd
+
+from scipy.spatial import distance 
 
 """ Try to order skeleton points """
-#skel = skeletonize_3d(output_PYTORCH)
+# def order_skeleton_list(coords):
+#      ### plot out what it looks like before/after sorting
+#      #skel = np.zeros([crop_size * 2, crop_size * 2, z_size])
+#      skel = np.zeros([80, 80, 32])
+#      for cur in coords:
+#           skel[int(cur[0]), int(cur[1]), int(cur[2])] = 1    
+#      graph = skeleton_to_csgraph(skel)
+#      node_order, predecessors = depth_first_order(graph[0], 1)
+#      all_nodes = graph[1]
+#      ordered_nodes = []
+#      #im_empty = np.zeros(np.shape(skel))
+#      itern = 1;
+#      for ord_num in node_order:
+#          ordered_nodes.append(all_nodes[ord_num, :])
+#          cur = all_nodes[ord_num, :]
+#          #im_empty[int(cur[0]), int(cur[1]), int(cur[2])] = itern   
+#          itern += 1
+#      return np.asarray(np.vstack(ordered_nodes), dtype=np.uint32)
 
 
-def order_skeleton_list(coords):
-     ### plot out what it looks like before/after sorting
-     #skel = np.zeros([crop_size * 2, crop_size * 2, z_size])
-     skel = np.zeros([80, 80, 32])
-     for cur in coords:
-          skel[int(cur[0]), int(cur[1]), int(cur[2])] = 1    
-          
-     graph = skeleton_to_csgraph(skel)
-     node_order, predecessors = depth_first_order(graph[0], 1)
-     all_nodes = graph[1]
-     ordered_nodes = []
-     #im_empty = np.zeros(np.shape(skel))
-     itern = 1;
-     for ord_num in node_order:
-         ordered_nodes.append(all_nodes[ord_num, :])
-         
-         cur = all_nodes[ord_num, :]
-         #im_empty[int(cur[0]), int(cur[1]), int(cur[2])] = itern   
-         
-         itern += 1
-         
-         
-     return np.asarray(np.vstack(ordered_nodes), dtype=np.uint32)
-                          
-     ### plot out what it looks like before/after sorting
-     # labels = measure.label(skel)
-     # cc_be = measure.regionprops(labels)
-     # coords = cc_be[0]['coords']
-     
-     # im_empty_unord = np.zeros(np.shape(skel))
-     # itern = 1;
-     # for cur in coords:
-     #     im_empty_unord[int(cur[0]), int(cur[1]), int(cur[2])] = itern   
-         
-     #     itern += 1           
+
+
+""" Bridge adjacent end points within radius of 2 pixels """
+def bridge_end_points(output_PYTORCH, bridge_radius=2):
+    ### (1) Find cc of every object in the current crop
+    labelled = measure.label(output_PYTORCH)
+    cc = measure.regionprops(labelled)
+  
+    all_seg = []
+    for cur in cc:
+        cur_seg = {
+                "coords": cur['coords'],
+                "center_be": [],
+                "expand_be": [],
+                "bridges": [],
+            }
+        all_seg.append(cur_seg)
+            
+  
+    ### (2) Find the end points AND(???) branchpoints
+    degrees, coordinates = bw_skel_and_analyze(output_PYTORCH)
+    be_points = np.copy(degrees); be_points[be_points == 2] = 0; be_points[be_points > 0] = 1;
+    
+    labelled = measure.label(be_points)
+    cc_be = measure.regionprops(labelled)
+    
+    ### (3) get pixel indices of each be AND get the expanded version of the be neighborhood as well 
+    # match the end point to the list of coords
+    for seg in all_seg:
+        cur_seg = seg['coords']
+        for be in cc_be:
+            cur_be = be['coords']
+            if (cur_seg[:, None] == cur_be).all(-1).any():
+                
+                seg["center_be"].append(cur_be)
+                
+                ### expand the cur_be
+                neighborhood_be = expand_coord_to_neighborhood(cur_be, lower=bridge_radius, upper=bridge_radius + 1)
+                if len(neighborhood_be) > 0:
+                    neighborhood_be = np.vstack(neighborhood_be)
+                seg["expand_be"].append(neighborhood_be)
+                
+                
+    ### (4) loop through each cc and see if be neighborhood hits nearby cc EXCLUDING itself
+    ### if it hits, use line_nd to make connection
+    empty = np.zeros(np.shape(output_PYTORCH))
+    for cur_seg, cur_idx in zip(all_seg, range(len(all_seg))):
+        cur_expand = cur_seg['expand_be']
+        if len(cur_expand) > 0:
+            for cur_ex, idx_outer in zip(cur_expand, range(len(cur_expand))):  # loop through each be of current seg
+                 for next_seg, next_idx in zip(all_seg, range(len(all_seg))):  # loop through all other segs
+                     if cur_idx == next_idx:
+                         continue;   ### don't try to match with self
+                     
+                     ### (a) try to find an expanded neighborhood that matches
+                     match = 0
+                     next_expand = next_seg['expand_be']
+                     if len(next_expand) > 0:
+                         for be_ex, idx_inner in zip(next_expand, range(len(next_expand))): # loop through each be of next seg             
+                               if (cur_ex[:, None] == be_ex).all(-1).any():  
+                                   
+                                   next_be = next_seg['center_be'][idx_inner][0]
+                                   cur_be = cur_seg['center_be'][idx_outer][0]
+                                   
+                                   ### DRAW LINE
+                                   line_coords = line_nd(cur_be, next_be, endpoint=False)
+                                   line_coords = np.transpose(line_coords)
+                                   cur_seg['bridges'].append(line_coords)
+                                   match = 1
+                                   #print('bridge')
+  
+            
+                     ### (b) then try to find coords that match ==> ***IF MATCHED, find CLOSEST
+                     if not match:
+                          next_coords = next_seg['coords']
+                          if len(next_coords) > 0 and (cur_ex[:, None] == next_coords).all(-1).any():
+                              cur_be = cur_seg['center_be'][idx_outer][0]
+                              # find distance to all coords
+                             
+                              cur = np.transpose(np.vstack(cur_be))
+                              dist = distance.cdist(cur, next_coords)
+                              min_idx = np.argmin(dist)
+                             
+                              closest_point = next_coords[min_idx]
+                            
+                              ### DRAW LINE
+                              line_coords = line_nd(cur_be, closest_point, endpoint=False)
+                              line_coords = np.transpose(line_coords)
+                              cur_seg['bridges'].append(line_coords)     
+                             
+                              print('body bridge')
+                              print(cur_be)
+                             
+    ### debug: ensure proper points inserted
+    """ get output image """
+    output = np.zeros(np.shape(output_PYTORCH))
+    for seg, idx in zip(all_seg, range(len(all_seg))):
+         cur_expand = seg['bridges']
+         if len(cur_expand) > 0:
+             cur_expand = np.vstack(cur_expand)
+             output[cur_expand[:, 0], cur_expand[:, 1], cur_expand[:, 2]] = 5
+  
+         cur_seg = seg['coords']
+         if len(cur_seg) > 0:
+              cur_seg = np.vstack(cur_seg)
+              output[cur_seg[:, 0], cur_seg[:, 1], cur_seg[:, 2]] = idx + 1
+            
+  
+
+    non_bin_output = np.copy(output)
+    output[output > 0] = 1
+    
+    
+    return output, non_bin_output
+
+""" Given coords of shape x, y, z in a cropped image, scales back to size in full size image """
+def scale_coords_of_crop_to_full(coords, box_x_min, box_y_min, box_z_min):
+        coords[:, 0] = np.round(coords[:, 0]) + box_x_min   # SCALING the ep_center
+        coords[:, 1] = np.round(coords[:, 1]) + box_y_min
+        coords[:, 2] = np.round(coords[:, 2]) + box_z_min
+        scaled = coords
+        return scaled  
+
+""" Organize coordinates of line into line order """
+def order_coords(coords):
+    
+    clf = NearestNeighbors(n_neighbors=2).fit(coords)
+    G = clf.kneighbors_graph()
+    T = nx.from_scipy_sparse_matrix(G)
+    order = list(nx.dfs_preorder_nodes(T, 0))
+    organized_coords = coords[order]   # SORT BY ORDER
+    
+    return organized_coords
+
+                            
 
 """ Returns the coordinates of the parents of the current starting index """
 def get_parent_nodes(tree, start_ind, num_parents, parent_coords):
@@ -188,6 +310,7 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, 
           else:
               neighborhood_be = np.vstack(neighborhood_be)
               if scale:
+                  
                   neighborhood_be = scale_coords_of_crop_to_full(neighborhood_be, box_x_min, box_y_min, box_z_min)
                   
               all_neighborhoods.append(neighborhood_be)
@@ -247,34 +370,8 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
 
         """ Make sure nothing exceeds size limits """
         all_neighborhoods = check_limits(all_neighborhoods, width_tmp, height_tmp, depth_tmp)
-        # idx = 0; 
-        # for neighbor_be in all_neighborhoods:
-            
-        #     if len(neighbor_be) > 0:
-        #         if np.any(neighbor_be[:, 0] >= width_tmp):
-        #             all_neighborhoods[idx][np.where(neighbor_be[:, 0] >= width_tmp), 0] = width_tmp - 1
-        #         if np.any(neighbor_be[:, 1] >= height_tmp):
-        #             all_neighborhoods[idx][np.where(neighbor_be[:, 1] >= height_tmp), 0] = height_tmp - 1
-    
-        #         if np.any(neighbor_be[:, 2] >= depth_tmp):
-        #             all_neighborhoods[idx][np.where(neighbor_be[:, 2] >= depth_tmp), 0] = depth_tmp - 1
-        #     idx += 1
-    
-    
-    
         all_hood_first_last = check_limits(all_hood_first_last, width_tmp, height_tmp, depth_tmp)
-        # idx = 0; 
-        # for h_first_last in all_hood_first_last:
-            
-        #     if len(h_first_last) > 0:
-        #         if np.any(h_first_last[:, 0] >= width_tmp):
-        #             all_hood_first_last[idx][np.where(h_first_last[:, 0] >= width_tmp), 0] = width_tmp - 1
-        #         if np.any(h_first_last[:, 1] >= height_tmp):
-        #             all_hood_first_last[idx][np.where(h_first_last[:, 1] >= height_tmp), 0] = height_tmp - 1
-    
-        #         if np.any(h_first_last[:, 2] >= depth_tmp):
-        #             all_hood_first_last[idx][np.where(h_first_last[:, 2] >= depth_tmp), 0] = depth_tmp - 1
-        #     idx += 1    
+
 
         # IF ROOT (depth == 0) ==> then use root neighborhood
         if len(tree_df) == 0:

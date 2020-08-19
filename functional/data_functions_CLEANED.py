@@ -39,6 +39,17 @@ def isListEmpty(inList):
     return False # Not a list
                         
         
+        
+""" Create ball """
+def create_cube_in_im(width, input_size, z_size):
+    cube_in_middle = np.zeros([input_size,input_size, z_size])
+    cube_in_middle[int(input_size/2), int(input_size/2), int(z_size/2)] = 1
+    cube_in_middle_dil = dilate_by_cube_to_binary(cube_in_middle, width=width)
+    center_cube = cube_in_middle_dil
+    
+    return center_cube
+
+
 """ dilates image by a spherical ball of size radius """
 def erode_by_ball_to_binary(input_im, radius):
      ball_obj = skimage.morphology.ball(radius=radius)

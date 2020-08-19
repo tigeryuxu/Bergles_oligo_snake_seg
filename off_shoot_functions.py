@@ -9,6 +9,7 @@ import numpy as np
 from functional.data_functions_CLEANED import *
 from functional.data_functions_3D import *
 from functional.plot_functions_CLEANED import *
+from tree_functions import *
 
 import matplotlib.pyplot as plt
 
@@ -83,10 +84,56 @@ def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
  
      return sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds, all_seeds_no_50
 
+""" 
+   Gets the coordinates associated with the node at node_idx                 
+"""
+def get_next_coords(tree, node_idx, num_parents):
 
+    parent_coords = get_parent_nodes(tree, start_ind=node_idx, num_parents=4, parent_coords=[])
+    
+    if len(parent_coords) > 0:  # check if empty
+        parent_coords = np.vstack(parent_coords)
+    
+    """ Get center of crop """
+    cur_coords = []
+    
+    ### Get start of crop
+    cur_be_start = tree.start_be_coord[node_idx]
+      
+    ### adding starting node
+    centroid = cur_be_start[math.floor(len(cur_be_start)/2)]
+    cur_coords.append(centroid)
+       
+    ### Get middle of crop """
+    coords = tree.coords[node_idx]
+    cur_coords.append(coords)
+    
+    ### Get end of crop if it exists
+    if not np.isnan(tree.end_be_coord[node_idx]).any():   # if there's no end index for some reason, use starting one???
+        """ OR ==> should use parent??? """             
+        cur_be_end = tree.end_be_coord[node_idx]
+        
+        centroid = cur_be_end[math.floor(len(cur_be_end)/2)]
+        cur_coords.append(centroid)                      
+    else:
+        ### otherwise, just leave ONLY the start index, and nothing else
+        cur_coords = centroid
+        cur_be_end = cur_be_start
+      
+    cur_coords = np.vstack(cur_coords)
+    
+    if np.shape(cur_coords)[1] == 1:
+        cur_coords = np.transpose(cur_coords)
+        
+    return cur_coords, cur_be_start, cur_be_end, centroid, parent_coords
+                  
+                    
 
 """ If resized, check to make sure no straggling non-attached objects """
 def check_resized(im, depth, width_max, height_max):
+  
+   im = convert_matrix_to_multipage_tiff(im)
+   im = np.expand_dims(im, axis=-1)    
    middle_idx = np.zeros([depth, width_max, height_max])
    
    # make a square to colocalize with later
@@ -122,6 +169,10 @@ def check_resized(im, depth, width_max, height_max):
         ch_orig[only_coloc == 0] = 0
         
         im[:, :, :, channel_idx] = ch_orig  
+
+        im = im[:, :, :, 0]
+        im = convert_multitiff_to_matrix(im)
+
         
    return im
 
@@ -133,13 +184,7 @@ def subtract_im_no_sub_zero(arr1, arr2):
    return deleted
 
 
-""" Given coords of shape x, y, z in a cropped image, scales back to size in full size image """
-def scale_coords_of_crop_to_full(coords, box_x_min, box_y_min, box_z_min):
-        coords[:, 0] = np.round(coords[:, 0]) + box_x_min   # SCALING the ep_center
-        coords[:, 1] = np.round(coords[:, 1]) + box_y_min
-        coords[:, 2] = np.round(coords[:, 2]) + box_z_min
-        scaled = coords
-        return scaled  
+
 
 """ check if an array is truly empty """
 def check_empty(array, already_visited, list_seed_centers, reason='deleted'):
@@ -386,45 +431,6 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         
         
         return all_seeds, cropped_seed, binary, all_seeds_no_50
-
-
-""" run UNet inference """
-def UNet_inference(crop, crop_seed, batch_x, batch_y, weights, mean_arr, std_arr, x_3D, y_3D_, weight_matrix_3D, softMaxed, training, num_classes):
-   """ Combine seed mask with input im"""
-   input_im_and_seeds = np.zeros(np.shape(crop) + (2, ))
-   input_im_and_seeds[:, :, :, 0] = crop
-   input_im_and_seeds[:, :, :, 1] = crop_seed  
-   
-   depth_first = np.zeros([np.shape(input_im_and_seeds)[2], np.shape(input_im_and_seeds)[0], np.shape(input_im_and_seeds)[1], np.shape(input_im_and_seeds)[3]])
-   for slice_idx in range(len(input_im_and_seeds[0, 0, :, 0])):
-        depth_first[slice_idx, :, :, :] = input_im_and_seeds[:, :, slice_idx,  :] 
-   input_im_and_seeds = depth_first
-
-   input_im_save = np.copy(input_im_and_seeds)
-   input_im_and_seeds = normalize_im(input_im_and_seeds, mean_arr, std_arr) 
-
-   batch_x.append(input_im_and_seeds)
-   batch_y.append(np.zeros([np.shape(crop)[2], np.shape(crop)[0], np.shape(crop)[1], num_classes]))
-   weights.append(np.zeros([np.shape(crop)[2], np.shape(crop)[0], np.shape(crop)[1], num_classes]))
-   
-   feed_dict_TEST = {x_3D:batch_x, y_3D_:batch_y, training:1, weight_matrix_3D:weights}
-   feed_dict = feed_dict_TEST
-   output_test = softMaxed.eval(feed_dict=feed_dict)
-   output_test_save = output_test[0]  # takes only 1st of batch
-   seg_test = np.argmax(output_test, axis = -1)[0]   # takes only 1st of batch          
-       
-   depth_last_tmp = np.zeros([np.shape(seg_test)[1], np.shape(seg_test)[2], np.shape(seg_test)[0]])
-   for slice_idx in range(len(seg_test)):
-        depth_last_tmp[:, :, slice_idx] = seg_test[slice_idx,  :, :] 
-        
-        
-   output_test_depth_last = np.zeros([np.shape(output_test_save)[1], np.shape(output_test_save)[2], np.shape(output_test_save)[0], np.shape(output_test_save)[3]])
-   for slice_idx in range(len(output_test_save[:, 0, 0, 0])):
-        output_test_depth_last[:, :, slice_idx, :] = output_test_save[slice_idx, :, :,  :]
-   output_softMax = output_test_depth_last
-        
-   return depth_last_tmp, batch_x, batch_y, weights, input_im_save, output_softMax
-
 
 
 """ run UNet inference """
