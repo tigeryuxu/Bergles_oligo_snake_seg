@@ -83,7 +83,7 @@ torch.backends.cudnn.enabled = True
 
 """ Define GPU to use """
 import torch
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """  Network Begins: """
@@ -93,8 +93,20 @@ check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_
 
 check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
 
+tracker = 0
+
+check_path = './(52) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_NO_1st_im/'; dilation = 1; deep_supervision = False; tracker = 1; tracker = 1;
+
+
+check_path = './(54) Checkpoint_nested_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; 
+
+
 
 s_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/rerun training data 1e5/'
+s_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(52) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_NO_1st_im/rerun training data 1e5 no 1st/'
+s_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(54) Checkpoint_nested_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/rerun training data 1e5 no 1st/'
+
+
 try:
     # Create target Directory
     os.mkdir(s_path)
@@ -131,8 +143,14 @@ print('restoring weights of checkpoint: ' + str(num_check[0]))
 check = torch.load(check_path + checkpoint, map_location=device)
 unet = check['model_type']
 unet.load_state_dict(check['model_state_dict']) 
-mean_arr = check['mean_arr']
-std_arr = check['std_arr']
+
+
+if not tracker:
+    mean_arr = check['mean_arr'];  std_arr = check['std_arr']
+else:
+    ### IF LOAD WITH TRACKER
+    tracker = check['tracker']
+    mean_arr = tracker.mean_arr; std_arr = tracker.std_arr
 
 
 """ Set to eval mode for batch norm """

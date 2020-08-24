@@ -29,6 +29,8 @@ class tracker():
         self.lr_plot = [];
         self.iterations = 0;
         self.cur_epoch = 0;
+        
+        self.resize_z = 0;
 
 
         """ Normalization """

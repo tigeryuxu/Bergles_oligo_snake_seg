@@ -118,9 +118,9 @@ class NestedUNet(nn.Module):
         super().__init__()
 
         #nb_filter = [32, 64, 128, 256, 512]
-        #nb_filter = [16, 32, 64, 128, 256]
+        nb_filter = [16, 32, 64, 128, 256]
         #nb_filter = [8, 16, 32, 64, 128]
-        nb_filter = [4, 8, 16, 32, 64]
+        #nb_filter = [4, 8, 16, 32, 64]
 
         self.deep_supervision = deep_supervision
 

@@ -43,7 +43,7 @@ from layers.switchable_BN import *
 from losses_pytorch.HD_loss import *
 
 """ optional dataviewer if you want to load it """
-#import napari
+# import napari
 # with napari.gui_qt():
 #     viewer = napari.view_image(seg_val)
 
@@ -59,8 +59,31 @@ if __name__ == '__main__':
     """" path to checkpoints """       
     s_path = './(51) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_repeat_MARCC/'; HD = 1; alpha = 1;
     
+    
+    # (1)
+    #s_path = './(53) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; HD = 1; alpha = 1;
+    
+    #s_path = './(54) Checkpoint_nested_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; HD = 1; alpha = 1;
+    
+    
+    s_path = './(57) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_transform_scale_Z/'; HD = 1; alpha = 1;  resize_z = 1
+        
+
+    #s_path = './(58) Checkpoint_unet_nested_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_transform_scale_Z/'; HD = 1; alpha = 1;  resize_z = 1
+          
+    
+    
     """ path to input data """
-    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; dataset = 'new crop pads'
+    # (2)
+    
+    #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; dataset = 'new crop pads'
+    #tracker.alpha = 0.5
+    
+    
+    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'; dataset = 'new crop pads'
+    
+    
+    
     #input_path = 'E:/7) Bergles lab data/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; 
 
     #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
@@ -72,14 +95,19 @@ if __name__ == '__main__':
     
     
     # ### REMOVE IMAGE 1 from training data
-    # idx_skip = []
-    # for idx, im in enumerate(examples):
-    #     filename = im['input']
-    #     if '1to1pair_b_series_t1_input' in filename:
-    #         print('skip')
-    #         idx_skip.append(idx)
+    idx_skip = []
+    for idx, im in enumerate(examples):
+        filename = im['input']
+        if '1to1pair_b_series_t1_input' in filename:
+            print('skip')
+            idx_skip.append(idx)
     
-    # examples = [i for j, i in enumerate(examples) if j not in idx_skip]
+    
+    ### USE THE EXCLUDED IMAGE AS VALIDATION/TESTING
+    examples_test = np.copy(examples)
+    
+    
+    examples = [i for j, i in enumerate(examples) if j not in idx_skip]
 
     
     
@@ -89,7 +117,7 @@ if __name__ == '__main__':
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
     std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
 
-    num_workers = 2;
+    num_workers = 4;
  
     save_every_num_epochs = 1; plot_every_num_epochs = 1; validate_every_num_epochs = 1;      
     
@@ -102,17 +130,21 @@ if __name__ == '__main__':
  
         """ Hyper-parameters """
         deep_sup = False
-        switch_norm = True
+        switch_norm = False
         sp_weight_bool = 0
-        transforms = 0; #transforms = initialize_transforms(p=0.5)
+        #transforms = initialize_transforms(p=0.5)
+        #transforms = initialize_transforms_simple(p=0.5)
+        transforms = 0
         batch_size = 4;      
         test_size = 0.1  
+        
+        
 
         """ Initialize network """  
         kernel_size = 5
         pad = int((kernel_size - 1)/2)
-        #unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=3, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
-        #                    batch_norm=True, batch_norm_switchable=False, up_mode='upsample')
+        #unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
+        #                    batch_norm=True, batch_norm_switchable=switch_norm, up_mode='upsample')
         unet = NestedUNet(num_classes=2, input_channels=2, deep_sup=deep_sup, padding=pad, batch_norm_switchable=switch_norm)
         #unet = UNet_3Plus(num_classes=2, input_channels=2, kernel_size=kernel_size, padding=pad)
 
@@ -136,8 +168,12 @@ if __name__ == '__main__':
         idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
         
         """ initialize training_tracker """
-        tracker = tracker(batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=tracker.alpha, HD=HD,
+        idx_valid = idx_skip
+        
+        tracker = tracker(batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=alpha, HD=HD,
                                           sp_weight_bool=sp_weight_bool, transforms=transforms, dataset=input_path)
+
+        tracker.resize_z = resize_z
 
     else:             
         """ Find last checkpoint """       
@@ -170,9 +206,12 @@ if __name__ == '__main__':
         torch.cuda.empty_cache()
 
                 
+
+    #transforms = initialize_transforms_simple(p=0.5)
+
     """ Create datasets for dataloader """
-    training_set = Dataset_tiffs_snake_seg(tracker.idx_train, examples, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms)
-    val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = 0)
+    training_set = Dataset_tiffs_snake_seg(tracker.idx_train, examples, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms, resize_z=resize_z)
+    val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples_test, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = 0, resize_z=resize_z)
     
     """ Create training and validation generators"""
     val_generator = data.DataLoader(val_set, batch_size=tracker.batch_size, shuffle=False, num_workers=num_workers,
@@ -195,6 +234,7 @@ if __name__ == '__main__':
      
          """ check and plot params during training """             
          for param_group in optimizer.param_groups:
+              #tracker.alpha = 0.5
               #param_group['lr'] = 1e-6   # manually sets learning rate
               cur_lr = param_group['lr']
               tracker.lr_plot.append(cur_lr)
@@ -215,6 +255,7 @@ if __name__ == '__main__':
                      (1) converts to Tensor
                      (2) normalizes + applies other transforms on GPU   ***INPUT LABELS MUST BE < 255??? or else get CudNN error
                 """
+                
                 inputs, labels = transfer_to_GPU(batch_x, batch_y, device, tracker.mean_arr, tracker.std_arr)
                 inputs = inputs[:, 0, ...]
 
@@ -287,12 +328,6 @@ if __name__ == '__main__':
 
          tracker.train_loss_per_epoch.append(loss_train/iter_cur_epoch)
          tracker.train_jacc_per_epoch.append(jacc_train/iter_cur_epoch)        
-         
-         
-         """ calculate new alpha for next epoch """   
-         if tracker.HD:
-             tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch)
-
     
          """ Should I keep track of loss on every single sample? and iteration? Just not plot it??? """   
          loss_val = 0; jacc_val = 0; val_idx = 0;
@@ -359,7 +394,15 @@ if __name__ == '__main__':
                    
                    """ Add to scheduler to do LR decay """
                    scheduler.step()
-                  
+
+                    
+         """ calculate new alpha for next epoch """   
+         if tracker.HD:
+             tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch)
+             
+             #tracker.alpha = 0.5
+
+
          """ Plot metrics every epoch """      
          if cur_epoch % plot_every_num_epochs == 0:       
               

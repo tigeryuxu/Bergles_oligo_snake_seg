@@ -84,49 +84,7 @@ def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
  
      return sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds, all_seeds_no_50
 
-""" 
-   Gets the coordinates associated with the node at node_idx                 
-"""
-def get_next_coords(tree, node_idx, num_parents):
 
-    parent_coords = get_parent_nodes(tree, start_ind=node_idx, num_parents=4, parent_coords=[])
-    
-    if len(parent_coords) > 0:  # check if empty
-        parent_coords = np.vstack(parent_coords)
-    
-    """ Get center of crop """
-    cur_coords = []
-    
-    ### Get start of crop
-    cur_be_start = tree.start_be_coord[node_idx]
-      
-    ### adding starting node
-    centroid = cur_be_start[math.floor(len(cur_be_start)/2)]
-    cur_coords.append(centroid)
-       
-    ### Get middle of crop """
-    coords = tree.coords[node_idx]
-    cur_coords.append(coords)
-    
-    ### Get end of crop if it exists
-    if not np.isnan(tree.end_be_coord[node_idx]).any():   # if there's no end index for some reason, use starting one???
-        """ OR ==> should use parent??? """             
-        cur_be_end = tree.end_be_coord[node_idx]
-        
-        centroid = cur_be_end[math.floor(len(cur_be_end)/2)]
-        cur_coords.append(centroid)                      
-    else:
-        ### otherwise, just leave ONLY the start index, and nothing else
-        cur_coords = centroid
-        cur_be_end = cur_be_start
-      
-    cur_coords = np.vstack(cur_coords)
-    
-    if np.shape(cur_coords)[1] == 1:
-        cur_coords = np.transpose(cur_coords)
-        
-    return cur_coords, cur_be_start, cur_be_end, centroid, parent_coords
-                  
                     
 
 """ If resized, check to make sure no straggling non-attached objects """

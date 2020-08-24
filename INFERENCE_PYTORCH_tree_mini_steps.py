@@ -16,7 +16,7 @@ import matplotlib
 matplotlib.rc('xtick', labelsize=8) 
 matplotlib.rc('ytick', labelsize=8) 
 matplotlib.use('Qt5Agg')
-matplotlib.use('Agg')
+
 
 """ Libraries to load """
 import numpy as np
@@ -57,16 +57,39 @@ torch.backends.cudnn.enabled = True
 
 """ Define GPU to use """
 import torch
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
 pregenerated = 1
         
 """  Network Begins: """
+tracker = 0
 #check_path = './(48) Checkpoint_nested_unet_SPATIALW_medium_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'
 #check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
-check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/train with 1e6 after here/'; dilation = 1; deep_supervision = False;
+#check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/train with 1e6 after here/'; dilation = 1; deep_supervision = False;
+
+
+#check_path = './(51) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_repeat_MARCC/'; dilation = 1; deep_supervision = False; tracker = 1;
+
+
+#check_path = './(52) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_NO_1st_im/'; dilation = 1; deep_supervision = False; tracker = 1;
+
+
+#check_path = './(53) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
+
+
+#check_path = './(54) Checkpoint_nested_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
+
+
+check_path = './(55) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
+
+#check_path = './(56) Checkpoint_unet_nested_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+
+
+#check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+
+
 
 s_path = check_path + 'TEST_inference/'
 try:
@@ -103,14 +126,23 @@ print('restoring weights of checkpoint: ' + str(num_check[0]))
 check = torch.load(check_path + checkpoint, map_location=device)
 unet = check['model_type']
 unet.load_state_dict(check['model_state_dict']) 
-mean_arr = check['mean_arr'];  std_arr = check['std_arr']
+
+
+if not tracker:
+    mean_arr = check['mean_arr'];  std_arr = check['std_arr']
+else:
+    ### IF LOAD WITH TRACKER
+    tracker = check['tracker']
+    mean_arr = tracker.mean_arr; std_arr = tracker.std_arr
+
+
 """ Set to eval mode for batch norm """
 unet.eval();   unet.to(device)
 
 input_size = 80
-depth = 32
+
 crop_size = int(input_size/2)
-z_size = depth
+z_size = 32
 
 
 """ Change to scaling per crop??? """
@@ -151,7 +183,7 @@ for i in range(len(examples)):
             coord_point = point['coords']
             all_coords_root.append(coord_point)
         all_trees = []
-        for root in sorted_list:
+        for i_r, root in enumerate(sorted_list):
             tree_df, children = get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp, all_coords_root)                                          
             
             ### HACK: continue if empty
@@ -169,6 +201,11 @@ for i in range(len(examples)):
                     node.visited = np.nan            
             # append to all trees
             all_trees.append(tree_df)
+            
+            ### skip rest for debugging
+            #if i_r == 0:
+            #      break
+            
 
  
 
@@ -178,36 +215,56 @@ for i in range(len(examples)):
 
         """ Create box in middle to only get seed colocalized with middle after splitting branchpoints """
         center_cube = create_cube_in_im(width=10, input_size=input_size, z_size=z_size)
-        small_center_cube = create_cube_in_im(width=10, input_size=input_size, z_size=z_size)
-                
-        for tree in all_trees:
+        #small_center_cube = create_cube_in_im(width=8, input_size=input_size, z_size=z_size)
+        
+        
+        center_cube_pm = create_cube_in_im(width=10, input_size=input_size * 2, z_size=z_size * 2)
+    
+        small_cube = create_cube_in_im(width=5, input_size=160, z_size=64) 
+        
+        
+        matplotlib.use('Agg')
+        
+        
+        for iterator, tree in enumerate(all_trees):
+             if iterator != 2:
+                 continue
+             
+            
              """ Keep looping until everything has been visited """  
-             iterator = 0    
+             
              while np.asarray(tree.visited.isnull()).any():   
-                
-
-                  """ Get coords at node """                  
-                  unvisited_indices = np.where(tree.visited.isnull() == True)[0]
-                  node_idx = unvisited_indices[-1]
-                  cur_coords, cur_be_start, cur_be_end, centroid, parent_coords = get_next_coords(tree, node_idx, num_parents=4)
+                """ Get coords at node """                  
+                unvisited_indices = np.where(tree.visited.isnull() == True)[0]
+                node_idx = unvisited_indices[-1]
+                cur_coords, cur_be_start, cur_be_end, centroid, parent_coords = get_next_coords(tree, node_idx, num_parents=20)
                                       
-                  """ Order coords """
-                  ### SKIP IF TOO SHORT for mini-steps
-                  if len(cur_coords) == 1:
+                """ Order coords """
+                ### SKIP IF TOO SHORT for mini-steps
+                if len(cur_coords) == 1:
                      tree.visited[node_idx] = 1; iterator += 1; continue;
-                  else:
+                else:
                     cur_coords = order_coords(cur_coords)   ### ***order the points into line coordinates
 
-                  """ Split into mini-steps """
-                  ### Step size:
-                  step_size = 10; step_size_first = step_size          
-                  if len(cur_coords) <= step_size:  ### KEEP GOING IF ONLY SMALL SEGMENT
+                """ Split into mini-steps """
+                ### Step size:
+                step_size = 5; 
+                step_size_first = step_size          
+                if len(cur_coords) <= step_size:  ### KEEP GOING IF ONLY SMALL SEGMENT
                       step_size_first = 0
+             
                 
+                output_tracker = np.zeros(np.shape(input_im))
                 
-                  for step in range(step_size_first, len(cur_coords), step_size):    
+                for step in range(step_size_first, len(cur_coords), step_size):
+                    
+                        
+                      """ DONT DO THE LAST STEP """
+                      # if step_size_first > 0 and len(cur_coords) - step < step_size:
+                      #     continue;
+                         
                       x = int(cur_coords[step, 0]); y = int(cur_coords[step, 1]); z = int(cur_coords[step, 2])
-                      
+                                            
                       cur_seg_im = np.zeros(np.shape(input_im))   # maybe speed up here by not creating the image every time???
                       cur_seg_im[cur_coords[0:step, 0], cur_coords[0:step, 1], cur_coords[0:step, 2]] = 1
                       cur_seg_im[x, y, z] = 1    # add the centroid as well
@@ -225,7 +282,7 @@ for i in range(len(examples)):
                       crop_seed = dilate_by_ball_to_binary(crop_seed, radius=dilation)
         
                       """ Check nothing hanging off edges in seed  """
-                      crop_seed = check_resized(crop_seed, depth, width_max=input_size, height_max=input_size)
+                      crop_seed = check_resized(crop_seed, z_size, width_max=input_size, height_max=input_size)
 
 
                       """ Send to segmentor for INFERENCE """
@@ -239,220 +296,303 @@ for i in range(len(examples)):
                       plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
                                             name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(2)_seed.png', pause_time=0.001)
                       plot_save_max_project(fig_num=2, im=output_PYTORCH, max_proj_axis=-1, title='segmentation', 
-                                            name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '(3)_segmentation.png', pause_time=0.001)
+                                            name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(3)_segmentation.png', pause_time=0.001)
                       plot_save_max_project(fig_num=3, im=crop, max_proj_axis=-1, title='input', 
                                             name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(1)_input_im.png', pause_time=0.001)
 
 
-
-                      """ Things to fix still:
-                               ***circle instead of cube subtraction??? ==> b/c creating bad cut-offs right now
-                          """
-    
-                      """ REMOVE EDGE """
-                      dist_xy = 0; dist_z = 0
-                      edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
-                      edge[dist_xy:crop_size * 2-dist_xy, dist_xy:crop_size * 2-dist_xy, dist_z:z_size-dist_z] = 1
-                      edge = np.where((edge==0)|(edge==1), edge^1, edge)
-                      output_PYTORCH[edge == 1] = 0
-    
-                      """ ***FIND anything that has previously been identified
-                          ***EXCLUDING CURRENT CROP_SEED
-                      """
-                      im = show_tree(tree, track_trees)
-                                        
-                      ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
-                      for cur_tree in all_trees:
-                          im += show_tree(cur_tree, track_trees)
+                      ### HACKY - figure out how to get sizes to be better
+                      prev_seg = output_tracker[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] 
+                      output_tracker[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = prev_seg + output_PYTORCH[0:prev_seg.shape[0], 0:prev_seg.shape[1], 0:prev_seg.shape[2]]
+            
+                
+            
+            
+                """ ALSO HAVE TO RESET CUR_BE_END to align with current location of mini-step and NOT actual end of segment!!!
+                """
+                #cur_be_end = np.vstack(expand_coord_to_neighborhood([cur_coords[step]], lower=1, upper=2))
                       
-                      im[im > 0] = 1
-                      crop_prev, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
-                      crop_prev = skeletonize_3d(crop_prev)
-                                        
-                      ### EXCLUDE current crop seed
-                      im_sub = subtract_im_no_sub_zero(crop_prev, crop_seed)
-                      im_dil = dilate_by_ball_to_binary(im_sub, radius=3)
-                      
-                      ### but add back in current crop seed (so now without dilation)
-                      im_dil = im_dil + crop_seed
-                      im_dil[im_dil > 0] = 1
-                      
-    
-                      """ delete all small objects """
-                      labelled = measure.label(output_PYTORCH)
-                      cc = measure.regionprops(labelled); 
-                      cleaned = np.zeros(np.shape(output_PYTORCH))
-                      for seg in cc:
-                             coord = seg['coords']; 
-                             if len(coord) > 10:
-                                 cleaned[coord[:, 0], coord[:, 1], coord[:, 2]] = 1
-        
-                      output_PYTORCH = cleaned
-    
-                      
-                      """ add in crop seed and subtract later??? """
-                      output_PYTORCH = output_PYTORCH + crop_seed
-                      output_PYTORCH[output_PYTORCH > 0] = 1
-                     
-                      
-                      
-                      """ LINK EVERY END POINT TOGETHER USING line_nd """                          
-                      output_PYTORCH, output_non_bin = bridge_end_points(output_PYTORCH, bridge_radius=2)
-                      plot_save_max_project(fig_num=3, im=output_non_bin, max_proj_axis=-1, title='output_be', 
-                                            name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator) +  '_step_' + str(step) +'_(4)_output_be.png', pause_time=0.001)                                              
-                          
-                      # (1) use old start_coords to find only nearby segments           
-                      # ***or just use center cube
-                      coloc_with_center = output_PYTORCH + center_cube
-                      only_coloc = find_overlap_by_max_intensity(bw=output_PYTORCH, intensity_map=coloc_with_center) 
-                          
-                      """ moved here: subtract out past identified regions LAST to not prevent propagation """
-                      sub_seed = subtract_im_no_sub_zero(only_coloc, crop_seed)
-                      sub_seed = subtract_im_no_sub_zero(sub_seed, im_dil)
-    
-                      """ skip if everything was subtracted out last time: """
-                      if np.count_nonzero(sub_seed) < 5:
-                              tree.visited[node_idx] = 1; print('Finished')                     
-                              plot_save_max_project(fig_num=10, im=np.zeros(np.shape(only_coloc)), max_proj_axis=-1, title='_final_added', 
-                                      name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) +  '_step_' + str(step) + '_(6)_zfinal_added.png', pause_time=0.001) 
-                              iterator += 1
-                              continue                      
-    
-                      else:
-    
-                          # (2) skeletonize the output to create "all_neighborhoods" and "all_hood_first_last"                                    
-                          degrees, coordinates = bw_skel_and_analyze(only_coloc)
-                          """ insert the current be neighborhood at center and set to correct index in "degrees"
-                                  or add in the endpoint like I just said, but subtract it out to keep the crop_seed separate???                              
-                          """
-                          cur_end = np.copy(cur_be_end)
-                          cur_end = scale_coords_of_crop_to_full(cur_end, -box_x_min, -box_y_min, -box_z_min)
-                          
-                          ### check limits to ensure doesnt go out of frame
-                          cur_end = check_limits([cur_end], crop_size * 2, crop_size * 2, depth)[0]
-                          
-                          ### HACK: fix how so end points cant leave frame
-                          """ MIGHT GET TOO LARGE b/c of building up previous end points, so need to ensure crop """
-                          cur_end[np.where(cur_end[:, 0] >= crop_size * 2), 0] = crop_size * 2 - 1
-                          cur_end[np.where(cur_end[:, 1] >= crop_size * 2), 1] = crop_size * 2 - 1
-                          cur_end[np.where(cur_end[:, 2] >= depth), 2] = depth - 1
-                          
-                          ### Then set degrees
-                          degrees[cur_end[:, 0], cur_end[:, 1], cur_end[:, 2]] = 4
-                          
-                          ###remove all the others that match this first one???
-                          plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 
-                                      name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator)  + '_step_' + str(step) + '_(5)_segmentation_deleted.png', pause_time=0.001) 
-                          
-                          all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_x_min=box_x_min, box_y_min=box_y_min, box_z_min=box_z_min, order=1)
-    
-
-                          """ Find which neighborhood_be matches with cur_be_end to set as new root!!! 
-                                  Then delete all the rest of the cur_segs that match with crop_seed
-                          """
-                                                   
-                          check_debug = np.zeros(np.shape(crop))
-                          idx = 0; 
-                          for neighbor_be in all_neighborhoods:
-                             if (cur_be_end[:, None] == neighbor_be).all(-1).any(): 
-                                 root_neighborhood = neighbor_be
-                                 print('match')
-                                 # delete old
-                                 all_neighborhoods[idx] = []
-                                 
-                             else:
-                                 cur = np.copy(neighbor_be)
-                                 cur = scale_coords_of_crop_to_full(cur, -box_x_min, -box_y_min, -box_z_min)
-                                 
-                                 ### check limits to ensure doesnt go out of frame
-                                 cur = check_limits([cur], crop_size * 2, crop_size * 2, depth)[0]
-                                 
-                                 check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 1
-                           
-                             idx += 1
-
-                          ### HACK: if can't find root_neighborhood, then skip
-                          if len(root_neighborhood) == 0:
-                               tree.visited[node_idx] = 1;
-                               print('NO ROOT')
-                               iterator += 1
-                              
-                               continue;      
-
-                             
-                          # delete cur_segs *** NOT NEEDED
-                          idx = 0
-                          for cur_seg in all_hood_first_last:
-                                if (cur_seg[:, None] == tree.coords[node_idx]).all(-1).any():
-                                      all_hood_first_last[idx] = []
-                                else:
-                                   cur = np.copy(cur_seg)
-                                   cur = scale_coords_of_crop_to_full(cur, -box_x_min, -box_y_min, -box_z_min)
-                                   
-                                   ### check limits to ensure doesnt go out of frame
-                                   cur = check_limits([cur], crop_size * 2, crop_size * 2, depth)[0]
-                                   check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 1                 
+                
+                cur_coords, cur_be_start, cur_be_end, centroid, parent_coords = get_next_coords(tree, node_idx, num_parents=20)
+                
+                centroid = cur_be_end[math.floor(len(cur_be_end)/2)]
+                x = int(centroid[0]); y = int(centroid[1]); z = int(centroid[2])
+                
+                
+                # if iterator == 179:
+                #       zzz
+                
+            
+                pm_crop_size = crop_size * 2
+                pm_z_size = z_size * 2
+                output_tracker[output_tracker > 0] = 1
+                
+                
+                #output_tracker[x, y, z] = 5
+                output_PYTORCH, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(output_tracker, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
+                
+                
+                
+                crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
                                 
-                                idx += 1
-                         
-                          plot_save_max_project(fig_num=10, im=check_debug, max_proj_axis=-1, title='_final_added', 
-                                      name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator)  + '_step_' + str(step) + '_(6)_zfinal_added.png', pause_time=0.001) 
-                          
+            
+            
+                """ Things to fix still:
+                         ***circle instead of cube subtraction??? ==> b/c creating bad cut-offs right now
+                    """
+  
+                """ REMOVE EDGE """
+                # dist_xy = 0; dist_z = 0
+                # edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
+                # edge[dist_xy:pm_crop_size * 2-dist_xy, dist_xy:pm_crop_size * 2-dist_xy, dist_z:pm_z_size-dist_z] = 1
+                # edge = np.where((edge==0)|(edge==1), edge^1, edge)
+                # output_PYTORCH[edge == 1] = 0
+  
+                """ ***FIND anything that has previously been identified
+                    ***EXCLUDING CURRENT CROP_SEED
+                """
+                im = show_tree(tree, track_trees)
+                                  
+                ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
+                for cur_tree in all_trees:
+                    im += show_tree(cur_tree, track_trees)
+                
+                im[im > 0] = 1
+                crop_prev, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                                                      
+                crop_prev = skeletonize_3d(crop_prev)
+                                  
+                ### EXCLUDE current crop seed
+                im_sub = subtract_im_no_sub_zero(crop_prev, crop_seed)
+                im_dil = dilate_by_ball_to_binary(im_sub, radius=2)
+                
+                ### but add back in current crop seed (so now without dilation)
+                im_dil = im_dil + crop_seed
+                im_dil[im_dil > 0] = 1
+                
+  
+                """ delete all small objects """
+                labelled = measure.label(output_PYTORCH)
+                cc = measure.regionprops(labelled); 
+                cleaned = np.zeros(np.shape(output_PYTORCH))
+                for seg in cc:
+                       coord = seg['coords']; 
+                       if len(coord) > 10:
+                           cleaned[coord[:, 0], coord[:, 1], coord[:, 2]] = 1
+  
+                output_PYTORCH = cleaned
+  
+                
+                """ add in crop seed and subtract later??? """
+                output_PYTORCH = output_PYTORCH + crop_seed
+                output_PYTORCH[output_PYTORCH > 0] = 1
+               
+                
+                
+                """ LINK EVERY END POINT TOGETHER USING line_nd """      
+                output_PYTORCH = skeletonize_3d(output_PYTORCH)                    
+                output_PYTORCH, output_non_bin = bridge_end_points(output_PYTORCH, bridge_radius=3)
+                
+                plot_save_max_project(fig_num=3, im=output_non_bin, max_proj_axis=-1, title='output_be', 
+                                      name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator) +  '_step_' + str(step) +'_(4)_output_be.png', pause_time=0.001)                                              
+                    
+                # (1) use old start_coords to find only nearby segments           
+                # ***or just use center cube
+                coloc_with_center = output_PYTORCH + center_cube_pm
+                only_coloc = find_overlap_by_max_intensity(bw=output_PYTORCH, intensity_map=coloc_with_center) 
+                    
+                """ moved here: subtract out past identified regions LAST to not prevent propagation """
+                sub_seed = subtract_im_no_sub_zero(only_coloc, crop_seed)
+                sub_seed = subtract_im_no_sub_zero(sub_seed, im_dil)
+                
+                
+  
+                """ skip if everything was subtracted out last time: """
+                if np.count_nonzero(sub_seed) < 5:
+                        tree.visited[node_idx] = 1; print('Finished')                     
+                        plot_save_max_project(fig_num=10, im=np.zeros(np.shape(only_coloc)), max_proj_axis=-1, title='_final_added', 
+                                name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) +  '_step_' + str(step) + '_(6)_zfinal_added.png', pause_time=0.001) 
+                        iterator += 1
+                        continue                      
+  
+                else:
+  
+                    # (2) skeletonize the output to create "all_neighborhoods" and "all_hood_first_last"        
+                    
+                    
+                    
+                    
+                    """ Link to center to ensure  """
+                    # only_coloc[small_cube == 1] = 0  ### delete out small cube
+                    
+                    # center = [79, 79, 31]
+                    # degrees, coordinates = bw_skel_and_analyze(only_coloc)
+                    # coord_end = np.transpose(np.vstack(np.where(degrees == 1)))
+                    
+                    # for coord in coord_end:
+                        
+                    #     #print(np.linalg.norm(center - coord))
+                    #     if np.linalg.norm(center - coord) <= 15:
+                    #         line_coords = line_nd(center, coord, endpoint=False)
+                    #         line_coords = np.transpose(line_coords)      
+                            
+                    #         only_coloc[line_coords[:, 0], line_coords[:, 1], line_coords[:, 2]] = 1
+                    #         only_coloc[center[0], center[1], center[2]] = 1
+                            
+                    
+                    """ Make into degrees """
+                    degrees, coordinates = bw_skel_and_analyze(only_coloc)
+ 
+                    """ Don't allow things in the past to be counted as new end points 
+                    
+                    
+                            ***can't do this b/c have new ones coming out of these
+                            
+                            
+                            TIGER FIX:
+                                need to sort these new branchpoints and reorder the old ones, or do at the end???
+                            
+                    """
+                    im_dil = dilate_by_ball_to_binary(im_sub, radius=2)
+                    #crop_seed[degrees == 0] = 0
+                    degrees[im_dil > 0] = 0
+                    #degrees, coordinates = bw_skel_and_analyze(degrees)
+                    
     
-                          """ IF is empty (no following part) """
-                          if len(all_neighborhoods) == 0:
-                              tree.visited[node_idx] = 1;
-                              print('Finished'); iterator += 1; continue
+                    """ insert the current be neighborhood at center and set to correct index in "degrees"
+                            or add in the endpoint like I just said, but subtract it out to keep the crop_seed separate???                              
+                    """
+                    cur_end = np.copy(cur_be_end)
+                    cur_end = scale_coords_of_crop_to_full(cur_end, -box_x_min, -box_y_min, -box_z_min)
+                    
+                    ### check limits to ensure doesnt go out of frame
+                    cur_end = check_limits([cur_end], pm_crop_size * 2, pm_crop_size * 2, pm_z_size)[0]
+                    
+                    ### HACK: fix how so end points cant leave frame
+                    """ MIGHT GET TOO LARGE b/c of building up previous end points, so need to ensure crop """
+                    cur_end[np.where(cur_end[:, 0] >= pm_crop_size * 2), 0] = pm_crop_size * 2 - 1
+                    cur_end[np.where(cur_end[:, 1] >= pm_crop_size * 2), 1] = pm_crop_size * 2 - 1
+                    cur_end[np.where(cur_end[:, 2] >= pm_z_size), 2] = pm_z_size - 1
+                    
+                    ### Then set degrees
+                    degrees[cur_end[:, 0], cur_end[:, 1], cur_end[:, 2]] = 4
+                    
+                    
+                    # """ Skeletonize this to make smoother for later and not cutoff by this middle part """
+                    # bw_deg = skeletonize_3d(degrees)
+                    # degrees[bw_deg == 0] = 0
+                    
+                    
+                    ###remove all the others that match this first one???
+                    plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 
+                                name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator)  + '_step_' + str(step) + '_(5)_segmentation_deleted.png', pause_time=0.001) 
+                    
+                    
+                   
+                    all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_x_min=box_x_min, box_y_min=box_y_min, box_z_min=box_z_min, order=1)
+  
+
+                    """ Find which neighborhood_be matches with cur_be_end to set as new root!!! 
+                            Then delete all the rest of the cur_segs that match with crop_seed
+                    """
+                    check_debug = np.zeros(np.shape(output_PYTORCH))
+                    idx = 0; 
+                    for neighbor_be in all_neighborhoods:
+                       if (cur_be_end[:, None] == neighbor_be).all(-1).any(): 
+                           root_neighborhood = neighbor_be
+                           print('match')
+                           # delete old
+                           all_neighborhoods[idx] = []
+                           
+                           #check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 2
+                           
+                       else:
+                           cur = np.copy(neighbor_be)
+                           cur = scale_coords_of_crop_to_full(cur, -box_x_min, -box_y_min, -box_z_min)
+                           
+                           ### check limits to ensure doesnt go out of frame
+                           cur = check_limits([cur], pm_crop_size * 2, pm_crop_size * 2, pm_z_size)[0]
+                           
+                           check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 2
+                     
+                       idx += 1
+
+                    ### HACK: if can't find root_neighborhood, then skip
+                    # if len(root_neighborhood) == 0:
+                    #      tree.visited[node_idx] = 1;
+                    #      print('NO ROOT'); iterator += 1; continue;      
+
+                       
+                    # delete cur_segs *** NOT NEEDED
+                    idx = 0
+                    for cur_seg in all_hood_first_last:
+                          #if (cur_seg[:, None] == tree.coords[node_idx]).all(-1).any():
+                          #      all_hood_first_last[idx] = []
+                          #else:
+                             cur = np.copy(cur_seg)
+                             cur = scale_coords_of_crop_to_full(cur, -box_x_min, -box_y_min, -box_z_min)
+                             
+                             ### check limits to ensure doesnt go out of frame
+                             cur = check_limits([cur], pm_crop_size * 2, pm_crop_size * 2, pm_z_size)[0]
+                             check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 1                 
                           
-                          else:
-                              """ else add to tree """
-                              cur_idx = tree.cur_idx[node_idx]
-                              depth_tree = tree.depth[node_idx] + 1
-                              tree = tree
-                              #parent =  tree.parent[node_idx]
-                              #root_neighborhood = all_neighborhoods[0]
-                              
-                              tree, cur_childs = treeify(tree, depth_tree, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = cur_idx, parent= cur_idx,
-                                                    start=1, width_tmp=width_tmp, height_tmp=height_tmp, depth_tmp=depth_tmp)
-                              
-                              tree.child[cur_idx].append(cur_childs)
-                              
-                              
-                              
-                              ### set "visited" to correct value
-                              # for idx, node in tree.iterrows():
-                              #       if not isListEmpty(node.child):
-                              #           node.visited = 1
-                              #       elif not node.visited:
-                              #           node.visited1 = np.nan    
-                              
-                              
-                              """ set parent is visited to true """
-                              tree.visited[node_idx] = 1;
-                              
-                              print('Finished one iteration'); plt.close('all')
-                              iterator += 1
-                              
-                              
-                              """ Save image for animation """
-                              if scale_for_animation:
-                                   ### Just current tree???
-                                   im = show_tree(tree, track_trees)
-                                                       
-                                   ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
-                                   for cur_tree in all_trees:
-                                         im += show_tree(cur_tree, track_trees)        
-                                         
-                                   print("Saving animation")
-                                   im = convert_matrix_to_multipage_tiff(im)                     
+                             idx += 1
+                   
+                    plot_save_max_project(fig_num=10, im=check_debug, max_proj_axis=-1, title='_final_added', 
+                                name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator)  + '_step_' + str(step) + '_(6)_zfinal_added.png', pause_time=0.001) 
+                    
+  
+                    """ IF is empty (no following part) """
+                    if len(all_neighborhoods) == 0:
+                        tree.visited[node_idx] = 1;
+                        print('Finished'); iterator += 1; continue
+                    
+                    else:
+                        """ else add to tree """
+                        cur_idx = tree.cur_idx[node_idx]
+                        depth_tree = tree.depth[node_idx] + 1
+                        #tree = tree
+                        #parent =  tree.parent[node_idx]
+                        #root_neighborhood = all_neighborhoods[0]
+                        
+                        tree, cur_childs = treeify(tree, depth_tree, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = cur_idx, parent= cur_idx,
+                                              start=1, width_tmp=width_tmp, height_tmp=height_tmp, depth_tmp=depth_tmp)
+                        
+                        tree.child[cur_idx][0] = list(np.concatenate((tree.child[cur_idx][0], cur_childs), axis=-1))
+                        
+                        ### set "visited" to correct value
+                        for idx, node in tree.iterrows():
+                              if not isListEmpty(node.child):
+                                  node.visited = 1
+                              elif not node.visited:
+                                  node.visited = np.nan    
+                        
+                        
+                        """ set parent is visited to true """
+                        tree.visited[node_idx] = 1;
+                        
+                        print('Finished one iteration'); plt.close('all')
+                        iterator += 1
+                        
+                        
+                        """ Save image for animation """
+                        if scale_for_animation:
+                             ### Just current tree???
+                             im = show_tree(tree, track_trees)
+                                                 
+                             ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
+                             for cur_tree in all_trees:
+                                   im += show_tree(cur_tree, track_trees)        
                                    
-         
-                                   im[im > 0] = 1
-                                   image_rescaled = rescale(im, scale_for_animation)        
-                                   image_rescaled[image_rescaled > 0.01] = 1   # binarize again
-                                   
-                                   imsave(s_path + filename + '_ANIMATION_crop_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(image_rescaled * 255, dtype=np.uint8)) 
-                                   imsave(s_path +  filename + '_ANIMATION_input_im_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(input_im_rescaled, dtype=np.uint8))
+                             print("Saving animation")
+                             im = convert_matrix_to_multipage_tiff(im)                     
+                             
+   
+                             im[im > 0] = 1
+                             image_rescaled = rescale(im, scale_for_animation)        
+                             image_rescaled[image_rescaled > 0.01] = 1   # binarize again
+                             
+                             imsave(s_path + filename + '_ANIMATION_crop_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(image_rescaled * 255, dtype=np.uint8)) 
+                             imsave(s_path +  filename + '_ANIMATION_input_im_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(input_im_rescaled, dtype=np.uint8))
                                             
                 
                
@@ -553,7 +693,6 @@ for i in range(len(examples)):
         
         """
 
-        zzz
         
         
         

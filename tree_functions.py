@@ -102,6 +102,8 @@ def bridge_end_points(output_PYTORCH, bridge_radius=2):
                      match = 0
                      next_expand = next_seg['expand_be']
                      if len(next_expand) > 0:
+                         all_lines = []
+                         dist_lines = []
                          for be_ex, idx_inner in zip(next_expand, range(len(next_expand))): # loop through each be of next seg             
                                if (cur_ex[:, None] == be_ex).all(-1).any():  
                                    
@@ -111,10 +113,16 @@ def bridge_end_points(output_PYTORCH, bridge_radius=2):
                                    ### DRAW LINE
                                    line_coords = line_nd(cur_be, next_be, endpoint=False)
                                    line_coords = np.transpose(line_coords)
-                                   cur_seg['bridges'].append(line_coords)
-                                   match = 1
-                                   #print('bridge')
-  
+                                   
+                                   all_lines.append(line_coords)
+                                   dist_lines.append(len(line_coords))
+                                   
+                         ### ONLY ADD THE SHORTEST LINE:
+                         if len(dist_lines) > 0:
+                             cur_seg['bridges'].append(all_lines[np.argmin(dist_lines)])
+                             match = 1
+                         #print('bridge')
+
             
                      ### (b) then try to find coords that match ==> ***IF MATCHED, find CLOSEST
                      if not match:
@@ -275,6 +283,56 @@ def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp, all_
 
 
 
+""" 
+   Gets the coordinates associated with the node at node_idx                 
+"""
+def get_next_coords(tree, node_idx, num_parents):
+
+    parent_coords = get_parent_nodes(tree, start_ind=node_idx, num_parents=num_parents, parent_coords=[])
+    
+    if len(parent_coords) > 0:  # check if empty
+        parent_coords = np.vstack(parent_coords)
+    
+    """ Get center of crop """
+    cur_coords = []
+    
+    ### Get start of crop
+    cur_be_start = tree.start_be_coord[node_idx]
+      
+    ### adding starting node
+    centroid = cur_be_start[math.floor(len(cur_be_start)/2)]
+    cur_coords.append(centroid)
+       
+    ### Get middle of crop """
+    coords = tree.coords[node_idx]
+    cur_coords.append(coords)
+    
+    ### Get end of crop if it exists
+    if not np.isnan(tree.end_be_coord[node_idx]).any():   # if there's no end index for some reason, use starting one???
+        """ OR ==> should use parent??? """             
+        cur_be_end = tree.end_be_coord[node_idx]
+        
+        centroid = cur_be_end[math.floor(len(cur_be_end)/2)]
+        cur_coords.append(centroid)                      
+    else:
+        ### otherwise, just leave ONLY the start index, and nothing else
+        # cur_coords = centroid
+        # cur_be_end = cur_be_start
+        
+        
+        print('ERROR: NO END COORDINATE DETECTED')
+        zzz
+      
+    cur_coords = np.vstack(cur_coords)
+    
+    if np.shape(cur_coords)[1] == 1:
+        cur_coords = np.transpose(cur_coords)
+        
+    return cur_coords, cur_be_start, cur_be_end, centroid, parent_coords
+                  
+
+
+
 """ expand coords into a neighborhood """
 def expand_coord_to_neighborhood(coords, lower, upper):
     neighborhood_be = []
@@ -377,20 +435,29 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
         if len(tree_df) == 0:
             cur_be = np.vstack(root_neighborhood[0])
         elif start:
-            cur_be = np.vstack(root_neighborhood)
-                   
-            
+            cur_be = np.vstack(root_neighborhood)   ### start by setting the current branch endpoint to be the root
         else:
             idx_parent_df = np.where(tree_df.cur_idx == parent)
             cur_be = np.vstack(tree_df.end_be_coord[idx_parent_df[0][0]])
 
-        ### find next seg                    
+        """ find next segment of segmentation and compare all segments to cur_be (the current branch_endpoint
+                
+                if there 
+        """
+             
         all_children = [];
         for idx_cur_seg in range(len(all_hood_first_last)):
             if not np.asarray(all_hood_first_last[idx_cur_seg]).any():
                 continue   # skip if empty
                 
+    
             cur_seg = np.vstack(all_hood_first_last[idx_cur_seg])
+            
+            """
+                if there is a match: then add as new node to tree, where:
+                        cur_be ==> becomes start_be_coord
+                        
+            """
             if (cur_seg[:, None] == cur_be).all(-1).any():
                 
                 if len(tree_df) > 0:
@@ -402,6 +469,9 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                 new_node = {'coords': full_seg_coords, 'parent': parent, 'child': [], 'depth': depth, 'cur_idx': cur_idx, 'start_be_coord': cur_be, 'end_be_coord': np.nan, 'visited': np.nan}
                 tree_df = tree_df.append(new_node, ignore_index=True)
                 
+             
+                """ Finally, must find the "end_be" to complete the node of the tree
+                """
                 ### find next be
                 next_be = []; all_neighborhoods_tmp = all_neighborhoods
                 
@@ -421,12 +491,13 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                 print(cur_idx)
 
                 # delete the neighborhood we currently assessed
-                all_hood_first_last[idx_cur_seg] = []
-                # append children to send to previous call
-                all_children.append(cur_idx)
-                
+                all_hood_first_last[idx_cur_seg] = []                
                 
                 if not isempty and np.asarray(np.vstack(next_be)).any():
+                    # append children to send to previous call
+                    all_children.append(cur_idx)
+                    
+                    
                     next_be = np.vstack(next_be)
                     idx_parent_df = np.where(tree_df.cur_idx == cur_idx)
                     tree_df.end_be_coord[idx_parent_df[0][0]] = next_be
@@ -438,6 +509,15 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
     
                     # add all children from next call
                     tree_df.child[cur_idx].append(next_children)
+                    
+                    
+                    """ OTHERWISE, delete the node because there is no matching end point
+                            ***b/c don't allow cyclilization, only linear trees
+                    
+                    """
+                else:
+                    tree_df.drop(tree_df.tail(1).index,inplace=True)
+                    
 
 
         ### convert empty lists to "nan" ONLY in the end_be_coord column

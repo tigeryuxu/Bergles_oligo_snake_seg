@@ -224,6 +224,10 @@ def fix_SNT_outputs_radii():
                     
                 all_lines.append(line)
                 
+                
+                """ TIGER NEWLY ADDED: SEEMS LIKE Z-axiz wrongly scaled???"""
+                line[4] = str(float(line[4]) / scale_xy)
+                
         
                 line[-2] = 0.5   ### replace RADII value
                 save_file.write("%s %s %s %s %s %.2f %s\n" %(line[0], line[1],  line[2], line[3],  line[4],line[5],  line[6]))      
