@@ -57,7 +57,7 @@ torch.backends.cudnn.enabled = True
 
 """ Define GPU to use """
 import torch
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
@@ -82,12 +82,15 @@ tracker = 0
 #check_path = './(54) Checkpoint_nested_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
 
 
-check_path = './(55) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
+#check_path = './(55) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
 
 #check_path = './(56) Checkpoint_unet_nested_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 
 
-#check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+check_path = './(60) Checkpoint_unet_COMPLEX_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
+
+
 
 
 
@@ -203,8 +206,8 @@ for i in range(len(examples)):
             all_trees.append(tree_df)
             
             ### skip rest for debugging
-            #if i_r == 0:
-            #      break
+            if i_r == 0:
+                  break
             
 
  
@@ -227,18 +230,25 @@ for i in range(len(examples)):
         
         
         for iterator, tree in enumerate(all_trees):
-             if iterator != 2:
-                 continue
+             # if iterator != 2:
+             #     continue
              
             
              """ Keep looping until everything has been visited """  
              
              while np.asarray(tree.visited.isnull()).any():   
-                """ Get coords at node """                  
+                """ Get coords at node
+                        ***go to node that is SHORTEST PATH LENGTH AWAY FIRST!!!
+                """                  
                 unvisited_indices = np.where(tree.visited.isnull() == True)[0]
                 node_idx = unvisited_indices[-1]
                 cur_coords, cur_be_start, cur_be_end, centroid, parent_coords = get_next_coords(tree, node_idx, num_parents=20)
-                                      
+                           
+                """ Link any missing coords due to be subtractions """
+                cur_coords = connect_nearby_px(cur_coords)
+                parent_coords = connect_nearby_px(parent_coords)
+                
+                
                 """ Order coords """
                 ### SKIP IF TOO SHORT for mini-steps
                 if len(cur_coords) == 1:
@@ -251,11 +261,10 @@ for i in range(len(examples)):
                 step_size = 5; 
                 step_size_first = step_size          
                 if len(cur_coords) <= step_size:  ### KEEP GOING IF ONLY SMALL SEGMENT
-                      step_size_first = 0
+                      step_size_first = len(cur_coords) - 1
              
                 
                 output_tracker = np.zeros(np.shape(input_im))
-                
                 for step in range(step_size_first, len(cur_coords), step_size):
                     
                         
@@ -279,6 +288,7 @@ for i in range(len(examples)):
                       crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
                       
                       """ Dilate the seed by sphere 1 to mimic training data """
+                      crop_seed = skeletonize_3d(crop_seed)
                       crop_seed = dilate_by_ball_to_binary(crop_seed, radius=dilation)
         
                       """ Check nothing hanging off edges in seed  """
@@ -305,22 +315,28 @@ for i in range(len(examples)):
                       prev_seg = output_tracker[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] 
                       output_tracker[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = prev_seg + output_PYTORCH[0:prev_seg.shape[0], 0:prev_seg.shape[1], 0:prev_seg.shape[2]]
             
-                
-            
-            
+
+                      
+                                
                 """ ALSO HAVE TO RESET CUR_BE_END to align with current location of mini-step and NOT actual end of segment!!!
                 """
                 #cur_be_end = np.vstack(expand_coord_to_neighborhood([cur_coords[step]], lower=1, upper=2))
                       
+             
+                cur_coords, cur_be_start, cur_be_end, centroid, parent_coords = get_next_coords(tree, node_idx, num_parents=50)
+
+                """ Link any missing coords due to be subtractions """
+                cur_coords = connect_nearby_px(cur_coords)
                 
-                cur_coords, cur_be_start, cur_be_end, centroid, parent_coords = get_next_coords(tree, node_idx, num_parents=20)
-                
+                #parent_coords = np.vstack(parent_coords)
+                parent_coords = connect_nearby_px(parent_coords)
+                 
                 centroid = cur_be_end[math.floor(len(cur_be_end)/2)]
                 x = int(centroid[0]); y = int(centroid[1]); z = int(centroid[2])
+                cur_seg_im = np.zeros(np.shape(input_im))   # maybe speed up here by not creating the image every time???
+                cur_seg_im[cur_coords[:, 0], cur_coords[:, 1], cur_coords[:, 2]] = 1
                 
-                
-                # if iterator == 179:
-                #       zzz
+                cur_seg_im[parent_coords[:, 0], parent_coords[:, 1], parent_coords[:, 2]] = 1
                 
             
                 pm_crop_size = crop_size * 2
@@ -331,11 +347,10 @@ for i in range(len(examples)):
                 #output_tracker[x, y, z] = 5
                 output_PYTORCH, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(output_tracker, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
                 
-                
-                
                 crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
-                                
+                crop_seed = skeletonize_3d(crop_seed)      
             
+
             
                 """ Things to fix still:
                          ***circle instead of cube subtraction??? ==> b/c creating bad cut-offs right now
@@ -390,7 +405,7 @@ for i in range(len(examples)):
                 
                 """ LINK EVERY END POINT TOGETHER USING line_nd """      
                 output_PYTORCH = skeletonize_3d(output_PYTORCH)                    
-                output_PYTORCH, output_non_bin = bridge_end_points(output_PYTORCH, bridge_radius=3)
+                output_PYTORCH, output_non_bin = bridge_end_points(output_PYTORCH, bridge_radius=2)
                 
                 plot_save_max_project(fig_num=3, im=output_non_bin, max_proj_axis=-1, title='output_be', 
                                       name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator) +  '_step_' + str(step) +'_(4)_output_be.png', pause_time=0.001)                                              
@@ -399,7 +414,8 @@ for i in range(len(examples)):
                 # ***or just use center cube
                 coloc_with_center = output_PYTORCH + center_cube_pm
                 only_coloc = find_overlap_by_max_intensity(bw=output_PYTORCH, intensity_map=coloc_with_center) 
-                    
+                
+                
                 """ moved here: subtract out past identified regions LAST to not prevent propagation """
                 sub_seed = subtract_im_no_sub_zero(only_coloc, crop_seed)
                 sub_seed = subtract_im_no_sub_zero(sub_seed, im_dil)
@@ -441,6 +457,9 @@ for i in range(len(examples)):
                     
                     """ Make into degrees """
                     degrees, coordinates = bw_skel_and_analyze(only_coloc)
+                    
+                    
+                  
  
                     """ Don't allow things in the past to be counted as new end points 
                     
@@ -452,11 +471,9 @@ for i in range(len(examples)):
                                 need to sort these new branchpoints and reorder the old ones, or do at the end???
                             
                     """
-                    im_dil = dilate_by_ball_to_binary(im_sub, radius=2)
-                    #crop_seed[degrees == 0] = 0
-                    degrees[im_dil > 0] = 0
-                    #degrees, coordinates = bw_skel_and_analyze(degrees)
-                    
+                    #im_dil[degrees == 0] = 0
+                    #degrees[im_dil > 0] = 2
+    
     
                     """ insert the current be neighborhood at center and set to correct index in "degrees"
                             or add in the endpoint like I just said, but subtract it out to keep the crop_seed separate???                              
@@ -501,7 +518,7 @@ for i in range(len(examples)):
                            root_neighborhood = neighbor_be
                            print('match')
                            # delete old
-                           all_neighborhoods[idx] = []
+                           #all_neighborhoods[idx] = []
                            
                            #check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 2
                            
@@ -547,17 +564,31 @@ for i in range(len(examples)):
                         print('Finished'); iterator += 1; continue
                     
                     else:
-                        """ else add to tree """
-                        cur_idx = tree.cur_idx[node_idx]
-                        depth_tree = tree.depth[node_idx] + 1
-                        #tree = tree
-                        #parent =  tree.parent[node_idx]
-                        #root_neighborhood = all_neighborhoods[0]
                         
-                        tree, cur_childs = treeify(tree, depth_tree, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = cur_idx, parent= cur_idx,
+                        
+                        """ First drop the previous node and reorganize, cur_idx should auto update to max idx
+                                only need to update parent idx to be parent of node_idx BEFORE deleting AND depth
+                        """
+                        
+                        root_neighborhood = cur_be_start
+                        idx_to_del = np.where(tree.cur_idx == node_idx)[0][0]
+                        parent = tree.parent[node_idx]
+                        depth_tree = tree.depth[node_idx]  
+                        
+                        cur_idx = tree.cur_idx[node_idx]
+                       
+                        tree = tree.drop(index = idx_to_del)
+                        
+                        
+                        """ else add to tree """
+                        # cur_idx = tree.cur_idx[node_idx]
+                        # depth_tree = tree.depth[node_idx] + 1
+                        
+                        
+                        tree, cur_childs = treeify(tree, depth_tree, root_neighborhood, all_neighborhoods, all_hood_first_last, cur_idx = cur_idx, parent= parent,
                                               start=1, width_tmp=width_tmp, height_tmp=height_tmp, depth_tmp=depth_tmp)
                         
-                        tree.child[cur_idx][0] = list(np.concatenate((tree.child[cur_idx][0], cur_childs), axis=-1))
+                        #tree.child[cur_idx][0] = list(np.concatenate((tree.child[cur_idx][0], cur_childs), axis=-1))
                         
                         ### set "visited" to correct value
                         for idx, node in tree.iterrows():

@@ -57,7 +57,7 @@ if __name__ == '__main__':
     print(device)
     
     """" path to checkpoints """       
-    s_path = './(51) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_repeat_MARCC/'; HD = 1; alpha = 1;
+    #s_path = './(51) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_repeat_MARCC/'; HD = 1; alpha = 1;
     
     
     # (1)
@@ -66,12 +66,14 @@ if __name__ == '__main__':
     #s_path = './(54) Checkpoint_nested_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; HD = 1; alpha = 1;
     
     
-    s_path = './(57) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_transform_scale_Z/'; HD = 1; alpha = 1;  resize_z = 1
+    #s_path = './(57) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_transform_scale_Z/'; HD = 1; alpha = 1;  resize_z = 1
         
 
     #s_path = './(58) Checkpoint_unet_nested_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_transform_scale_Z/'; HD = 1; alpha = 1;  resize_z = 1
           
     
+    
+    s_path = './(62) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_HISTORY/'; HD = 1; alpha = 1;
     
     """ path to input data """
     # (2)
@@ -110,7 +112,7 @@ if __name__ == '__main__':
     examples = [i for j, i in enumerate(examples) if j not in idx_skip]
 
     
-    
+  
     counter = list(range(len(examples)))
 
     # """ load mean and std for normalization later """  

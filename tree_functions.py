@@ -186,7 +186,34 @@ def order_coords(coords):
     
     return organized_coords
 
-                            
+                  
+
+""" Connect any coords that are > 1 pixel away """
+def connect_nearby_px(coords):
+    clf = NearestNeighbors(n_neighbors=2).fit(coords)
+    distances, indices = clf.kneighbors(coords)
+    
+    ### need to connect
+    ind_to_c = np.where(distances[:, 1] >= 2)[0]
+    
+    full_coords = []
+    full_coords.append(coords)
+    for ind in ind_to_c:
+        start = indices[ind][0]
+        end = indices[ind][1]
+        
+        line_coords = line_nd(coords[start], coords[end], endpoint=False)
+        line_coords = np.transpose(line_coords)  
+        
+        full_coords.append(line_coords[1:len(line_coords)])   ### don't reappend the starting coordinate
+        
+    full_coords = np.vstack(full_coords)
+    
+    #full_coords = order_coords(full_coords)
+            
+    return full_coords
+
+
 
 """ Returns the coordinates of the parents of the current starting index """
 def get_parent_nodes(tree, start_ind, num_parents, parent_coords):
@@ -211,7 +238,7 @@ def get_parent_nodes(tree, start_ind, num_parents, parent_coords):
             
         parent_coords = get_parent_nodes(tree, start_ind=parent_ind, num_parents=num_parents - 1, parent_coords=parent_coords)
 
-
+        #print(parent_ind)
         return parent_coords
 
 
@@ -294,7 +321,7 @@ def get_next_coords(tree, node_idx, num_parents):
         parent_coords = np.vstack(parent_coords)
     
     """ Get center of crop """
-    cur_coords = []
+    cur_coords = []; cur_coords_full = [];
     
     ### Get start of crop
     cur_be_start = tree.start_be_coord[node_idx]
@@ -313,7 +340,8 @@ def get_next_coords(tree, node_idx, num_parents):
         cur_be_end = tree.end_be_coord[node_idx]
         
         centroid = cur_be_end[math.floor(len(cur_be_end)/2)]
-        cur_coords.append(centroid)                      
+        cur_coords.append(centroid)      
+                
     else:
         ### otherwise, just leave ONLY the start index, and nothing else
         # cur_coords = centroid
@@ -327,6 +355,7 @@ def get_next_coords(tree, node_idx, num_parents):
     
     if np.shape(cur_coords)[1] == 1:
         cur_coords = np.transpose(cur_coords)
+        
         
     return cur_coords, cur_be_start, cur_be_end, centroid, parent_coords
                   
@@ -460,16 +489,31 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
             """
             if (cur_seg[:, None] == cur_be).all(-1).any():
                 
+                num_missing = []
                 if len(tree_df) > 0:
-                    cur_idx = np.max(tree_df.cur_idx[:]) + 1;  
+                    
+                    ### First check if there is a missing value, because fill that first, otherwise, just do max + 1
+                    lst = np.asarray(tree_df.cur_idx)
+                    num_missing = [x for x in range(lst[0], lst[-1]+1) if x not in lst] 
+                    if len(num_missing) > 0:
+                        cur_idx = num_missing[0]
+                    else:                    
+                        cur_idx = np.max(tree_df.cur_idx[:]) + 1;  
 
                 full_seg_coords = np.vstack(cur_seg)
                 
                 ### ADD NEW NODE TO TREE
                 new_node = {'coords': full_seg_coords, 'parent': parent, 'child': [], 'depth': depth, 'cur_idx': cur_idx, 'start_be_coord': cur_be, 'end_be_coord': np.nan, 'visited': np.nan}
-                tree_df = tree_df.append(new_node, ignore_index=True)
                 
-             
+                ### if it's a deleted node, then add back into the location it was deleted from!!!
+                if len(num_missing) > 0:
+                    tree_df.loc[cur_idx] = new_node
+                    tree_df = tree_df.sort_index()
+                    ### else, add it to the end of the list
+                else:
+                    tree_df = tree_df.append(new_node, ignore_index=True)
+                
+                
                 """ Finally, must find the "end_be" to complete the node of the tree
                 """
                 ### find next be
@@ -489,6 +533,7 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                         isempty = 0
                         
                 print(cur_idx)
+                
 
                 # delete the neighborhood we currently assessed
                 all_hood_first_last[idx_cur_seg] = []                
