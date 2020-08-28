@@ -190,10 +190,15 @@ def order_coords(coords):
 
 """ Connect any coords that are > 1 pixel away """
 def connect_nearby_px(coords):
-    clf = NearestNeighbors(n_neighbors=2).fit(coords)
+    
+    """ must only look at UNIQUE elements """
+    coords = np.unique(coords, axis=0)
+    
+    
+    clf = NearestNeighbors(n_neighbors=3).fit(coords)
     distances, indices = clf.kneighbors(coords)
     
-    ### need to connect
+    ### need to connect FOR 2nd NEAREST NEIGHBOR
     ind_to_c = np.where(distances[:, 1] >= 2)[0]
     
     full_coords = []
@@ -207,10 +212,31 @@ def connect_nearby_px(coords):
         
         full_coords.append(line_coords[1:len(line_coords)])   ### don't reappend the starting coordinate
         
-    full_coords = np.vstack(full_coords)
+    #full_coords = np.vstack(full_coords)
     
     #full_coords = order_coords(full_coords)
             
+    
+    ### NEED TO CONNECT FOR 3rd NEAREST NEIGHBOR
+    
+    ind_to_c = np.where(distances[:, 2] >= 2)[0]
+    
+    #full_coords = []
+    #full_coords.append(coords)
+    for ind in ind_to_c:
+        start = indices[ind][0]
+        end = indices[ind][2]
+        
+        line_coords = line_nd(coords[start], coords[end], endpoint=False)
+        line_coords = np.transpose(line_coords)  
+        
+        full_coords.append(line_coords[1:len(line_coords)])   ### don't reappend the starting coordinate
+        
+    
+        
+    full_coords = np.vstack(full_coords)
+    
+    
     return full_coords
 
 
@@ -327,8 +353,8 @@ def get_next_coords(tree, node_idx, num_parents):
     cur_be_start = tree.start_be_coord[node_idx]
       
     ### adding starting node
-    centroid = cur_be_start[math.floor(len(cur_be_start)/2)]
-    cur_coords.append(centroid)
+    centroid_start = cur_be_start[math.floor(len(cur_be_start)/2)]
+    cur_coords.append(centroid_start)
        
     ### Get middle of crop """
     coords = tree.coords[node_idx]
@@ -339,8 +365,8 @@ def get_next_coords(tree, node_idx, num_parents):
         """ OR ==> should use parent??? """             
         cur_be_end = tree.end_be_coord[node_idx]
         
-        centroid = cur_be_end[math.floor(len(cur_be_end)/2)]
-        cur_coords.append(centroid)      
+        centroid_end = cur_be_end[math.floor(len(cur_be_end)/2)]
+        cur_coords.append(centroid_end)      
                 
     else:
         ### otherwise, just leave ONLY the start index, and nothing else
@@ -357,7 +383,7 @@ def get_next_coords(tree, node_idx, num_parents):
         cur_coords = np.transpose(cur_coords)
         
         
-    return cur_coords, cur_be_start, cur_be_end, centroid, parent_coords
+    return cur_coords, cur_be_start, cur_be_end, centroid_start, centroid_end, parent_coords
                   
 
 
@@ -501,7 +527,7 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                         cur_idx = np.max(tree_df.cur_idx[:]) + 1;  
 
                 full_seg_coords = np.vstack(cur_seg)
-                
+               
                 ### ADD NEW NODE TO TREE
                 new_node = {'coords': full_seg_coords, 'parent': parent, 'child': [], 'depth': depth, 'cur_idx': cur_idx, 'start_be_coord': cur_be, 'end_be_coord': np.nan, 'visited': np.nan}
                 
@@ -561,7 +587,9 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                     
                     """
                 else:
-                    tree_df.drop(tree_df.tail(1).index,inplace=True)
+                    tree_df = tree_df.drop(cur_idx,inplace=False)
+                    tree_df = tree_df.reset_index(drop=True)
+                    print('dropped')
                     
 
 

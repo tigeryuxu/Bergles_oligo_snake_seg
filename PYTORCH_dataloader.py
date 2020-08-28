@@ -47,7 +47,7 @@ from skimage.transform import resize
 
 """ Load data directly from tiffs with seed mask """
 class Dataset_tiffs_snake_seg(data.Dataset):
-  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0, resize_z=0):
+  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0, resize_z=0, skeletonize=0):
         'Initialization'
         #self.labels = labels
         self.list_IDs = list_IDs
@@ -60,6 +60,8 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         self.resize_z = resize_z
         
         self.cube = create_cube_in_im(width=8, input_size=80, z_size=80)
+        
+        self.skeletonize = skeletonize
 
   def apply_transforms(self, image, labels):
         inputs = image
@@ -132,6 +134,62 @@ class Dataset_tiffs_snake_seg(data.Dataset):
          return np.reshape(attention,labels.shape)    
      
         
+  def skel(self, seed, truth):
+        """ resize_z dimension of all inputs """
+        
+        ### (2) resize seed
+        #seed = batch_x[0][1].cpu().data.numpy()    
+        skel = skeletonize_3d(seed)
+
+        """ Link to center """
+        center = [15, 39, 30]
+        degrees, coordinates = bw_skel_and_analyze(skel)
+        coord_end = np.transpose(np.vstack(np.where(degrees == 1)))
+        
+        for coord in coord_end:
+            
+            #print(np.linalg.norm(center - coord))
+            if np.linalg.norm(center - coord) <= 10:
+                line_coords = line_nd(center, coord, endpoint=False)
+                line_coords = np.transpose(line_coords)      
+                
+                skel[line_coords[:, 0], line_coords[:, 1], line_coords[:, 2]] = 1
+                skel[center[0], center[1], center[2]] = 1
+
+        seed_skel = skel
+        seed_skel[seed_skel > 0] = 255
+        
+
+
+        
+        ### (3) resize truth
+        #truth = np.asarray(batch_y[0].cpu().data.numpy(), dtype=np.float64)
+        #truth[truth > 0] = 255
+        skel = skeletonize_3d(truth)
+        
+        """ Link to center """
+        center = [15, 39, 30]
+        degrees, coordinates = bw_skel_and_analyze(skel)
+        coord_end = np.transpose(np.vstack(np.where(degrees == 1)))
+        
+        for coord in coord_end:
+            #print(np.linalg.norm(center - coord))
+            if np.linalg.norm(center - coord) <= 10:
+                line_coords = line_nd(center, coord, endpoint=False)
+                line_coords = np.transpose(line_coords)      
+                
+                skel[line_coords[:, 0], line_coords[:, 1], line_coords[:, 2]] = 1
+                
+                skel[center[0], center[1], center[2]] = 1
+
+        """ Dilate to ball """
+        truth_skel = skel
+        
+        return seed_skel, truth_skel
+
+
+  """ Skeletonize image """
+
   def resize_z_func(self, raw, seed, truth):
         """ resize_z dimension of all inputs """
         
@@ -202,39 +260,8 @@ class Dataset_tiffs_snake_seg(data.Dataset):
 
         """ Dilate to ball """
         truth_resize = dilate_by_ball_to_binary(skel, radius = 1)
-        
-        
 
-        
-        
-        # plot_max(raw, ax=0)
-        # plot_max(raw, ax=-1)
-        # plot_max(seed, ax=-1)
-        # plot_max(truth, ax=-1)
-        # plot_max(raw_resize, ax=-1)
-        # plot_max(seed_resize, ax=-1)
-        # plot_max(truth_resize, ax=-1)
-        
-        # plt.pause(1)
-        
-        
-        # s_path = './(57) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_transform_scale_Z/'
-        # imsave(s_path + '_raw.tif', np.asarray(raw, dtype=np.uint8))
-        # imsave(s_path + '_raw_resize.tif', np.asarray(raw_resize, dtype=np.uint8))
-        
-        # imsave(s_path + '_truth.tif', np.asarray(truth * 255 + seed, dtype=np.uint8))
-        # imsave(s_path + '_truth_resize.tif', np.asarray(truth_resize * 255 + seed_resize, dtype=np.uint8))   
-                
-        # import napari
-        # with napari.gui_qt():
-        #     viewer = napari.view_image(truth)
-            
-            
-        # with napari.gui_qt():
-        #     viewer = napari.view_image(truth_resize)    
-            
-            
-        return raw_resize, seed_resize, truth_resize        
+
 
   def __len__(self):
         'Denotes the total number of samples'
@@ -259,6 +286,10 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         if self.resize_z:
                X, seed_crop, Y = self.resize_z_func(X, seed_crop, Y)
         
+        
+        """ Skeletonize """
+        if self.skeletonize:
+            seed_crop, Y = self.skel(seed_crop, Y)
         
         
         

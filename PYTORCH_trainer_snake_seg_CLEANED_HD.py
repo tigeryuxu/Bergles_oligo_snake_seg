@@ -73,7 +73,14 @@ if __name__ == '__main__':
           
     
     
-    s_path = './(62) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_HISTORY/'; HD = 1; alpha = 1;
+    #s_path = './(62) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_HISTORY/'; HD = 1; alpha = 1;
+    
+    resize_z = 0
+    skeletonize = 0
+    
+    s_path = './(63) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_SKEL/'; HD = 1; alpha = 1; skeletonize = 1
+    
+    
     
     """ path to input data """
     # (2)
@@ -114,7 +121,7 @@ if __name__ == '__main__':
     
   
     counter = list(range(len(examples)))
-
+    
     # """ load mean and std for normalization later """  
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
     std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
@@ -145,9 +152,9 @@ if __name__ == '__main__':
         """ Initialize network """  
         kernel_size = 5
         pad = int((kernel_size - 1)/2)
-        #unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
-        #                    batch_norm=True, batch_norm_switchable=switch_norm, up_mode='upsample')
-        unet = NestedUNet(num_classes=2, input_channels=2, deep_sup=deep_sup, padding=pad, batch_norm_switchable=switch_norm)
+        unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
+                            batch_norm=True, batch_norm_switchable=switch_norm, up_mode='upsample')
+        #unet = NestedUNet(num_classes=2, input_channels=2, deep_sup=deep_sup, padding=pad, batch_norm_switchable=switch_norm)
         #unet = UNet_3Plus(num_classes=2, input_channels=2, kernel_size=kernel_size, padding=pad)
 
         unet.train()
@@ -212,8 +219,8 @@ if __name__ == '__main__':
     #transforms = initialize_transforms_simple(p=0.5)
 
     """ Create datasets for dataloader """
-    training_set = Dataset_tiffs_snake_seg(tracker.idx_train, examples, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms, resize_z=resize_z)
-    val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples_test, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = 0, resize_z=resize_z)
+    training_set = Dataset_tiffs_snake_seg(tracker.idx_train, examples, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms, resize_z=resize_z, skeletonize=skeletonize)
+    val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples_test, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = 0, resize_z=resize_z, skeletonize=skeletonize)
     
     """ Create training and validation generators"""
     val_generator = data.DataLoader(val_set, batch_size=tracker.batch_size, shuffle=False, num_workers=num_workers,
