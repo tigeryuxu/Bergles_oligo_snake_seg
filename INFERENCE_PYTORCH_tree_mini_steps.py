@@ -57,7 +57,7 @@ torch.backends.cudnn.enabled = True
 
 """ Define GPU to use """
 import torch
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
@@ -87,14 +87,15 @@ tracker = 0
 #check_path = './(56) Checkpoint_unet_nested_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 
 
-check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+#check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 #check_path = './(60) Checkpoint_unet_COMPLEX_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
 
 
+check_path = './(62) Checkpoint_unet_COMPLEX_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 
 
 
-s_path = check_path + 'TEST_inference/'
+s_path = check_path + 'TEST_inference_158946_last_first/'
 try:
     # Create target Directory
     os.mkdir(s_path)
@@ -198,16 +199,16 @@ for i in range(len(examples)):
                         
             ### set "visited" to correct value
             for idx, node in tree_df.iterrows():
-                # if not isListEmpty(node.child):
-                #     node.visited = 1
-                # else:
+                if not isListEmpty(node.child):
+                     node.visited = 1
+                else:
                     node.visited = np.nan            
             # append to all trees
             all_trees.append(tree_df)
             
             ### skip rest for debugging
-            if i_r == 0:
-                  break
+            #if i_r == 0:
+            #       break
             
 
  
@@ -223,14 +224,14 @@ for i in range(len(examples)):
         
         center_cube_pm = create_cube_in_im(width=8, input_size=input_size * 2, z_size=z_size * 2)
     
-        small_cube = create_cube_in_im(width=4, input_size=160, z_size=64) 
+        small_cube = create_cube_in_im(width=5, input_size=160, z_size=64) 
         
         
         matplotlib.use('Agg')
         
         
         for iterator, tree in enumerate(all_trees):
-             # if iterator != 2:
+             #if iterator != 2:
              #     continue
              
             
@@ -242,25 +243,46 @@ for i in range(len(examples)):
                 ### convert center cube back to original size
                 if resize == 1:
                    center_cube_pm = create_cube_in_im(width=8, input_size=input_size * 2, z_size=z_size * 2)
-                   small_cube = create_cube_in_im(width=4, input_size=input_size * 2, z_size=z_size * 2) 
+                   small_cube = create_cube_in_im(width=5, input_size=input_size * 2, z_size=z_size * 2) 
                    resize = 0
 
                 """ Get coords at node
                         ***go to node that is SHORTEST PATH LENGTH AWAY FIRST!!!
                 """                  
                 unvisited_indices = np.where(tree.visited.isnull() == True)[0]
+                
+            
+                
+                """ Go to index of SHORTEST PATH FIRST """
+                # all_lengths = []
+                # for ind in unvisited_indices:                 
+                #     parent_coords = get_parent_nodes(tree, ind, num_parents=100, parent_coords = [])
+                
+                #     if len(parent_coords) > 0:
+                #         parent_coords = np.vstack(parent_coords)
+                
+                #     all_lengths.append(len(parent_coords))                 
+                # node_idx = unvisited_indices[np.argmin(all_lengths)]
+                
+                
+                
+                """ Or, just go to very last position """
                 node_idx = unvisited_indices[-1]
+                
+                
+                
+                
                 cur_coords, cur_be_start, cur_be_end, centroid_start, centroid_end, parent_coords = get_next_coords(tree, node_idx, num_parents=20)
                            
                 """ Link any missing coords due to be subtractions """
                 if len(cur_coords) > 3:
-                    cur_coords_connect = connect_nearby_px(cur_coords)
-                    ### move the starting index to the beginning so can sort:
-                    match_idx = np.where((cur_coords_connect == cur_coords[0]).all(axis=1))[0][0]
-                    cur_coords_connect = np.delete(cur_coords_connect, match_idx, axis=0)
-                    cur_coords_connect = np.vstack([cur_coords[0], cur_coords_connect]) 
-                    cur_coords = cur_coords_connect
-                
+                    # cur_coords_connect = connect_nearby_px(cur_coords)
+                    # ### move the starting index to the beginning so can sort:
+                    # match_idx = np.where((cur_coords_connect == cur_coords[0]).all(axis=1))[0][0]
+                    # cur_coords_connect = np.delete(cur_coords_connect, match_idx, axis=0)
+                    # cur_coords_connect = np.vstack([cur_coords[0], cur_coords_connect]) 
+                    # cur_coords = cur_coords_connect
+                    a = 1
  
                 if len(parent_coords) > 0:
                     parent_coords = connect_nearby_px(parent_coords)
@@ -356,7 +378,10 @@ for i in range(len(examples)):
                       output_tracker[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = prev_seg + output_PYTORCH[0:prev_seg.shape[0], 0:prev_seg.shape[1], 0:prev_seg.shape[2]]
             
 
-                      
+ 
+                # if iterator == 5:    ### ALSO IN THE 50s
+                #         zzz
+                     
                                 
                 """ ALSO HAVE TO RESET CUR_BE_END to align with current location of mini-step and NOT actual end of segment!!!
                 """
@@ -376,11 +401,8 @@ for i in range(len(examples)):
                 cur_seg_im[cur_coords[:, 0], cur_coords[:, 1], cur_coords[:, 2]] = 1
  
                 
-                 #parent_coords = np.vstack(parent_coords)
-                if len(parent_coords)> 0:
-                    parent_coords = connect_nearby_px(parent_coords)
-                    cur_seg_im[parent_coords[:, 0], parent_coords[:, 1], parent_coords[:, 2]] = 1
-                    
+
+
                     
                 ### Define size of larger crop:
                 pm_crop_size = crop_size * 2
@@ -390,17 +412,23 @@ for i in range(len(examples)):
                 
                 
                 ### if not big enough, recrop with larger
-                if np.any(cur_be_start[:, 0] - box_x_min < 0) or np.any(cur_be_start[:, 1] - box_y_min < 0) or np.any(cur_be_start[:, 2] - box_z_min < 0):
-                    pm_crop_size = crop_size * 3
-                    pm_z_size = z_size * 3         
+                
+                mult = 3
+                while np.any(cur_be_start[:, 0] - box_x_min < 0) or np.any(cur_be_start[:, 1] - box_y_min < 0) or np.any(cur_be_start[:, 2] - box_z_min < 0) or  np.any(box_x_max - cur_be_start[:, 0] < 0) or np.any(box_y_max - cur_be_start[:, 1] < 0) or np.any(box_z_max - cur_be_start[:, 2] < 0):
+                    pm_crop_size = crop_size * mult
+                    pm_z_size = z_size * 3
                 
                     output_tracker[output_tracker > 0] = 1
                     output_PYTORCH, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(output_tracker, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
                     resize = 1
                     
-                    center_cube_pm = create_cube_in_im(width=8, input_size=input_size * 3, z_size=z_size * 3)
+                    center_cube_pm = create_cube_in_im(width=8, input_size=input_size * mult, z_size=z_size * 3)
                     
-                    small_cube = create_cube_in_im(width=4, input_size=input_size * 3, z_size=z_size * 3) 
+                    small_cube = create_cube_in_im(width=5, input_size=input_size * mult, z_size=z_size * 3)
+                    
+                    mult += 1
+                    
+                    print(box_x_min)
                 
                 
 
@@ -409,7 +437,33 @@ for i in range(len(examples)):
                 
                 """ Make sure no gaps in crop_seed """
                 crop_seed, output_non_bin = bridge_end_points(crop_seed, bridge_radius=2)
-                crop_seed = dilate_by_ball_to_binary(crop_seed, radius=dilation)
+                #crop_seed = dilate_by_ball_to_binary(crop_seed, radius=dilation)
+                #crop_seed[crop_seed > 0] = 255
+
+
+
+
+                """ Get separate full crop size """
+                 #parent_coords = np.vstack(parent_coords)
+                if len(parent_coords)> 0:
+                    parent_coords = connect_nearby_px(parent_coords)
+                    
+                    cur_seg_im_full = np.zeros(np.shape(input_im))   # maybe speed up here by not creating the image every time???
+                    cur_seg_im_full[cur_coords[:, 0], cur_coords[:, 1], cur_coords[:, 2]] = 1
+                    cur_seg_im_full[parent_coords[:, 0], parent_coords[:, 1], parent_coords[:, 2]] = 1
+                 
+                    
+                     
+                    crop_seed_full, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im_full, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
+                    crop_seed_full = skeletonize_3d(crop_seed_full)     
+                    
+                    """ Make sure no gaps in crop_seed """
+                    crop_seed_full, output_non_bin = bridge_end_points(crop_seed_full, bridge_radius=2)
+                    #crop_seed_full = dilate_by_ball_to_binary(crop_seed_full, radius=dilation)
+                    
+                else:
+                    crop_seed_full = crop_seed
+                    
 
 
 
@@ -436,6 +490,7 @@ for i in range(len(examples)):
                 im[im > 0] = 1
                 crop_prev, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                                                      
                 crop_prev = skeletonize_3d(crop_prev)
+                crop_prev[crop_prev > 0] = 1
                                   
                 
                 
@@ -497,12 +552,12 @@ for i in range(len(examples)):
                     
                         (1) subtract out old seed and see what's left
                         (2) make into connected components
-                        (3) then, add in prev_seg dilated ==> see what areas still == 1 (i.e. did NOT overlap with previous)
-                        (4) if area has == 1, then keep it
-                            ***this allows propagation of segmentation to OVERLAP IF there is new segments identified by the current segmentation
+                        (3) then, add in prev_seg dilated ==> see what areas still (new areas) == 2 (i.e. overlapped with previous output still)
+                        (4) if area has == 2, then keep it
+                            ***this allows propagation of segmentation to OVERLAP IF there is new segments identified WITHIN the current segmentation
                     
                     """
-                sub_seed = subtract_im_no_sub_zero(output_PYTORCH, crop_seed)
+                sub_seed = subtract_im_no_sub_zero(output_PYTORCH, crop_seed_full)
                 #crop_prev[sub_seed == 0] = 0
                 added = np.copy(sub_seed)
                 added[im_dil > 0] = 2
@@ -555,22 +610,109 @@ for i in range(len(examples)):
                     
                     
                     """ Make sure to skeletonize again """
-                    only_coloc = skeletonize_3d(only_coloc)                    
+                    only_coloc = skeletonize_3d(only_coloc)    
+                    only_coloc[only_coloc > 0] = 1
 
-                    """ Link to center to ensure  """
+
+                    """ Link to center like adding cur_start_be """
+                    # tmp_coloc = np.copy(only_coloc)
+                    # tmp_coloc = tmp_coloc + small_cube
+                    
+                    # loc_start = np.transpose(np.where(tmp_coloc > 1))
+                    
+                    
+                    # """ If not working (not matching a cur_start), then force the match by subtracting out the center
+                    #         and then linking all end points together to the start point
+                    # """
+                 
+                    ### ONLY LINK THE SHORTEST
+                    # all_dist = []
+                    # center = [pm_crop_size - 1, pm_crop_size - 1, int(pm_z_size/2 - 1)]
+                    # for coord in loc_start:
+                        
+                    #     #print(np.linalg.norm(center - coord))
+                    #     if np.linalg.norm(center - coord) <= 10:
+                    #         all_dist.append(np.linalg.norm(center - coord))
+                    # min_id = np.argmin(all_dist)
+                    # point = loc_start[min_id]
+ 
+                    # only_coloc[point[0], point[1], point[2]] = 4
+                    
+                    
+
+                    """ Link to center to ensure  
+                    
+                            ***but only need to do this if <= 2 branch/endpoints?
+                    
+                    """
+                    degrees, coordinates = bw_skel_and_analyze(only_coloc)
+                    degrees[degrees == 2] = 0
+                    degrees[degrees > 0] = 1
+                    
+                    labelled = measure.label(degrees)
+                    cc_num_be = measure.regionprops(labelled)
+                    
+                    #if len(cc) > 2:
+                    #    degrees, coordinates = bw_skel_and_analyze(only_coloc)
+                        
+                        
+                    #else:
                     only_coloc[small_cube == 1] = 0  ### delete out small cube
                     
-                    center = [79, 79, 31]
-                    degrees, coordinates = bw_skel_and_analyze(only_coloc)
-                    coord_end = np.transpose(np.vstack(np.where(degrees == 1)))
+                    center = [pm_crop_size - 1, pm_crop_size - 1, int(pm_z_size/2 - 1)]
+
+                    bw_added[bw_added > 0] = 1
                     
-                    for coord in coord_end:
+                    labelled = measure.label(only_coloc)
+                    cc = measure.regionprops(labelled)
+                    
+                    for seg in cc:
+                        blank = np.zeros(np.shape(only_coloc))
+                        coords = seg['coords']
+                        blank[coords[:, 0], coords[:, 1], coords[:, 2]] = 1
                         
-                        #print(np.linalg.norm(center - coord))
-                        if np.linalg.norm(center - coord) <= 5:
-                            line_coords = line_nd(center, coord, endpoint=False)
-                            line_coords = np.transpose(line_coords)      
+                        degrees, coordinates = bw_skel_and_analyze(blank)
+                        coord_end = np.transpose(np.vstack(np.where(degrees == 1)))
+                        
+                        ### ONLY LINK THE SHORTEST
+                        all_dist = [];
+                        all_linkers = [];
+                        for coord in coord_end:
                             
+                            #print(np.linalg.norm(center - coord))
+                            if np.linalg.norm(center - coord) <= 8:
+                                all_dist.append(np.linalg.norm(center - coord))
+                                
+                                line_coords = line_nd(center, coord, endpoint=False)
+                                line_coords = np.transpose(line_coords)      
+                                
+                                all_linkers.append(line_coords)
+                        
+                        
+                        """ if could not find an end point, then just use a nearby body coord """
+                        if len(all_dist) == 0:
+                          
+                            all_dist = [];
+                            all_linkers = [];
+                            for coord in coordinates:
+                                
+                                #print(np.linalg.norm(center - coord))
+                                if np.linalg.norm(center - coord) <= 8:
+                                    all_dist.append(np.linalg.norm(center - coord))
+                                    
+                                    line_coords = line_nd(center, coord, endpoint=False)
+                                    line_coords = np.transpose(line_coords)      
+                                    
+                                    all_linkers.append(line_coords)   
+                                    
+                                    
+                                
+                                    
+                                    
+                        if len(all_dist) > 0:
+                            min_id = np.argmin(all_dist)
+                            line_coords = all_linkers[min_id]                                  
+                        
                             only_coloc[line_coords[:, 0], line_coords[:, 1], line_coords[:, 2]] = 1
                             only_coloc[center[0], center[1], center[2]] = 1
                     
@@ -620,9 +762,16 @@ for i in range(len(examples)):
                     # ### Then set degrees
                     #degrees[cur_end[:, 0], cur_end[:, 1], cur_end[:, 2]] = 4
                     
-                    
+                    ### CATCH ERROR:
+                    if degrees[pm_crop_size - 1, pm_crop_size - 1, int(pm_z_size/2 - 1)] == 0  and len(cc_num_be) <= 2:
+                        zzz
+                        
+                        
                     ### CHANGED ABOVE TO:
-                    degrees[79, 79, 31] = 4
+                    degrees[pm_crop_size - 1, pm_crop_size - 1, int(pm_z_size/2 - 1)] = 7
+                    
+                    
+
                     
 
                     """ Also need to add in the starting point """
@@ -640,7 +789,7 @@ for i in range(len(examples)):
                     cur_start[np.where(cur_start[:, 2] >= pm_z_size), 2] = pm_z_size - 1
                     
                     ### Then set degrees
-                    tmp_degrees[cur_start[:, 0], cur_start[:, 1], cur_start[:, 2]] = 5
+                    tmp_degrees[cur_start[:, 0], cur_start[:, 1], cur_start[:, 2]] = 8
 
                     ### only choose single point
                     bw_deg = skeletonize_3d(tmp_degrees)
@@ -649,8 +798,54 @@ for i in range(len(examples)):
                     
                     tmp_degrees[degrees == 0] = 0
 
-                    loc_start = np.transpose(np.where(tmp_degrees == 5))
-                    degrees[loc_start[0][0], loc_start[0][1], loc_start[0][2]] = 4
+                    loc_start = np.transpose(np.where(tmp_degrees == 8))
+                    
+                    
+                    """ If not working (not matching a cur_start), then force the match by subtracting out the center
+                            and then linking all end points together to the start point
+                    """
+                    if len(loc_start) == 0:
+                         mid = cur_start[int(len(cur_start)/2) - 1]
+                        
+                         mid_hood = expand_coord_to_neighborhood([mid], lower=3, upper=3 + 1)
+                         mid_hood = np.vstack(mid_hood)
+
+                         """ MIGHT GET TOO LARGE b/c of building up previous end points, so need to ensure crop """
+                         mid_hood[np.where(mid_hood[:, 0] >= pm_crop_size * 2), 0] = pm_crop_size * 2 - 1
+                         mid_hood[np.where(mid_hood[:, 1] >= pm_crop_size * 2), 1] = pm_crop_size * 2 - 1
+                         mid_hood[np.where(mid_hood[:, 2] >= pm_z_size), 2] = pm_z_size - 1                        
+
+
+                         tmp_degrees[mid_hood[:, 0], mid_hood[:, 1], mid_hood[:, 2]] = 0
+                         degrees[mid_hood[:, 0], mid_hood[:, 1], mid_hood[:, 2]] = 0
+                    
+                         tmp_degrees, coordinates = bw_skel_and_analyze(tmp_degrees)
+                         coord_end = np.transpose(np.vstack(np.where(tmp_degrees == 1)))
+                        
+                         for coord in coord_end:
+                            
+                            #print(np.linalg.norm(center - coord))
+                            if np.linalg.norm(mid - coord) <= 10:
+                                line_coords = line_nd(mid, coord, endpoint=False)
+                                line_coords = np.transpose(line_coords)      
+                                
+                                degrees[line_coords[:, 0], line_coords[:, 1], line_coords[:, 2]] = 2
+                                #degrees[center[0], center[1], center[2]] = 2               
+                                
+                                print('loop')
+                         
+                            
+                         degrees[mid[0], mid[1], mid[2]] = 8
+                    else:
+                    
+                        ### also set everything in neighborhood to be NOT end point
+                        for point in cur_start:
+                            if degrees[point[0], point[1], point[2]] == 1 or degrees[point[0], point[1], point[2]] == 3:
+                                degrees[point[0], point[1], point[2]] = 2
+                                print('replace')
+                                
+                    
+                        degrees[loc_start[0][0], loc_start[0][1], loc_start[0][2]] = 8
                     
 
 
@@ -668,8 +863,9 @@ for i in range(len(examples)):
                     
                     edge[degrees == 2] = 0
                     degrees[edge > 0] = 0
-                         
-
+                    
+                    
+                
                     
                     ###remove all the others that match this first one???
                     plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 
@@ -696,6 +892,12 @@ for i in range(len(examples)):
                         
                         print('match')
                         all_lens.append(len(intersect))
+                
+                
+                    ### CATCH ERROR
+                    if np.max(all_lens) == 0:
+                        zzz
+                        print('not matched')
                 
                     root_neighborhood = all_neighborhoods[np.argmax(all_lens)]
                     all_neighborhoods[np.argmax(all_lens)] = []
@@ -757,10 +959,8 @@ for i in range(len(examples)):
                         """ First drop the previous node and reorganize, cur_idx should auto update to max idx
                                 only need to update parent idx to be parent of node_idx BEFORE deleting AND depth
                         """
-                        # if iterator == 79:    ### ALSO IN THE 50s
-                        #        zzz
+
             
-                        
                         #root_neighborhood = cur_be_start
                         idx_to_del = np.where(tree.cur_idx == node_idx)[0][0]
                         parent = tree.parent[node_idx]
@@ -783,7 +983,9 @@ for i in range(len(examples)):
                         
                         ### set "visited" to correct value
                         for idx, node in tree.iterrows():
-                              if not isListEmpty(node.child):
+                              if node.visited == -1:
+                                  continue
+                              elif not isListEmpty(node.child):
                                   node.visited = 1
                               elif not node.visited:
                                   node.visited = np.nan    

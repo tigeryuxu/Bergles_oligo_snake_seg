@@ -487,7 +487,7 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
 
 
         # IF ROOT (depth == 0) ==> then use root neighborhood
-        if len(tree_df) == 0:
+        if len(tree_df) == 0 and not start:
             cur_be = np.vstack(root_neighborhood[0])
         elif start:
             cur_be = np.vstack(root_neighborhood)   ### start by setting the current branch endpoint to be the root
@@ -587,8 +587,20 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                     
                     """
                 else:
-                    tree_df = tree_df.drop(cur_idx,inplace=False)
-                    tree_df = tree_df.reset_index(drop=True)
+                    #tree_df = tree_df.drop(cur_idx,inplace=False)
+                    #tree_df = tree_df.reset_index(drop=True)
+                    
+                    
+                    tree_df.visited[cur_idx] = -1
+                    
+                    
+                    # tree_df.coords[cur_idx] = []
+                    # tree_df.start_be_coord[cur_idx] = []
+                    # tree_df.end_be_coord[cur_idx] = []
+                    # tree_df.parent[cur_idx] = []
+                    # tree_df.child[cur_idx] = []
+                    
+                    
                     print('dropped')
                     
 
