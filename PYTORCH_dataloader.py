@@ -61,6 +61,12 @@ def get_parents_csv_tree(tree, cur_val, parents, num_parents=10):
         return parents
 
     
+def get_examples_arr(examples):
+    examples_arr = {}
+    for k in list(examples[0].keys()):
+        examples_arr[k] = tuple(examples_arr[k] for examples_arr in examples)
+           
+    return examples_arr
 
                
                 
@@ -70,7 +76,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         'Initialization'
         #self.labels = labels
         self.list_IDs = list_IDs
-        self.examples = examples
+        self.examples = np.copy(examples)
         self.transforms = transforms
         self.mean = mean
         self.std = std
@@ -87,9 +93,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         
         
         ### Define orig idx and start indices so can be found easier later
-        self.examples_arr = {}
-        for k in self.examples[0].keys():
-          self.examples_arr[k] = tuple(self.examples_arr[k] for self.examples_arr in self.examples)
+        self.examples_arr = get_examples_arr(examples)
         self.all_orig_idx = np.asarray(self.examples_arr['orig_idx'])
         self.all_start_indices =  np.where(self.all_orig_idx == 1)[0]
         
@@ -363,12 +367,18 @@ class Dataset_tiffs_snake_seg(data.Dataset):
             for idx, val in enumerate(all_parent_indices):
                 rand_idx = randint(-get_every/2, 0)
                 
-                if idx % get_every == 0:                    
-                    if idx == 0 and idx + 2 < len(all_parent_indices):
-                        # don't get crop immediately a
-                        idx = 2
-                                    
-                    all_parent_indices_skip.append(int(all_parent_indices[idx + rand_idx]))
+                if idx % get_every == 0:           
+                    
+                    if idx == 0:
+                    
+                        if  idx + 2 < len(all_parent_indices):
+                            # don't get crop immediately a
+                            idx = 2
+                        else:                
+                            all_parent_indices_skip.append(int(all_parent_indices[idx]))
+                            
+                    else:
+                        all_parent_indices_skip.append(int(all_parent_indices[idx + rand_idx]))
                     
                     
                 
@@ -389,9 +399,24 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 
                 
                 """ EVENTUALLY WANT TO ADD IN FULL TRACE but cant right now b/c the TRUTH (Y) is too branchy """
+                
                 #parent_trace = seed_crop + Y
                 
+                ### only keep parts of trace that are the parent
+                # uniq_Y = np.unique(Y)   ### find all values that are unique in the crop
+                # for uniq_Y in np.unique(Y):
+                #     if uniq_Y not in all_parent_indices_skip:
+                #         Y[Y == uniq_Y] = 0
+                # parent_trace = seed_crop + Y
+                # parent_trace[parent_trace > 0] = 1
+                
+                
+                ### OTHERWISE, only use the crop, not the full length                
                 parent_trace = seed_crop
+                
+                
+                
+                
                 parent_trace[parent_trace > 0] = 255
                 
                 

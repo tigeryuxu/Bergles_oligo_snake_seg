@@ -41,7 +41,9 @@ from layers.unet3_3D import *
 from layers.switchable_BN import *
 
 from losses_pytorch.HD_loss import *
-
+ 
+import re
+    
 """ optional dataviewer if you want to load it """
 # import napari
 # with napari.gui_qt():
@@ -53,7 +55,7 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     
     """" path to checkpoints """       
@@ -62,28 +64,16 @@ if __name__ == '__main__':
     
     # (1)
     #s_path = './(53) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; HD = 1; alpha = 1;
-    
     #s_path = './(54) Checkpoint_nested_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; HD = 1; alpha = 1;
-    
-    
     #s_path = './(57) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_transform_scale_Z/'; HD = 1; alpha = 1;  resize_z = 1
-        
-
     #s_path = './(58) Checkpoint_unet_nested_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_transform_scale_Z/'; HD = 1; alpha = 1;  resize_z = 1
-          
-    
-    
     #s_path = './(62) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_HISTORY/'; HD = 1; alpha = 1;
     
     resize_z = 0
     skeletonize = 0
     
     #s_path = './(63) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_SKEL/'; HD = 1; alpha = 1; skeletonize = 1
-    
-    
     s_path = './(64) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_HISTORICAL/'; HD = 1; alpha = 1; 
-    
-    
     
     """ path to input data """
     # (2)
@@ -91,18 +81,13 @@ if __name__ == '__main__':
     #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; dataset = 'new crop pads'
     #tracker.alpha = 0.5
     
-    
     input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'; dataset = 'new crop pads'
-    
-    
+    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5 COLORED/1to1pair_b_series_t1_input_/'
     
     #input_path = 'E:/7) Bergles lab data/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; 
-
     #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
 
     """ Load filenames from tiff """
-    import re
-    
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
     images.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
     examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
@@ -114,43 +99,8 @@ if __name__ == '__main__':
 
 
     """ Also load in the all_tree_indices file """
-    import csv
     tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'
-    
-    all_trees = []
-    with open(tree_csv_path + 'all_trees.csv', newline='') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
-        for row_num, row in enumerate(spamreader):
-            print(', '.join(row))
-            
-            
-            if row_num % 2 == 0:
-                parents = []
-                for num, entry in enumerate(row):
-                    if num == 0:
-                        #im_name = '.tif'.join(entry.split('.tif')[0:-1])
-                        im_name = entry.split('.tif')[0]
-       
-                        
-                    elif num == 1:
-                        continue
-                    
-                    else:
-                        if not entry == '':
-                            parents.append(int(entry))
-
-            else:
-                orig_idx = []
-                for num, entry in enumerate(row):
-                    if num == 0 or num == 1:
-                        continue
-                                        
-                    else:
-                        if not entry == '':
-                            orig_idx.append(int(entry))    
-                            
-                tree_entry = dict(im_name = im_name, orig_idx = np.transpose(orig_idx), parents = np.transpose(parents))
-                all_trees.append(tree_entry)  
+    all_trees = load_all_trees(tree_csv_path)
 
 
     # ### REMOVE IMAGE 1 from training data
@@ -166,8 +116,7 @@ if __name__ == '__main__':
     examples_test = examples[0:len(idx_skip)]
 
     examples = [i for j, i in enumerate(examples) if j not in idx_skip]
-    
-            
+          
             
     counter = list(range(len(examples)))
     
@@ -175,7 +124,7 @@ if __name__ == '__main__':
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
     std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
 
-    num_workers = 4;
+    num_workers = 2;
  
     save_every_num_epochs = 1; plot_every_num_epochs = 1; validate_every_num_epochs = 1;      
     
@@ -273,6 +222,7 @@ if __name__ == '__main__':
                                            sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms, resize_z=resize_z, skeletonize=skeletonize, all_trees=all_trees)
     val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples_test, tracker.mean_arr, tracker.std_arr,
                                       sp_weight_bool=tracker.sp_weight_bool, transforms = 0, resize_z=resize_z, skeletonize=skeletonize, all_trees=all_trees)
+    
     
     """ Create training and validation generators"""
     val_generator = data.DataLoader(val_set, batch_size=tracker.batch_size, shuffle=False, num_workers=num_workers,

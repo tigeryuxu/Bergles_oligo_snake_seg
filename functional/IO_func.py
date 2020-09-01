@@ -17,6 +17,49 @@ from natsort import natsort_keygen, ns
 natsort_key1 = natsort_keygen(key = lambda y: y.lower())      # natural sorting order
 
 
+
+""" Load all trees file """
+import csv
+def load_all_trees(tree_csv_path):
+    all_trees = []
+    with open(tree_csv_path + 'all_trees.csv', newline='') as csvfile:
+        spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
+        for row_num, row in enumerate(spamreader):
+            print(', '.join(row))
+            
+            
+            if row_num % 2 == 0:
+                parents = []
+                for num, entry in enumerate(row):
+                    if num == 0:
+                        #im_name = '.tif'.join(entry.split('.tif')[0:-1])
+                        im_name = entry.split('.tif')[0]
+       
+                        
+                    elif num == 1:
+                        continue
+                    
+                    else:
+                        if not entry == '':
+                            parents.append(int(entry))
+
+            else:
+                orig_idx = []
+                for num, entry in enumerate(row):
+                    if num == 0 or num == 1:
+                        continue
+                                        
+                    else:
+                        if not entry == '':
+                            orig_idx.append(int(entry))    
+                            
+                tree_entry = dict(im_name = im_name, orig_idx = np.transpose(orig_idx), parents = np.transpose(parents))
+                all_trees.append(tree_entry)  
+                
+    return all_trees
+
+
+
 """ Save tree as .swc output file:
     
     
