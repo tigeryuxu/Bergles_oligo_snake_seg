@@ -44,10 +44,29 @@ from skimage.transform import resize
 
 
 """ Extended functions for SNAKE_SEG """
+def get_parents_csv_tree(tree, cur_val, parents, num_parents=10):
+    if cur_val == 0 or num_parents == 0:
+        return parents
+    
+    else:
+        loc_idx = np.where(tree['orig_idx'] == cur_val)
+        
+        parent = tree['parents'][loc_idx][0]
+        #print(parent)
+    
+        parents.append(parent)
+    
+        parents = get_parents_csv_tree(tree, cur_val=parent, parents=parents, num_parents=num_parents - 1)
 
+        return parents
+
+    
+
+               
+                
 """ Load data directly from tiffs with seed mask """
 class Dataset_tiffs_snake_seg(data.Dataset):
-  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0, resize_z=0, skeletonize=0):
+  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0, resize_z=0, skeletonize=0, all_trees=[]):
         'Initialization'
         #self.labels = labels
         self.list_IDs = list_IDs
@@ -62,6 +81,20 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         self.cube = create_cube_in_im(width=8, input_size=80, z_size=80)
         
         self.skeletonize = skeletonize
+        self.all_trees = all_trees
+        
+        self.num_parents = 5
+        
+        
+        ### Define orig idx and start indices so can be found easier later
+        self.examples_arr = {}
+        for k in self.examples[0].keys():
+          self.examples_arr[k] = tuple(self.examples_arr[k] for self.examples_arr in self.examples)
+        self.all_orig_idx = np.asarray(self.examples_arr['orig_idx'])
+        self.all_start_indices =  np.where(self.all_orig_idx == 1)[0]
+        
+        self.height = 80; self.width = 80; self.depth = 32;
+        
 
   def apply_transforms(self, image, labels):
         inputs = image
@@ -263,6 +296,136 @@ class Dataset_tiffs_snake_seg(data.Dataset):
 
 
 
+
+        """ If want to load parents as well """
+  def load_parents(self, index, num_parents):
+        ### Find matching tree from all_trees that matches with example
+        im_name = self.examples[index]['filename']
+        cur_val = self.examples[index]['orig_idx']
+        
+        match = 0
+        for tree in self.all_trees:
+            tree_name = tree['im_name']
+            if tree_name in im_name:   ### CHECK BY STRING CONTAINS
+                
+                parents = get_parents_csv_tree(tree, cur_val, parents = [], num_parents=1000)
+                
+                match = 1
+                break;
+                
+                
+        ### CATCH ERROR if name not matched
+        if not match:
+            print('ERROR: no name matched')
+            print(im_name)
+            zzz
+                
+                
+        """ If parents were found: """
+        all_parent_im = []
+        if np.max(parents) != 0:
+                
+            ### then search through examples to find matching
+            
+            ### to save memory, only search through - 10000 examples           
+                
+            index_beginning_of_im = np.max(np.where(self.all_start_indices < index)[0])
+            start_im_num = self.all_start_indices[index_beginning_of_im]
+            while len(np.where(self.all_start_indices == start_im_num)[0]) > 0:
+                start_im_num -= 1
+            start_im_num += 1
+                
+            search_examples = self.examples[start_im_num:index]
+            
+            search_example_orig_idx = self.all_orig_idx[start_im_num:index]
+            
+            
+            """ Grab random image from within the parent seed 
+            
+                    OR actually, get parents exactly 20 pixels apart from each other (i.e. every 4 +/- 1 crops from each other)
+            """
+            from random import randint
+            all_parent_indices = []
+            for parent in parents:
+                
+                if parent != 0:
+                    loc_parent = np.where(search_example_orig_idx == parent)[0]
+                    #rand_idx = randint(0, len(loc_parent) - 1)
+                    #parent_idx = loc_parent[rand_idx] + start_im_num
+                    #all_parent_indices.append(parent_idx)
+                    
+                    all_parent_indices = np.concatenate((all_parent_indices, loc_parent))
+                
+            all_parent_indices[::-1].sort()  ### sort into descending order
+            
+            get_every = 4
+            all_parent_indices_skip = []
+            for idx, val in enumerate(all_parent_indices):
+                rand_idx = randint(-get_every/2, 0)
+                
+                if idx % get_every == 0:                    
+                    if idx == 0 and idx + 2 < len(all_parent_indices):
+                        # don't get crop immediately a
+                        idx = 2
+                                    
+                    all_parent_indices_skip.append(int(all_parent_indices[idx + rand_idx]))
+                    
+                    
+                
+            #all_parent_indices_skip = all_parent_indices[0::4]  ### get every 4th index
+            
+    
+         
+            """ Actually load the parents """         
+            for parent_idx in all_parent_indices_skip:
+         
+                input_name = self.examples[parent_idx]['input']
+                truth_name = self.examples[parent_idx]['truth']
+                seed_name = self.examples[parent_idx]['seed_crop']
+    
+                X = tifffile.imread(input_name)
+                Y = tifffile.imread(truth_name)
+                seed_crop = tifffile.imread(seed_name)
+                
+                
+                """ EVENTUALLY WANT TO ADD IN FULL TRACE but cant right now b/c the TRUTH (Y) is too branchy """
+                #parent_trace = seed_crop + Y
+                
+                parent_trace = seed_crop
+                parent_trace[parent_trace > 0] = 255
+                
+                
+                
+                all_parent_im.append(X)
+                all_parent_im.append(parent_trace)
+                
+                
+                ### AT MOST ONLY APPEND SO MANY PARENTS
+                if len(all_parent_im)/2 == num_parents:
+                    break
+                
+                
+                ### DEBUG:
+                # plot_max(X, ax=0)
+                # plot_max(parent_trace, ax=0)
+            
+            
+            
+        """ If did NOT get enough parents, then append empty arrays """
+        num_empty = 0
+        while len(all_parent_im)/2 < num_parents:
+            all_parent_im.append(np.zeros([self.depth, self.height, self.width]))
+            num_empty += 1
+            
+        #print("num empty: " + str(num_empty))
+        
+            
+                
+
+        return all_parent_im
+               
+
+
   def __len__(self):
         'Denotes the total number of samples'
         return len(self.list_IDs)
@@ -280,7 +443,6 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         Y = tifffile.imread(truth_name)
         seed_crop = tifffile.imread(seed_name)
         Y[Y > 0] = 1
-        
         
         """ Resize the z-dimension """
         if self.resize_z:
@@ -314,6 +476,19 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         
         """ Append seed mask """
         X = self.append_seed_mask(X, seed_crop) 
+
+
+        
+        """ Get parents for historical context """
+        if len(self.all_trees) > 0:
+            all_parent_im = self.load_parents(index, self.num_parents)
+            all_parent_im = np.asarray(all_parent_im)
+            
+            
+            X = np.concatenate((X, all_parent_im))
+            
+            
+            
 
 
         """ If want to do lr_finder """

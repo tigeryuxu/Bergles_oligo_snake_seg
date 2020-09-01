@@ -61,7 +61,7 @@ device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
-pregenerated = 1
+pregenerated = 0
         
 """  Network Begins: """
 tracker = 0
@@ -87,15 +87,22 @@ tracker = 0
 #check_path = './(56) Checkpoint_unet_nested_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 
 
-#check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 #check_path = './(60) Checkpoint_unet_COMPLEX_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
 
 
-check_path = './(62) Checkpoint_unet_COMPLEX_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+#check_path = './(62) Checkpoint_unet_COMPLEX_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 
 
 
-s_path = check_path + 'TEST_inference_158946_last_first/'
+#s_path = check_path + 'TEST_inference_132455_last_first_REAL/'
+
+#s_path = check_path + 'TEST_inference_158946_shortest_first/'
+
+s_path = check_path + 'FULL_AUTO_TEST_inference_158946_last_first_REAL_2/'
+
+#s_path = check_path + 'TEST_inference_185437_shortest_first_REAL/'
+
 try:
     # Create target Directory
     os.mkdir(s_path)
@@ -704,11 +711,7 @@ for i in range(len(examples)):
                                     line_coords = np.transpose(line_coords)      
                                     
                                     all_linkers.append(line_coords)   
-                                    
-                                    
-                                
-                                    
-                                    
+
                         if len(all_dist) > 0:
                             min_id = np.argmin(all_dist)
                             line_coords = all_linkers[min_id]                                  
@@ -764,8 +767,8 @@ for i in range(len(examples)):
                     
                     ### CATCH ERROR:
                     if degrees[pm_crop_size - 1, pm_crop_size - 1, int(pm_z_size/2 - 1)] == 0  and len(cc_num_be) <= 2:
-                        zzz
-                        
+                        #zzz
+                        print('bad')                        
                         
                     ### CHANGED ABOVE TO:
                     degrees[pm_crop_size - 1, pm_crop_size - 1, int(pm_z_size/2 - 1)] = 7
@@ -789,7 +792,7 @@ for i in range(len(examples)):
                     cur_start[np.where(cur_start[:, 2] >= pm_z_size), 2] = pm_z_size - 1
                     
                     ### Then set degrees
-                    tmp_degrees[cur_start[:, 0], cur_start[:, 1], cur_start[:, 2]] = 8
+                    tmp_degrees[cur_start[:, 0], cur_start[:, 1], cur_start[:, 2]] = 20
 
                     ### only choose single point
                     bw_deg = skeletonize_3d(tmp_degrees)
@@ -798,7 +801,7 @@ for i in range(len(examples)):
                     
                     tmp_degrees[degrees == 0] = 0
 
-                    loc_start = np.transpose(np.where(tmp_degrees == 8))
+                    loc_start = np.transpose(np.where(tmp_degrees == 20))
                     
                     
                     """ If not working (not matching a cur_start), then force the match by subtracting out the center
@@ -824,7 +827,7 @@ for i in range(len(examples)):
                         
                          for coord in coord_end:
                             
-                            #print(np.linalg.norm(center - coord))
+                            print(np.linalg.norm(center - coord))
                             if np.linalg.norm(mid - coord) <= 10:
                                 line_coords = line_nd(mid, coord, endpoint=False)
                                 line_coords = np.transpose(line_coords)      
@@ -845,15 +848,15 @@ for i in range(len(examples)):
                                 print('replace')
                                 
                     
-                        degrees[loc_start[0][0], loc_start[0][1], loc_start[0][2]] = 8
+                        degrees[loc_start[0][0], loc_start[0][1], loc_start[0][2]] = 20
                     
 
 
 
 
                     """ Skeletonize this to make smoother for later and not cutoff by this middle part """
-                    bw_deg = skeletonize_3d(degrees)
-                    degrees[bw_deg == 0] = 0
+                    #bw_deg = skeletonize_3d(degrees)
+                    #degrees[bw_deg == 0] = 0
                     
                     """ REMOVE EDGE end points b/c crop is bigger than possible to ever reach edges """
                     dist_xy = 2; dist_z = 1

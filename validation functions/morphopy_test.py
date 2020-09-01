@@ -20,7 +20,7 @@ import numpy as np
 
 
 filename = '1to1pair_b_series_t1_seed_end_1_input_0_output.swc'
-s_path = '../(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/train with 1e6 after here/TEST_inference_182898_NEW_mini_step_FAST_linker_3_BEST/'
+s_path = '../(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/TEST_inference_158946_last_first_REAL_2/'
 N = fm.load_swc_file(s_path + filename)
 
 

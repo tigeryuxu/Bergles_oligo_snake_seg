@@ -78,7 +78,10 @@ if __name__ == '__main__':
     resize_z = 0
     skeletonize = 0
     
-    s_path = './(63) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_SKEL/'; HD = 1; alpha = 1; skeletonize = 1
+    #s_path = './(63) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_SKEL/'; HD = 1; alpha = 1; skeletonize = 1
+    
+    
+    s_path = './(64) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_HISTORICAL/'; HD = 1; alpha = 1; 
     
     
     
@@ -98,11 +101,58 @@ if __name__ == '__main__':
     #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
 
     """ Load filenames from tiff """
+    import re
+    
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
     images.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
-    examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop')) for i in images]
+    examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
+                     seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
+                     orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
+                     filename= i.split('/')[-1].split('_origId')[0].replace(',', ''))
+                     for i in images]
+
+
+
+    """ Also load in the all_tree_indices file """
+    import csv
+    tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'
     
-    
+    all_trees = []
+    with open(tree_csv_path + 'all_trees.csv', newline='') as csvfile:
+        spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
+        for row_num, row in enumerate(spamreader):
+            print(', '.join(row))
+            
+            
+            if row_num % 2 == 0:
+                parents = []
+                for num, entry in enumerate(row):
+                    if num == 0:
+                        #im_name = '.tif'.join(entry.split('.tif')[0:-1])
+                        im_name = entry.split('.tif')[0]
+       
+                        
+                    elif num == 1:
+                        continue
+                    
+                    else:
+                        if not entry == '':
+                            parents.append(int(entry))
+
+            else:
+                orig_idx = []
+                for num, entry in enumerate(row):
+                    if num == 0 or num == 1:
+                        continue
+                                        
+                    else:
+                        if not entry == '':
+                            orig_idx.append(int(entry))    
+                            
+                tree_entry = dict(im_name = im_name, orig_idx = np.transpose(orig_idx), parents = np.transpose(parents))
+                all_trees.append(tree_entry)  
+
+
     # ### REMOVE IMAGE 1 from training data
     idx_skip = []
     for idx, im in enumerate(examples):
@@ -113,13 +163,12 @@ if __name__ == '__main__':
     
     
     ### USE THE EXCLUDED IMAGE AS VALIDATION/TESTING
-    examples_test = np.copy(examples)
-    
-    
-    examples = [i for j, i in enumerate(examples) if j not in idx_skip]
+    examples_test = examples[0:len(idx_skip)]
 
+    examples = [i for j, i in enumerate(examples) if j not in idx_skip]
     
-  
+            
+            
     counter = list(range(len(examples)))
     
     # """ load mean and std for normalization later """  
@@ -150,9 +199,9 @@ if __name__ == '__main__':
         
 
         """ Initialize network """  
-        kernel_size = 5
+        kernel_size = 7
         pad = int((kernel_size - 1)/2)
-        unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
+        unet = UNet_online(in_channels=12, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
                             batch_norm=True, batch_norm_switchable=switch_norm, up_mode='upsample')
         #unet = NestedUNet(num_classes=2, input_channels=2, deep_sup=deep_sup, padding=pad, batch_norm_switchable=switch_norm)
         #unet = UNet_3Plus(num_classes=2, input_channels=2, kernel_size=kernel_size, padding=pad)
@@ -174,10 +223,11 @@ if __name__ == '__main__':
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1, last_epoch=-1)
             
         """ initialize index of training set and validation set, split using size of test_size """
-        idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
+        #idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
         
         """ initialize training_tracker """
         idx_valid = idx_skip
+        idx_train = counter
         
         tracker = tracker(batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=alpha, HD=HD,
                                           sp_weight_bool=sp_weight_bool, transforms=transforms, dataset=input_path)
@@ -219,8 +269,10 @@ if __name__ == '__main__':
     #transforms = initialize_transforms_simple(p=0.5)
 
     """ Create datasets for dataloader """
-    training_set = Dataset_tiffs_snake_seg(tracker.idx_train, examples, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms, resize_z=resize_z, skeletonize=skeletonize)
-    val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples_test, tracker.mean_arr, tracker.std_arr, sp_weight_bool=tracker.sp_weight_bool, transforms = 0, resize_z=resize_z, skeletonize=skeletonize)
+    training_set = Dataset_tiffs_snake_seg(tracker.idx_train, examples, tracker.mean_arr, tracker.std_arr,
+                                           sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms, resize_z=resize_z, skeletonize=skeletonize, all_trees=all_trees)
+    val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples_test, tracker.mean_arr, tracker.std_arr,
+                                      sp_weight_bool=tracker.sp_weight_bool, transforms = 0, resize_z=resize_z, skeletonize=skeletonize, all_trees=all_trees)
     
     """ Create training and validation generators"""
     val_generator = data.DataLoader(val_set, batch_size=tracker.batch_size, shuffle=False, num_workers=num_workers,
@@ -243,11 +295,11 @@ if __name__ == '__main__':
      
          """ check and plot params during training """             
          for param_group in optimizer.param_groups:
-              #tracker.alpha = 0.5
-              #param_group['lr'] = 1e-6   # manually sets learning rate
-              cur_lr = param_group['lr']
-              tracker.lr_plot.append(cur_lr)
-              tracker.print_essential()
+               #tracker.alpha = 0.5
+               #param_group['lr'] = 1e-6   # manually sets learning rate
+               cur_lr = param_group['lr']
+               tracker.lr_plot.append(cur_lr)
+               tracker.print_essential()
 
          unet.train()  ### set PYTORCH to training mode
 
@@ -255,84 +307,84 @@ if __name__ == '__main__':
          loss_train = 0; jacc_train = 0; ce_train = 0; dc_train = 0; hd_train = 0;
          iter_cur_epoch = 0; starter = 0;
          for batch_x, batch_y, spatial_weight in training_generator:
-                ### Test speed for debug
-                starter += 1
-                if starter == 2:  start = time.perf_counter()
-                if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
+                 ### Test speed for debug
+                 starter += 1
+                 if starter == 2:  start = time.perf_counter()
+                 if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
                      
-                """ Load data ==> shape is (batch_size, num_channels, depth, height, width)
-                     (1) converts to Tensor
-                     (2) normalizes + applies other transforms on GPU   ***INPUT LABELS MUST BE < 255??? or else get CudNN error
-                """
+                 """ Load data ==> shape is (batch_size, num_channels, depth, height, width)
+                      (1) converts to Tensor
+                      (2) normalizes + applies other transforms on GPU   ***INPUT LABELS MUST BE < 255??? or else get CudNN error
+                 """
                 
-                inputs, labels = transfer_to_GPU(batch_x, batch_y, device, tracker.mean_arr, tracker.std_arr)
-                inputs = inputs[:, 0, ...]
+                 inputs, labels = transfer_to_GPU(batch_x, batch_y, device, tracker.mean_arr, tracker.std_arr)
+                 inputs = inputs[:, 0, ...]
 
-                # PRINT OUT THE SHAPE OF THE INPUT
-                if iter_cur_epoch == 0:
-                    print('input size is' + str(batch_x.shape))
+                 # PRINT OUT THE SHAPE OF THE INPUT
+                 if iter_cur_epoch == 0:
+                     print('input size is' + str(batch_x.shape))
 
                 
-                """ initialize each iteration """
-                optimizer.zero_grad()    ### zero the parameter gradients
-                output_train = unet(inputs)  ### forward + backward + optimize
+                 """ initialize each iteration """
+                 optimizer.zero_grad()    ### zero the parameter gradients
+                 output_train = unet(inputs)  ### forward + backward + optimize
                                   
-                """ calculate loss: includes HD loss functions """
-                if tracker.HD:
-                    loss, tracker, ce_train, dc_train, hd_train = compute_HD_loss(output_train, labels, tracker.alpha, tracker, 
-                                                                                  ce_train, dc_train, hd_train, val_bool=0)
-                else:
-                    if deep_sup:   ### IF DEEP SUPERVISION
-                       # compute output
-                       loss = 0
-                       for output in output_train:
-                            loss += loss_function(output, labels)
-                       loss /= len(output_train)
-                       output_train = output_train[-1]  # set this so can eval jaccard later
+                 """ calculate loss: includes HD loss functions """
+                 if tracker.HD:
+                     loss, tracker, ce_train, dc_train, hd_train = compute_HD_loss(output_train, labels, tracker.alpha, tracker, 
+                                                                                   ce_train, dc_train, hd_train, val_bool=0)
+                 else:
+                     if deep_sup:   ### IF DEEP SUPERVISION
+                        # compute output
+                        loss = 0
+                        for output in output_train:
+                             loss += loss_function(output, labels)
+                        loss /= len(output_train)
+                        output_train = output_train[-1]  # set this so can eval jaccard later
                    
-                    else:   ### IF NORMAL LOSS CALCULATION
-                       loss = loss_function(output_train, labels)
-                       if torch.is_tensor(spatial_weight):   ### WITH SPATIAL WEIGHTING
-                            spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
-                            weighted = loss * spatial_tensor
-                            loss = torch.mean(weighted)
+                     else:   ### IF NORMAL LOSS CALCULATION
+                        loss = loss_function(output_train, labels)
+                        if torch.is_tensor(spatial_weight):   ### WITH SPATIAL WEIGHTING
+                             spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                             weighted = loss * spatial_tensor
+                             loss = torch.mean(weighted)
                               
-                       else:  ### NO WEIGHTING AT ALL
-                            loss = torch.mean(loss)   
+                        else:  ### NO WEIGHTING AT ALL
+                             loss = torch.mean(loss)   
                                        
-                """ update and step trainer """
-                loss.backward()
-                optimizer.step()
+                 """ update and step trainer """
+                 loss.backward()
+                 optimizer.step()
                
-                """ Training loss """
-                tracker.train_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
-                loss_train += loss.cpu().data.numpy()
+                 """ Training loss """
+                 tracker.train_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
+                 loss_train += loss.cpu().data.numpy()
                 
    
-                """ Calculate Jaccard on GPU """                 
-                jacc = jacc_eval_GPU_torch(output_train, labels)
-                jacc = jacc.cpu().data.numpy()
+                 """ Calculate Jaccard on GPU """                 
+                 jacc = jacc_eval_GPU_torch(output_train, labels)
+                 jacc = jacc.cpu().data.numpy()
                                             
-                jacc_train += jacc # Training jacc
-                tracker.train_jacc_per_batch.append(jacc)
+                 jacc_train += jacc # Training jacc
+                 tracker.train_jacc_per_batch.append(jacc)
    
-                tracker.iterations = tracker.iterations + 1       
-                iter_cur_epoch += 1
-                if tracker.iterations % 100 == 0:
-                    print('Trained: %d' %(tracker.iterations))
+                 tracker.iterations = tracker.iterations + 1       
+                 iter_cur_epoch += 1
+                 if tracker.iterations % 100 == 0:
+                     print('Trained: %d' %(tracker.iterations))
 
 
-                """ Plot for ground truth """
-                # output_train = output_train.cpu().data.numpy()            
-                # output_train = np.moveaxis(output_train, 1, -1)              
-                # seg_train = np.argmax(output_train[0], axis=-1)  
+                 """ Plot for ground truth """
+                 # output_train = output_train.cpu().data.numpy()            
+                 # output_train = np.moveaxis(output_train, 1, -1)              
+                 # seg_train = np.argmax(output_train[0], axis=-1)  
                   
-                # # convert back to CPU
-                # batch_x = batch_x.cpu().data.numpy() 
-                # batch_y = batch_y.cpu().data.numpy() 
+                 # # convert back to CPU
+                 # batch_x = batch_x.cpu().data.numpy() 
+                 # batch_y = batch_y.cpu().data.numpy() 
  
-                # plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_train, batch_x[0], batch_x[0], batch_y[0], batch_y[0],
-                #                            s_path, iterations, plot_depth=8)
+                 # plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_train, batch_x[0], batch_x[0], batch_y[0], batch_y[0],
+                 #                            s_path, iterations, plot_depth=8)
 
 
          tracker.train_loss_per_epoch.append(loss_train/iter_cur_epoch)

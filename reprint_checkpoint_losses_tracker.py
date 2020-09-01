@@ -84,7 +84,7 @@ if __name__ == '__main__':
             idx_skip.append(idx)
     
     #examples = [i for j, i in enumerate(examples) if j not in idx_skip]
-
+    
 
     counter = list(range(len(examples)))
 
