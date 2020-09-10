@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from scipy import ndimage as ndi
 from skimage.morphology import watershed
 from skimage.feature import peak_local_max
-from skimage.filters import threshold_otsu
+from skimage.filters import threshold_otsu, threshold_triangle, try_all_threshold, threshold_local
 
 import skimage.morphology
 from skimage.exposure import equalize_adapthist
@@ -32,7 +32,7 @@ import scipy
 
 
 """ (1) Load input and parse into seeds """
-def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
+def load_input_as_seeds(examples, im_num, pregenerated, s_path='./', seed_crop_size=100, seed_z_size=80):
      """ Load input image """
      input_name = examples[im_num]['input']     
      input_im = open_image_sequence_to_3D(input_name, width_max='default', height_max='default', depth='default')
@@ -61,11 +61,11 @@ def load_input_as_seeds(examples, im_num, pregenerated, s_path='./'):
           
      else:        
           """ Plotting as interactive scroller """
-          only_colocalized_mask, overall_coord = GUI_cell_selector(input_im, crop_size=100, z_size=80,
+          only_colocalized_mask, overall_coord = GUI_cell_selector(input_im, crop_size=seed_crop_size, z_size=seed_z_size,
                                                                     height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp, thresh=1)
           """ or auto-create seeds """
           all_seeds, cropped_seed, binary, all_seeds_no_50 = create_auto_seeds(input_im, only_colocalized_mask, overall_coord, 
-                                        crop_size=100, z_size=80, height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
+                                        seed_crop_size=seed_crop_size, seed_z_size=seed_z_size, height_tmp=height_tmp, width_tmp=width_tmp, depth_tmp=depth_tmp)
           
           plot_save_max_project(fig_num=88, im=cropped_seed, max_proj_axis=-1, title='all_seeds', 
                                           name=s_path + 'all_seeds.png', pause_time=0.001)
@@ -165,6 +165,7 @@ def find_overlap_by_max_intensity(bw, intensity_map, min_size_obj=0):
    for end_point in cc_coloc:
         max_val = end_point['max_intensity']
         coords = end_point['coords']
+        
         if max_val > 1 and len(coords) > min_size_obj:
              for c_idx in range(len(coords)):
                   only_coloc[coords[c_idx,0], coords[c_idx,1], coords[c_idx,2] ] = 1
@@ -270,7 +271,7 @@ def ridge_filter_3D(im, sigma=3):
  
      
 """ automatically create seeds for analysis """
-def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size, z_size, height_tmp, width_tmp, depth_tmp):
+def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, seed_crop_size, seed_z_size, height_tmp, width_tmp, depth_tmp):
 
         """ Don't use user selected point b/c may vary each time. Use the centroid of the dilated object """
         labelled = measure.label(only_colocalized_mask)
@@ -285,26 +286,87 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         x = int(overall_coord[0])
         y = int(overall_coord[1])
         z = int(overall_coord[2])
-        crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
-        only_colocalized_mask_crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(only_colocalized_mask, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)
+        crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(input_im, y, x, z, seed_crop_size, seed_z_size, height_tmp, width_tmp, depth_tmp)
+        only_colocalized_mask_crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max = crop_around_centroid(only_colocalized_mask, y, x, z, seed_crop_size, seed_z_size, height_tmp, width_tmp, depth_tmp)
      
         
+        """ Subtract out center to make cleaner for thresholding """
+        dilated_image_small = dilate_by_ball_to_binary(only_colocalized_mask_crop, radius=5)
+        dilated_image_small = dilate_by_ball_to_binary(dilated_image_small, radius=5)
+        dilated_image_small = dilate_by_ball_to_binary(dilated_image_small, radius=5)
+        
+        
+        crop[dilated_image_small > 0] = 0
+        
+        from skimage.filters import frangi, gaussian, meijering, sato, hessian
+        fran = frangi(crop,  sigmas=range(1, 2, 1), black_ridges=False, alpha=1, beta=0.5, gamma=15)
+        
+        
+        #crop = gaussian(crop, sigma=2)
+        #fran = sato(crop,  sigmas=range(3, 6, 3), black_ridges=False)
+        
+        #fran = meijering(crop, black_ridges=False)
+        
+        #fran = hessian(crop, black_ridges=False)
+         
+     
      
         """ smooth first??? """
+        # def subtract_background(image, radius=5, light_bg=False):
+        #         from skimage.morphology import white_tophat, black_tophat, ball, opening
+        #         str_el = ball(radius=radius) #you can also use 'ball' here to get a slightly smoother result at the cost of increased computing time        
+        #         return white_tophat(image, str_el)
         
+        
+        fran = gaussian(fran, sigma=1)
         
         
         """ Use hessian??? """
-        LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=crop, sigma=3)
+        #LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=crop, sigma=3)
 
-        LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=LambdaAbs2, sigma=2)
-        LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=LambdaAbs2, sigma=1)
+        #LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=LambdaAbs2, sigma=2)    ### REMOVE FOR NEURON
+        #LambdaAbs1, LambdaAbs2, LambdaAbs3 = ridge_filter_3D(im=LambdaAbs2, sigma=1)
 
-        crop = LambdaAbs2;   # maybe this should be lambda 3???
+        #crop = LambdaAbs2;   # maybe this should be lambda 3???
 
-        thresh = threshold_otsu(crop)
-        binary = crop > thresh
+        #thresh = threshold_otsu(fran)
         
+        thresh = threshold_triangle(fran)
+        
+        #thresh = 0.12   ### FOR NEURON SEGMENTATION
+        binary = fran > thresh
+        
+        #plot_max(binary, ax=-1)
+        #plot_max(fran, ax=-1)
+        
+        
+     
+        
+        
+        
+        
+        
+        # from skimage.exposure import equalize_adapthist
+        
+        # from skimage import exposure
+        
+        # crop_rescale  = exposure.rescale_intensity(crop, in_range='image', out_range=(0, 1))
+        
+        # adapt = equalize_adapthist(crop_rescale)
+        
+ 
+        
+        # thresh = threshold_otsu(crop_rescale)
+        
+        # thresh = threshold_triangle(crop_rescale)
+        
+        # thresh = 0.12   ### FOR NEURON SEGMENTATION
+        # binary = crop_rescale > thresh
+        
+        # str_el = ball(radius=2) #you can also use 'ball' here to get a slightly smoother result at the cost of increased computing time        
+        # opened = opening(crop, selem=str_el, out=None)
+ 
+    
         #plot_max(binary, ax=-1)
         
         # fig, ax = plt.subplots(1, 1)
@@ -319,24 +381,34 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         """        
         # binary = np.zeros(np.shape(crop));
         # for crop_idx in range(len(crop[0, 0, :])):
-        #      cur_crop = crop[:, :, crop_idx]
+        #       cur_crop = crop[:, :, crop_idx]
 
-        #      thresh_adapt = cv2.adaptiveThreshold(np.asarray(cur_crop, dtype=np.uint8), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-        #                                           cv2.THRESH_BINARY, blockSize=25,C=-30) 
+        #       #thresh_adapt = cv2.adaptiveThreshold(np.asarray(cur_crop, dtype=np.uint8), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        #       #                                    cv2.THRESH_BINARY, blockSize=25,C=-30) 
              
-        #      #thresh_adapt = threshold_local(cur_crop, block_size=35, method='gaussian',
-        #                                      #offset=0, mode='reflect', param=None, cval=0)
+        #       thresh_adapt = threshold_local(cur_crop, block_size=35, method='gaussian',
+        #                                       offset=0, mode='reflect', param=None, cval=0)
              
-        #      #np.unique(thresh_adapt)
-        #      #cur_crop = crop[:, :, crop_idx] > thresh_adapt
-        #      binary[:, :, crop_idx] = thresh_adapt
+                
+              
+              
+        #       #np.unique(thresh_adapt)
+        #       #cur_crop = crop[:, :, crop_idx] > thresh_adapt
+        #       #binary[:, :, crop_idx] = cur_crop
+              
+              
+        #       binary[:, :, crop_idx] = thresh_adapt
             
         
         #plt.figure(); plt.imshow(thresh_adapt)
         
         
-        #thresh = threshold_otsu(crop)
-        #binary_otsu = crop > thresh
+        # thresh = threshold_otsu(binary)
+        # binary_otsu = binary > thresh
+        
+        
+        
+        
         cytosol_reordered = binary
         cytosol_reordered[cytosol_reordered > 0] = 1
         cytosol_reordered = skeletonize_3d(cytosol_reordered)
@@ -346,8 +418,8 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         """ create seeds by subtracting out large - small cell body masks """
         #dilated_image_large = dilate_by_ball_to_binary(only_colocalized_mask_crop, radius=20)
         
-        dilated_image_small = dilate_by_ball_to_binary(only_colocalized_mask_crop, radius=10)
-        dilated_image_small = dilate_by_ball_to_binary(only_colocalized_mask_crop, radius=10)
+        #dilated_image_small = dilate_by_ball_to_binary(only_colocalized_mask_crop, radius=10)
+        dilated_image_small = dilate_by_ball_to_binary(dilated_image_small, radius=5)
 
         """ subtract dilated nucleus from image """
         #mask = dilated_image_large - dilated_image_small
@@ -382,7 +454,7 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, crop_size,
         """ set cell as root coords for later """
         all_seeds = np.copy(all_seeds_no_50)
         cell_body = dilated_image_small
-        cropped_seed[cell_body > 0] = 50
+        cropped_seed[overlaped > 1] = 2
         all_seeds[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = cropped_seed
         
         

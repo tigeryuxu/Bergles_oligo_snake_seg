@@ -399,20 +399,21 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 
                 
                 """ EVENTUALLY WANT TO ADD IN FULL TRACE but cant right now b/c the TRUTH (Y) is too branchy """
-                
-                #parent_trace = seed_crop + Y
-                
+
                 ### only keep parts of trace that are the parent
-                # uniq_Y = np.unique(Y)   ### find all values that are unique in the crop
-                # for uniq_Y in np.unique(Y):
-                #     if uniq_Y not in all_parent_indices_skip:
-                #         Y[Y == uniq_Y] = 0
-                # parent_trace = seed_crop + Y
-                # parent_trace[parent_trace > 0] = 1
+                check_with = self.all_orig_idx[all_parent_indices_skip]
+                check_with = np.append(check_with, cur_val)
+                
+                uniq_Y = np.unique(Y)   ### find all values that are unique in the crop
+                for uniq_Y in np.unique(Y):
+                    if uniq_Y not in check_with:
+                        Y[Y == uniq_Y] = 0
+                parent_trace = seed_crop + Y
+                parent_trace[parent_trace > 0] = 1
                 
                 
                 ### OTHERWISE, only use the crop, not the full length                
-                parent_trace = seed_crop
+                #parent_trace = seed_crop
                 
                 
                 

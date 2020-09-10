@@ -168,10 +168,10 @@ def bridge_end_points(output_PYTORCH, bridge_radius=2):
     return output, non_bin_output
 
 """ Given coords of shape x, y, z in a cropped image, scales back to size in full size image """
-def scale_coords_of_crop_to_full(coords, box_x_min, box_y_min, box_z_min):
-        coords[:, 0] = np.round(coords[:, 0]) + box_x_min   # SCALING the ep_center
-        coords[:, 1] = np.round(coords[:, 1]) + box_y_min
-        coords[:, 2] = np.round(coords[:, 2]) + box_z_min
+def scale_coords_of_crop_to_full(coords, box_xyz, box_over):
+        coords[:, 0] = np.round(coords[:, 0]) + (box_xyz[0] - box_over[0])   # SCALING the ep_center
+        coords[:, 1] = np.round(coords[:, 1]) + (box_xyz[2] - box_over[2])
+        coords[:, 2] = np.round(coords[:, 2]) + (box_xyz[4] - box_over[4])
         scaled = coords
         return scaled  
 
@@ -375,7 +375,7 @@ def get_next_coords(tree, node_idx, num_parents):
         
         
         print('ERROR: NO END COORDINATE DETECTED')
-        zzz
+        #zzz
       
     cur_coords = np.vstack(cur_coords)
     
@@ -401,7 +401,7 @@ def expand_coord_to_neighborhood(coords, lower, upper):
 
 
 """ Get neighborhoods from an image ==> include scaling??? """
-def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, box_z_min=0, order=0, width=1000000000, height=100000000, depth=100000000):
+def get_neighborhoods(degrees, coord_root=0, scale=0, box_xyz=0, box_over=0, order=0, width=1000000000, height=100000000, depth=100000000):
       only_segments = np.copy(degrees); only_segments[only_segments != 2] = 0
       only_branch_ends = np.copy(degrees); only_branch_ends[only_branch_ends == 2] = 0; only_branch_ends[only_branch_ends > 0] = 3; 
       
@@ -424,7 +424,7 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, 
               neighborhood_be = np.vstack(neighborhood_be)
               if scale:
                   
-                  neighborhood_be = scale_coords_of_crop_to_full(neighborhood_be, box_x_min, box_y_min, box_z_min)
+                  neighborhood_be = scale_coords_of_crop_to_full(neighborhood_be, box_xyz, box_over)
                   
               all_neighborhoods.append(neighborhood_be)
                       
@@ -444,7 +444,7 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_x_min=0, box_y_min=0, 
           
           
           if scale:
-              coords = scale_coords_of_crop_to_full(coords, box_x_min, box_y_min, box_z_min)
+              coords = scale_coords_of_crop_to_full(coords, box_xyz, box_over)
               
           all_hood_first_last.append(coords)
           idx += 1
@@ -620,6 +620,10 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
     
 """ Plot tree """
 def show_tree(tree_df, im):
+    width_tmp = np.shape(im)[0]
+    height_tmp = np.shape(im)[1]
+    depth_tmp = np.shape(im)[2]
+
     all_segments = np.asarray(tree_df.coords[:])
     indices = np.asarray(tree_df.cur_idx)
     start_be_coord = np.asarray(tree_df.start_be_coord[:])
@@ -630,9 +634,13 @@ def show_tree(tree_df, im):
         
         im[seg[:, 0], seg[:, 1], seg[:, 2]] = ind + 1 # because dont want non-zero
         
+        
+        start_be = check_limits([start_be], width_tmp, height_tmp, depth_tmp)[0]  ### check to make sure none of the dilated neighborhoods go out of bounds
         im[start_be[:, 0], start_be[:, 1], start_be[:, 2]] = 1
+
         
         if not np.isnan(end_be).any() and np.asarray(end_be).any():
+            end_be = check_limits([end_be], width_tmp, height_tmp, depth_tmp)[0]
             im[end_be[:, 0], end_be[:, 1], end_be[:, 2]] = 2
     return im
 

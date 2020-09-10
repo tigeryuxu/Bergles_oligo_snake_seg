@@ -15,7 +15,7 @@ Created on Sunday Dec. 24th
 import matplotlib
 matplotlib.rc('xtick', labelsize=8) 
 matplotlib.rc('ytick', labelsize=8) 
-matplotlib.use('Qt5Agg')
+#matplotlib.use('Qt5Agg')
 
 
 """ Libraries to load """
@@ -57,7 +57,7 @@ torch.backends.cudnn.enabled = True
 
 """ Define GPU to use """
 import torch
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
@@ -94,14 +94,20 @@ check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_H
 #check_path = './(62) Checkpoint_unet_COMPLEX_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 
 
+#storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
+#check_path = storage_path + '(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_FULL_DATA_REPEAT_SW_ACCID/'; dilation = 1; deep_supervision = False; tracker = 1;
+
 
 #s_path = check_path + 'TEST_inference_132455_last_first_REAL/'
 
 #s_path = check_path + 'TEST_inference_158946_shortest_first/'
 
-s_path = check_path + 'FULL_AUTO_TEST_inference_158946_last_first_REAL_2/'
+#s_path = check_path + 'FULL_AUTO_TEST_inference_158946_last_first_NEURON/'
 
-#s_path = check_path + 'TEST_inference_185437_shortest_first_REAL/'
+#s_path = check_path + 'FULL_AUTO_TEST_inference_158946_last_first_REAL_2_CARE_RESTORED_FULL_AUTO/'
+
+s_path = check_path + 'TEST_inference_185437_shortest_first_NEURON/'
+#s_path = check_path + 'TEST_inference_185437_last_first_NEURON/'
 
 try:
     # Create target Directory
@@ -112,6 +118,11 @@ except FileExistsError:
 
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px_NEW/'
 #input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
+
+#input_path = '/media/user/storage/Data/(1) snake seg project/CARE_flipped_reconstruction/to segment/'
+
+
+input_path = '/media/user/storage/Data/(1) snake seg project/BigNeuron data/gold166/Training data neurons/test/'
 
 """ Load filenames from zip """
 images = glob.glob(os.path.join(input_path,'*input.tif*'))
@@ -168,7 +179,10 @@ scale_for_animation = 0
 for i in range(len(examples)):              
 
         """ (1) Loads data as sorted list of seeds """
-        sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds, all_seeds_no_50 = load_input_as_seeds(examples, im_num=i, pregenerated=pregenerated, s_path=s_path)   
+        
+        sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds, all_seeds_no_50 = load_input_as_seeds(examples, im_num=i,
+                                                                                                                                 pregenerated=pregenerated, s_path=s_path,
+                                                                                                                                 seed_crop_size=150, seed_z_size=80)   
 
         input_name = examples[i]['input']
         filename = input_name.split('/')[-1].split('.')[0:-1]
@@ -186,10 +200,18 @@ for i in range(len(examples)):
         """
     
         """ only 50 """
-        all_seeds[all_seeds !=  50] = 0;
-        labelled = measure.label(all_seeds)
-        cc = measure.regionprops(labelled)
-        all_coords_root = []
+        if pregenerated:
+            all_seeds[all_seeds !=  50] = 0;
+            labelled = measure.label(all_seeds)
+            cc = measure.regionprops(labelled)
+            all_coords_root = []
+
+        else:
+            all_seeds[all_seeds !=  2] = 0;
+            labelled = measure.label(all_seeds)
+            cc = measure.regionprops(labelled)
+            all_coords_root = []
+
         for point in cc:
             coord_point = point['coords']
             all_coords_root.append(coord_point)
@@ -261,23 +283,27 @@ for i in range(len(examples)):
             
                 
                 """ Go to index of SHORTEST PATH FIRST """
-                # all_lengths = []
-                # for ind in unvisited_indices:                 
-                #     parent_coords = get_parent_nodes(tree, ind, num_parents=100, parent_coords = [])
+                all_lengths = []
+                for ind in unvisited_indices:                 
+                    parent_coords = get_parent_nodes(tree, ind, num_parents=100, parent_coords = [])
                 
-                #     if len(parent_coords) > 0:
-                #         parent_coords = np.vstack(parent_coords)
+                    if len(parent_coords) > 0:
+                        parent_coords = np.vstack(parent_coords)
                 
-                #     all_lengths.append(len(parent_coords))                 
-                # node_idx = unvisited_indices[np.argmin(all_lengths)]
+                    all_lengths.append(len(parent_coords))                 
+                node_idx = unvisited_indices[np.argmin(all_lengths)]
                 
                 
                 
                 """ Or, just go to very last position """
-                node_idx = unvisited_indices[-1]
+                #node_idx = unvisited_indices[-1]
                 
                 
                 
+                ### SKIP IF NO END_BE_COORD FROM 
+                if np.isnan(tree.end_be_coord[node_idx]).any():
+                     tree.visited[node_idx] = 1; iterator += 1; continue;
+                    
                 
                 cur_coords, cur_be_start, cur_be_end, centroid_start, centroid_end, parent_coords = get_next_coords(tree, node_idx, num_parents=20)
                            
@@ -349,9 +375,9 @@ for i in range(len(examples)):
                           
     
                       """ use centroid of object to make seed crop """
-                      crop, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                
+                      crop, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(input_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                
                       #cur_seg_im[x,y,z] = 2   ### IF WANT TO SEE WHAT THE CROP IS CENTERING ON
-                      crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
+                      crop_seed, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
                       
                       """ Dilate the seed by sphere 1 to mimic training data """
                       crop_seed = skeletonize_3d(crop_seed)
@@ -381,20 +407,19 @@ for i in range(len(examples)):
 
 
                       ### HACKY - figure out how to get sizes to be better
-                      prev_seg = output_tracker[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] 
-                      output_tracker[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = prev_seg + output_PYTORCH[0:prev_seg.shape[0], 0:prev_seg.shape[1], 0:prev_seg.shape[2]]
+                      prev_seg = output_tracker[box_xyz[0]:box_xyz[1], box_xyz[2]:box_xyz[3], box_xyz[4]:box_xyz[5]] 
+                      output_tracker[box_xyz[0]:box_xyz[1], box_xyz[2]:box_xyz[3], box_xyz[4]:box_xyz[5]] = prev_seg + output_PYTORCH[box_over[0]:prev_seg.shape[0] + box_over[0], box_over[2]:prev_seg.shape[1] + box_over[2], box_over[4]:prev_seg.shape[2] + box_over[4]]
             
 
  
                 # if iterator == 5:    ### ALSO IN THE 50s
                 #         zzz
-                     
+
+
                                 
                 """ ALSO HAVE TO RESET CUR_BE_END to align with current location of mini-step and NOT actual end of segment!!!
                 """
                 #cur_be_end = np.vstack(expand_coord_to_neighborhood([cur_coords[step]], lower=1, upper=2))
-                      
-             
                 cur_coords, cur_be_start, cur_be_end, centroid_start, centroid_end, parent_coords = get_next_coords(tree, node_idx, num_parents=50)
 
                 """ Link any missing coords due to be subtractions """
@@ -407,26 +432,25 @@ for i in range(len(examples)):
                 cur_seg_im = np.zeros(np.shape(input_im))   # maybe speed up here by not creating the image every time???
                 cur_seg_im[cur_coords[:, 0], cur_coords[:, 1], cur_coords[:, 2]] = 1
  
-                
-
+        
 
                     
                 ### Define size of larger crop:
                 pm_crop_size = crop_size * 2
                 pm_z_size = z_size * 2
                 output_tracker[output_tracker > 0] = 1
-                output_PYTORCH, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(output_tracker, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
+                output_PYTORCH, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(output_tracker, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
                 
                 
                 ### if not big enough, recrop with larger
                 
                 mult = 3
-                while np.any(cur_be_start[:, 0] - box_x_min < 0) or np.any(cur_be_start[:, 1] - box_y_min < 0) or np.any(cur_be_start[:, 2] - box_z_min < 0) or  np.any(box_x_max - cur_be_start[:, 0] < 0) or np.any(box_y_max - cur_be_start[:, 1] < 0) or np.any(box_z_max - cur_be_start[:, 2] < 0):
+                while np.any(cur_be_start[:, 0] - box_xyz[0] < 0) or np.any(cur_be_start[:, 1] - box_xyz[2] < 0) or np.any(cur_be_start[:, 2] - box_xyz[4] < 0) or  np.any(box_xyz[1] - cur_be_start[:, 0] < 0) or np.any(box_xyz[3] - cur_be_start[:, 1] < 0) or np.any(box_xyz[5] - cur_be_start[:, 2] < 0):
                     pm_crop_size = crop_size * mult
                     pm_z_size = z_size * 3
                 
                     output_tracker[output_tracker > 0] = 1
-                    output_PYTORCH, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(output_tracker, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
+                    output_PYTORCH,  box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(output_tracker, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
                     resize = 1
                     
                     center_cube_pm = create_cube_in_im(width=8, input_size=input_size * mult, z_size=z_size * 3)
@@ -435,11 +459,11 @@ for i in range(len(examples)):
                     
                     mult += 1
                     
-                    print(box_x_min)
+                    #print(box_x_min)
                 
                 
 
-                crop_seed, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
+                crop_seed, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
                 crop_seed = skeletonize_3d(crop_seed)     
                 
                 """ Make sure no gaps in crop_seed """
@@ -461,7 +485,7 @@ for i in range(len(examples)):
                  
                     
                      
-                    crop_seed_full, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im_full, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
+                    crop_seed_full, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im_full, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
                     crop_seed_full = skeletonize_3d(crop_seed_full)     
                     
                     """ Make sure no gaps in crop_seed """
@@ -495,7 +519,7 @@ for i in range(len(examples)):
                     im += show_tree(cur_tree, track_trees)
                 
                 im[im > 0] = 1
-                crop_prev, box_x_min, box_x_max, box_y_min, box_y_max, box_z_min, box_z_max, boundaries_crop = crop_around_centroid_with_pads(im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                                                      
+                crop_prev, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                                                      
                 crop_prev = skeletonize_3d(crop_prev)
                 crop_prev[crop_prev > 0] = 1
                                   
@@ -603,7 +627,7 @@ for i in range(len(examples)):
                 
                 
                 """ skip if everything was subtracted out last time: """
-                if np.count_nonzero(sub_seed) < 5:
+                if np.count_nonzero(sub_seed) < 8:
                         tree.visited[node_idx] = 1; print('Finished')                     
                         plot_save_max_project(fig_num=10, im=np.zeros(np.shape(only_coloc)), max_proj_axis=-1, title='_final_added', 
                                 name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) +  '_step_' + str(step) + '_(6)_zfinal_added.png', pause_time=0.001) 
@@ -751,7 +775,7 @@ for i in range(len(examples)):
                             or add in the endpoint like I just said, but subtract it out to keep the crop_seed separate???                              
                     """
                     # cur_end = np.copy(cur_be_end)
-                    # cur_end = scale_coords_of_crop_to_full(cur_end, -box_x_min, -box_y_min, -box_z_min)
+                    # cur_end = scale_coords_of_crop_to_full(cur_end, -1 * np.asarray(box_xyz)[0], -box_y_min, -box_z_min)
                     
                     # ### check limits to ensure doesnt go out of frame
                     # cur_end = check_limits([cur_end], pm_crop_size * 2, pm_crop_size * 2, pm_z_size)[0]
@@ -773,14 +797,22 @@ for i in range(len(examples)):
                     ### CHANGED ABOVE TO:
                     degrees[pm_crop_size - 1, pm_crop_size - 1, int(pm_z_size/2 - 1)] = 7
                     
+
+                    """ REMOVE EDGE end points b/c crop is bigger than possible to ever reach edges """
+                    dist_xy = 2; dist_z = 1
+                    edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
+                    edge[dist_xy:pm_crop_size * 2-dist_xy, dist_xy:pm_crop_size * 2-dist_xy, dist_z:pm_z_size-dist_z] = 1
+                    edge = np.where((edge==0)|(edge==1), edge^1, edge)
                     
+                    edge[degrees == 2] = 0
+                    degrees[edge > 0] = 0                    
 
                     
 
                     """ Also need to add in the starting point """
                     tmp_degrees = np.copy(degrees)
                     cur_start = np.copy(cur_be_start)
-                    cur_start = scale_coords_of_crop_to_full(cur_start, -box_x_min, -box_y_min, -box_z_min)
+                    cur_start = scale_coords_of_crop_to_full(cur_start, -1 * np.asarray(box_xyz), -1 * np.asarray(box_over))
                     
                     ### check limits to ensure doesnt go out of frame
                     cur_start = check_limits([cur_start], pm_crop_size * 2, pm_crop_size * 2, pm_z_size)[0]
@@ -858,14 +890,7 @@ for i in range(len(examples)):
                     #bw_deg = skeletonize_3d(degrees)
                     #degrees[bw_deg == 0] = 0
                     
-                    """ REMOVE EDGE end points b/c crop is bigger than possible to ever reach edges """
-                    dist_xy = 2; dist_z = 1
-                    edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
-                    edge[dist_xy:pm_crop_size * 2-dist_xy, dist_xy:pm_crop_size * 2-dist_xy, dist_z:pm_z_size-dist_z] = 1
-                    edge = np.where((edge==0)|(edge==1), edge^1, edge)
-                    
-                    edge[degrees == 2] = 0
-                    degrees[edge > 0] = 0
+
                     
                     
                 
@@ -876,7 +901,7 @@ for i in range(len(examples)):
                     
                     
                    
-                    all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_x_min=box_x_min, box_y_min=box_y_min, box_z_min=box_z_min, order=1)
+                    all_neighborhoods, all_hood_first_last, root_neighborhood = get_neighborhoods(degrees, coord_root=0, scale=1, box_xyz=box_xyz, box_over=box_over, order=1)
   
     
   
@@ -917,13 +942,13 @@ for i in range(len(examples)):
                            if (root_neighborhood[:, None] == neighbor_be).all(-1).any(): 
                                print('match')
                                cur = np.copy(neighbor_be)
-                               cur = scale_coords_of_crop_to_full(cur, -box_x_min, -box_y_min, -box_z_min)                           
+                               cur = scale_coords_of_crop_to_full(cur, -1 * np.asarray(box_xyz), box_over=np.zeros(np.shape(box_over)))                           
                                ### check limits to ensure doesnt go out of frame
                                cur = check_limits([cur], pm_crop_size * 2, pm_crop_size * 2, pm_z_size)[0]
                                check_debug[cur[:, 0], cur[:, 1], cur[:, 2]] = 10
                            else:
                                cur = np.copy(neighbor_be)
-                               cur = scale_coords_of_crop_to_full(cur, -box_x_min, -box_y_min, -box_z_min)
+                               cur = scale_coords_of_crop_to_full(cur, -1 * np.asarray(box_xyz), box_over=np.zeros(np.shape(box_over)))
                                
                                ### check limits to ensure doesnt go out of frame
                                cur = check_limits([cur], pm_crop_size * 2, pm_crop_size * 2, pm_z_size)[0]
@@ -939,7 +964,7 @@ for i in range(len(examples)):
                           #      all_hood_first_last[idx] = []
                           #else:
                              cur = np.copy(cur_seg)
-                             cur = scale_coords_of_crop_to_full(cur, -box_x_min, -box_y_min, -box_z_min)
+                             cur = scale_coords_of_crop_to_full(cur, -1 * np.asarray(box_xyz), box_over=np.zeros(np.shape(box_over)))
                              
                              ### check limits to ensure doesnt go out of frame
                              cur = check_limits([cur], pm_crop_size * 2, pm_crop_size * 2, pm_z_size)[0]
@@ -963,7 +988,7 @@ for i in range(len(examples)):
                                 only need to update parent idx to be parent of node_idx BEFORE deleting AND depth
                         """
 
-            
+                        
                         #root_neighborhood = cur_be_start
                         idx_to_del = np.where(tree.cur_idx == node_idx)[0][0]
                         parent = tree.parent[node_idx]

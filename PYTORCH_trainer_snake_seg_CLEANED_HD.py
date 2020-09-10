@@ -33,6 +33,7 @@ from functional.plot_functions_CLEANED import *
 from functional.data_functions_CLEANED import *
 from functional.data_functions_3D import *
 from functional.tracker import *
+from functional.IO_func import *
 
 
 from layers.UNet_pytorch_online import *
@@ -82,7 +83,7 @@ if __name__ == '__main__':
     #tracker.alpha = 0.5
     
     input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'; dataset = 'new crop pads'
-    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5 COLORED/1to1pair_b_series_t1_input_/'
+    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/1to1pair_b_series_t1_input_/'
     
     #input_path = 'E:/7) Bergles lab data/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; 
     #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
@@ -99,7 +100,7 @@ if __name__ == '__main__':
 
 
     """ Also load in the all_tree_indices file """
-    tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'
+    tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
     all_trees = load_all_trees(tree_csv_path)
 
 
