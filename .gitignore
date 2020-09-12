@@ -64,3 +64,6 @@ netmets.git/00_GT.obj
 *.swc
 *.obj
 sample.swc
+*.v3draw
+*.BMP
+*.avi

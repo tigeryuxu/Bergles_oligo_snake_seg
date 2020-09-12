@@ -264,7 +264,7 @@ def get_parent_nodes(tree, start_ind, num_parents, parent_coords):
             
         parent_coords = get_parent_nodes(tree, start_ind=parent_ind, num_parents=num_parents - 1, parent_coords=parent_coords)
 
-        #print(parent_ind)
+        print(parent_ind)
         return parent_coords
 
 

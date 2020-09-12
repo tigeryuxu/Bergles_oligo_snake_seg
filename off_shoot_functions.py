@@ -299,7 +299,7 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, seed_crop_
         crop[dilated_image_small > 0] = 0
         
         from skimage.filters import frangi, gaussian, meijering, sato, hessian
-        fran = frangi(crop,  sigmas=range(1, 2, 1), black_ridges=False, alpha=1, beta=0.5, gamma=15)
+        fran = frangi(crop,  sigmas=range(1, 6, 1), black_ridges=False, alpha=0.5, beta=0.5, gamma=15)
         
         
         #crop = gaussian(crop, sigma=2)
@@ -329,15 +329,16 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, seed_crop_
 
         #crop = LambdaAbs2;   # maybe this should be lambda 3???
 
-        #thresh = threshold_otsu(fran)
+        thresh = threshold_otsu(fran) 
+        thresh = thresh - thresh * 0.75
         
-        thresh = threshold_triangle(fran)
+        #thresh = threshold_triangle(fran)
         
         #thresh = 0.12   ### FOR NEURON SEGMENTATION
         binary = fran > thresh
         
-        #plot_max(binary, ax=-1)
-        #plot_max(fran, ax=-1)
+        # plot_max(binary, ax=-1)
+        # plot_max(fran, ax=-1)
         
         
      

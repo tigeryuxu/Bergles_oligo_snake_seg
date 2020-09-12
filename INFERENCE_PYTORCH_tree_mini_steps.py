@@ -57,7 +57,7 @@ torch.backends.cudnn.enabled = True
 
 """ Define GPU to use """
 import torch
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
@@ -100,13 +100,18 @@ check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_H
 
 #s_path = check_path + 'TEST_inference_132455_last_first_REAL/'
 
-#s_path = check_path + 'TEST_inference_158946_shortest_first/'
+#s_path = check_path + 'TEST_inference_158946_shortest_first_CLEANED_3_FULL_AUTO/'
+
+#s_path = check_path + 'TEST_inference_344383_shortest_first_CLEANED_3_NEURON/'
+#s_path = check_path + 'TEST_inference_344383_shortest_first_CLEANED_3/'
 
 #s_path = check_path + 'FULL_AUTO_TEST_inference_158946_last_first_NEURON/'
 
 #s_path = check_path + 'FULL_AUTO_TEST_inference_158946_last_first_REAL_2_CARE_RESTORED_FULL_AUTO/'
 
-s_path = check_path + 'TEST_inference_185437_shortest_first_NEURON/'
+s_path = check_path + 'TEST_inference_185437_shortest_first_NEURON_INTENSITY/'
+
+#s_path = check_path + 'TEST_inference_185437_shortest_first_NEURON_TWO/'
 #s_path = check_path + 'TEST_inference_185437_last_first_NEURON/'
 
 try:
@@ -116,13 +121,15 @@ try:
 except FileExistsError:
     print("Directory " , s_path ,  " already exists")
 
-input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px_NEW/'
+#input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px_NEW/';  seed_crop_size=100; seed_z_size=80
 #input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
 
 #input_path = '/media/user/storage/Data/(1) snake seg project/CARE_flipped_reconstruction/to segment/'
 
 
-input_path = '/media/user/storage/Data/(1) snake seg project/BigNeuron data/gold166/Training data neurons/test/'
+input_path = '/media/user/storage/Data/(1) snake seg project/BigNeuron data/gold166/Training data neurons/test/';  seed_crop_size=150; seed_z_size=80
+
+#input_path = '/media/user/storage/Data/(1) snake seg project/BigNeuron data/gold166/Training data neurons/test/';  seed_crop_size=80; seed_z_size=50
 
 """ Load filenames from zip """
 images = glob.glob(os.path.join(input_path,'*input.tif*'))
@@ -174,7 +181,7 @@ scale_factor = original_scaling/target_scale;
 scaled_crop_size = round(input_size/scale_factor);
 scaled_crop_size = math.ceil(scaled_crop_size / 2.) * 2  ### round up to even num
 
-scale_for_animation = 0
+scale_for_animation = 1
 
 for i in range(len(examples)):              
 
@@ -182,7 +189,7 @@ for i in range(len(examples)):
         
         sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds, all_seeds_no_50 = load_input_as_seeds(examples, im_num=i,
                                                                                                                                  pregenerated=pregenerated, s_path=s_path,
-                                                                                                                                 seed_crop_size=150, seed_z_size=80)   
+                                                                                                                                 seed_crop_size=seed_crop_size, seed_z_size=seed_z_size)   
 
         input_name = examples[i]['input']
         filename = input_name.split('/')[-1].split('.')[0:-1]
@@ -191,7 +198,9 @@ for i in range(len(examples)):
        
         """ scale input im for animations """
         if scale_for_animation:
+            
              input_im_rescaled = convert_matrix_to_multipage_tiff(input_im)   
+             input_im_rescaled = resize(input_im_rescaled, (input_im_rescaled.shape[0], input_im_rescaled.shape[1] * scale_for_animation, input_im_rescaled.shape[2]  * scale_for_animation))
              
             
         """ add seeds to form roots of tree """
@@ -265,15 +274,15 @@ for i in range(len(examples)):
              
             
              """ Keep looping until everything has been visited """  
-             resize = 0
+             resize_crop = 0
              while np.asarray(tree.visited.isnull()).any():   
 
                  
                 ### convert center cube back to original size
-                if resize == 1:
+                if resize_crop == 1:
                    center_cube_pm = create_cube_in_im(width=8, input_size=input_size * 2, z_size=z_size * 2)
                    small_cube = create_cube_in_im(width=5, input_size=input_size * 2, z_size=z_size * 2) 
-                   resize = 0
+                   resize_crop = 0
 
                 """ Get coords at node
                         ***go to node that is SHORTEST PATH LENGTH AWAY FIRST!!!
@@ -451,7 +460,7 @@ for i in range(len(examples)):
                 
                     output_tracker[output_tracker > 0] = 1
                     output_PYTORCH,  box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(output_tracker, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
-                    resize = 1
+                    resize_crop = 1
                     
                     center_cube_pm = create_cube_in_im(width=8, input_size=input_size * mult, z_size=z_size * 3)
                     
@@ -459,7 +468,18 @@ for i in range(len(examples)):
                     
                     mult += 1
                     
-                    #print(box_x_min)
+                    
+                    ### Don't let it get TOO crazy big
+                    if mult >= 8:
+                        break
+                                              
+  
+                ### Don't let it get TOO crazy big
+                if mult >= 8:
+                   tree.visited[node_idx] = 1; print('Finished')                     
+                   iterator += 1;
+                   continue                      
+                       #print(box_x_min)
                 
                 
 
@@ -842,7 +862,7 @@ for i in range(len(examples)):
                     if len(loc_start) == 0:
                          mid = cur_start[int(len(cur_start)/2) - 1]
                         
-                         mid_hood = expand_coord_to_neighborhood([mid], lower=3, upper=3 + 1)
+                         mid_hood = expand_coord_to_neighborhood([mid], lower=2, upper=2 + 1)
                          mid_hood = np.vstack(mid_hood)
 
                          """ MIGHT GET TOO LARGE b/c of building up previous end points, so need to ensure crop """
@@ -857,10 +877,12 @@ for i in range(len(examples)):
                          tmp_degrees, coordinates = bw_skel_and_analyze(tmp_degrees)
                          coord_end = np.transpose(np.vstack(np.where(tmp_degrees == 1)))
                         
+                        
+                         match = 0
                          for coord in coord_end:
                             
                             print(np.linalg.norm(center - coord))
-                            if np.linalg.norm(mid - coord) <= 10:
+                            if np.linalg.norm(mid - coord) <= 8:
                                 line_coords = line_nd(mid, coord, endpoint=False)
                                 line_coords = np.transpose(line_coords)      
                                 
@@ -868,6 +890,42 @@ for i in range(len(examples)):
                                 #degrees[center[0], center[1], center[2]] = 2               
                                 
                                 print('loop')
+                                match = 1
+                         
+                            
+                         """ If no end points matched, then just use the entire coord body itself and find closest point """
+                         if not match:
+                             all_dist = []; all_lines = [];
+                             for coord in coordinates:
+                                dist = np.linalg.norm(mid - coord)
+                                if dist <= 8:
+                                    line_coords = line_nd(mid, coord, endpoint=False)
+                                    line_coords = np.transpose(line_coords)      
+                                    
+                                    
+                                    #degrees[center[0], center[1], center[2]] = 2               
+                                    
+                                    all_dist.append(dist)
+                                    all_lines.append(line_coords)
+                                    
+                                    
+                                    
+                             """ If still not matched after this, then skip, probably because too much was cut out from crop_prev """
+                             if len(all_dist) == 0:
+                                tree.visited[node_idx] = 1;
+                                print('SKIPPED CROP_PREV'); iterator += 1; continue                             
+                                     
+                             close_idx = np.argmin(all_dist)
+                             degrees[all_lines[close_idx][:, 0], all_lines[close_idx][:, 1], all_lines[close_idx][:, 2]] = 2
+                             
+                             
+                             
+                                    
+                                                             
+                             
+                                    
+                         
+                            
                          
                             
                          degrees[mid[0], mid[1], mid[2]] = 8
@@ -988,7 +1046,7 @@ for i in range(len(examples)):
                                 only need to update parent idx to be parent of node_idx BEFORE deleting AND depth
                         """
 
-                        
+                        tmp = tree.copy()
                         #root_neighborhood = cur_be_start
                         idx_to_del = np.where(tree.cur_idx == node_idx)[0][0]
                         parent = tree.parent[node_idx]
@@ -1008,6 +1066,11 @@ for i in range(len(examples)):
                                               start=1, width_tmp=width_tmp, height_tmp=height_tmp, depth_tmp=depth_tmp)
                         
                         #tree.child[cur_idx][0] = list(np.concatenate((tree.child[cur_idx][0], cur_childs), axis=-1))
+                        
+                        
+                        """ DEBUG: ensure it is re-inserted """
+                        print(tree.cur_idx[idx_to_del])
+                        
                         
                         ### set "visited" to correct value
                         for idx, node in tree.iterrows():
@@ -1040,7 +1103,9 @@ for i in range(len(examples)):
                              
    
                              im[im > 0] = 1
-                             image_rescaled = rescale(im, scale_for_animation)        
+                             
+                             """ RESCALE IF WANT LOWER QUALITY DATA to save space!!! *** but must scale both ouptut AND input!!! """
+                             image_rescaled = resize(im, (im.shape[0], im.shape[1] * scale_for_animation, im.shape[2]  * scale_for_animation))
                              image_rescaled[image_rescaled > 0.01] = 1   # binarize again
                              
                              imsave(s_path + filename + '_ANIMATION_crop_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(image_rescaled * 255, dtype=np.uint8)) 

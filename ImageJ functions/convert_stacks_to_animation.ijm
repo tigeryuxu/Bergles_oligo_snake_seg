@@ -4,8 +4,8 @@
 //dir = "C:\\Users\\Neuroimmunology Unit\\Documents\\GitHub\\Optic Nerve\\Etienne\\Control Images\\"
 //dir = "C:\\Users\\Neuroimmunology Unit\\Documents\\GitHub\\Optic Nerve\\Training Data\\New folder\\"
 dir_raw = getDirectory("Choose raw Directory");
-dir_output = getDirectory("Choose output Directory");
-dir_save = getDirectory("Choose save Directory");
+dir_output = getDirectory("Choos output Directory");
+dir_save = getDirectory("Choo save Directory");
 //setBatchMode(true);
 // ***ALSO MUST OPEN AN IMAGE OF THE CORRECT SIZE WHICH NAME MATCHES LINE #96
 //count = 0;
@@ -30,14 +30,27 @@ new_frames = num_files;
 print(new_slices);
 print(new_frames);
 run("Stack to Hyperstack...", "order=xyczt(default) channels=1 slices=" + new_slices + " frames=" + new_frames + " display=Grayscale");
+rename("original")
 
+// might need to interpolate to make a bit smaller
+run("Scale...", "x=0.75 y=0.75 z=1.0 interpolation=Bilinear average process create");
+selectWindow("original");
+close();
+rename("raw")
 
 /// Load in the output data
 run("Image Sequence...", "open=[" + dir_output + "/" + first_output + "] sort");
 run("Stack to Hyperstack...", "order=xyczt(default) channels=1 slices=" + new_slices + " frames=" + new_frames + " display=Grayscale");
+rename("original")
+
+// might need to interpolate to make a bit smaller
+run("Scale...", "x=0.75 y=0.75 z=1.0 interpolation=Bilinear average process create");
+selectWindow("original");
+close();
+rename("output")
 
 // merge together to make RGB
-run("Merge Channels...", "c1=output c2=raw create");
+run("Merge Channels...", "c2=raw c6=output create");
 run("RGB Color", "slices frames");
 
 getDimensions(width, height, channels, slices, frames);
