@@ -56,7 +56,7 @@ torch.backends.cudnn.enabled = True
 if __name__ == '__main__':
         
     """ Define GPU to use """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     print(device)
     
     """" path to checkpoints """       
@@ -76,6 +76,9 @@ if __name__ == '__main__':
     #s_path = './(63) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_SKEL/'; HD = 1; alpha = 1; skeletonize = 1
     s_path = './(64) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_HISTORICAL/'; HD = 1; alpha = 1; 
     
+    
+    s_path = './(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step_REAL_HISTORICAL/'; HD = 1; alpha = 1; 
+    
     """ path to input data """
     # (2)
     
@@ -83,7 +86,7 @@ if __name__ == '__main__':
     #tracker.alpha = 0.5
     
     input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'; dataset = 'new crop pads'
-    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/1to1pair_b_series_t1_input_/'
+    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING FORWARD PROP seed 2 COLORED 48 z DATA/'; dataset = 'historical seed 2 z 48'
     
     #input_path = 'E:/7) Bergles lab data/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; 
     #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
@@ -125,7 +128,7 @@ if __name__ == '__main__':
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
     std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
 
-    num_workers = 2;
+    num_workers = 4;
  
     save_every_num_epochs = 1; plot_every_num_epochs = 1; validate_every_num_epochs = 1;      
     
@@ -143,7 +146,7 @@ if __name__ == '__main__':
         #transforms = initialize_transforms(p=0.5)
         #transforms = initialize_transforms_simple(p=0.5)
         transforms = 0
-        batch_size = 4;      
+        batch_size = 8;      
         test_size = 0.1  
         
         
@@ -151,7 +154,7 @@ if __name__ == '__main__':
         """ Initialize network """  
         kernel_size = 7
         pad = int((kernel_size - 1)/2)
-        unet = UNet_online(in_channels=12, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
+        unet = UNet_online(in_channels=22, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
                             batch_norm=True, batch_norm_switchable=switch_norm, up_mode='upsample')
         #unet = NestedUNet(num_classes=2, input_channels=2, deep_sup=deep_sup, padding=pad, batch_norm_switchable=switch_norm)
         #unet = UNet_3Plus(num_classes=2, input_channels=2, kernel_size=kernel_size, padding=pad)
@@ -338,129 +341,152 @@ if __name__ == '__main__':
                  #                            s_path, iterations, plot_depth=8)
 
 
-         tracker.train_loss_per_epoch.append(loss_train/iter_cur_epoch)
-         tracker.train_jacc_per_epoch.append(jacc_train/iter_cur_epoch)        
-    
-         """ Should I keep track of loss on every single sample? and iteration? Just not plot it??? """   
-         loss_val = 0; jacc_val = 0; val_idx = 0;
-         iter_cur_epoch = 0;  ce_val = 0; dc_val = 0; hd_val = 0;
-         if cur_epoch % validate_every_num_epochs == 0:
-             
-              with torch.set_grad_enabled(False):  # saves GPU RAM
-                   unet.eval()
-                   for batch_x_val, batch_y_val, spatial_weight in val_generator:
-                      
-                        """ Transfer to GPU to normalize ect... """
-                        inputs_val, labels_val = transfer_to_GPU(batch_x_val, batch_y_val, device, tracker.mean_arr, tracker.std_arr)
-                        inputs_val = inputs_val[:, 0, ...]   
-             
-                        # forward pass to check validation
-                        output_val = unet(inputs_val)
 
-                        """ calculate loss 
-                                include HD loss functions """
-                        if tracker.HD:
-                            loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
-                                                                                          ce_val, dc_val, hd_val, val_bool=1)
-                        else:
-                            if deep_sup:                                                
-                                # compute output
-                                loss = 0
-                                for output in output_val:
-                                     loss += loss_function(output, labels_val)
-                                loss /= len(output_val)                                
-                                output_val = output_val[-1]  # set this so can eval jaccard later                            
-                            else:
-                            
-                                loss = loss_function(output_val, labels_val)       
-                                if torch.is_tensor(spatial_weight):
-                                       spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
-                                       weighted = loss * spatial_tensor
-                                       loss = torch.mean(weighted)
-                                elif dist_loss:
-                                       loss  # do not do anything if do not need to reduce
-                                    
-                                else:
-                                       loss = torch.mean(loss)  
 
-                        """ Training loss """
-                        tracker.val_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
-                        loss_val += loss.cpu().data.numpy()
-                                         
-                        """ Calculate jaccard on GPU """
-                        jacc = jacc_eval_GPU_torch(output_val, labels_val)
-                        jacc = jacc.cpu().data.numpy()
+                 """ Should I keep track of loss on every single sample? and iteration? Just not plot it??? """   
+                 if tracker.iterations % 10000 == 0:
+                     
+
+                     """ calculate new alpha for next epoch """   
+                     if tracker.HD:
+                         tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch)
+                         
+                         #tracker.alpha = 0.5
+
+                     tracker.train_loss_per_epoch.append(loss_train/iter_cur_epoch)
+                     tracker.train_jacc_per_epoch.append(jacc_train/iter_cur_epoch)     
                         
-                        jacc_val += jacc
-                        tracker.val_jacc_per_batch.append(jacc)   
+                     
+                     loss_val = 0; jacc_val = 0; val_idx = 0;
+                     iter_cur_epoch = 0;  ce_val = 0; dc_val = 0; hd_val = 0;
+                     if cur_epoch % validate_every_num_epochs == 0:
+                         
+                          with torch.set_grad_enabled(False):  # saves GPU RAM
+                               unet.eval()
+                               for batch_x_val, batch_y_val, spatial_weight in val_generator:
+                                  
+                                    """ Transfer to GPU to normalize ect... """
+                                    inputs_val, labels_val = transfer_to_GPU(batch_x_val, batch_y_val, device, tracker.mean_arr, tracker.std_arr)
+                                    inputs_val = inputs_val[:, 0, ...]   
+                         
+                                    # forward pass to check validation
+                                    output_val = unet(inputs_val)
+            
+                                    """ calculate loss 
+                                            include HD loss functions """
+                                    if tracker.HD:
+                                        loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
+                                                                                                      ce_val, dc_val, hd_val, val_bool=1)
+                                    else:
+                                        if deep_sup:                                                
+                                            # compute output
+                                            loss = 0
+                                            for output in output_val:
+                                                 loss += loss_function(output, labels_val)
+                                            loss /= len(output_val)                                
+                                            output_val = output_val[-1]  # set this so can eval jaccard later                            
+                                        else:
+                                        
+                                            loss = loss_function(output_val, labels_val)       
+                                            if torch.is_tensor(spatial_weight):
+                                                   spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                                                   weighted = loss * spatial_tensor
+                                                   loss = torch.mean(weighted)
+                                            elif dist_loss:
+                                                   loss  # do not do anything if do not need to reduce
+                                                
+                                            else:
+                                                   loss = torch.mean(loss)  
+            
+                                    """ Training loss """
+                                    tracker.val_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
+                                    loss_val += loss.cpu().data.numpy()
+                                                     
+                                    """ Calculate jaccard on GPU """
+                                    jacc = jacc_eval_GPU_torch(output_val, labels_val)
+                                    jacc = jacc.cpu().data.numpy()
+                                    
+                                    jacc_val += jacc
+                                    tracker.val_jacc_per_batch.append(jacc)   
+            
+                                    val_idx = val_idx + tracker.batch_size
+                                    print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
+                                    iter_cur_epoch += 1
+            
+                                    #if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
+            
+                                       
+                               tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
+                               tracker.val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       
+                               
+                               """ Add to scheduler to do LR decay """
+                               scheduler.step()
+            
 
-                        val_idx = val_idx + tracker.batch_size
-                        print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
-                        iter_cur_epoch += 1
-
-                        #if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
-
-                           
-                   tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
-                   tracker.val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       
-                   
-                   """ Add to scheduler to do LR decay """
-                   scheduler.step()
-
-                    
-         """ calculate new alpha for next epoch """   
-         if tracker.HD:
-             tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch)
-             
-             #tracker.alpha = 0.5
-
-
-         """ Plot metrics every epoch """      
-         if cur_epoch % plot_every_num_epochs == 0:       
-              
-             
-              """ Plot metrics in tracker """
-              plot_tracker(tracker, s_path)
-              
-              """ custom plot """
-              output_train = output_train.cpu().data.numpy()            
-              output_train = np.moveaxis(output_train, 1, -1)              
-              seg_train = np.argmax(output_train[0], axis=-1)  
-              
-              # convert back to CPU
-              batch_x = batch_x.cpu().data.numpy() 
-              batch_y = batch_y.cpu().data.numpy() 
-              batch_x_val = batch_x_val.cpu().data.numpy()
-              
-              
-              batch_y_val = batch_y_val.cpu().data.numpy() 
-              output_val = output_val.cpu().data.numpy()            
-              output_val = np.moveaxis(output_val, 1, -1)       
-              seg_val = np.argmax(output_val[0], axis=-1)  
-              
-              plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_val, batch_x[0], batch_x_val[0], batch_y[0], batch_y_val[0],
-                                       s_path, tracker.iterations, plot_depth=8)
-                                             
-              
-         """ To save tracker and model (every x iterations) """
-         if cur_epoch % save_every_num_epochs == 0:           
-               stop_time_epoch = time.perf_counter(); diff = stop_time_epoch - start_time_epoch; print(diff); 
-              
-               save_name = s_path + 'check_' +  str(tracker.iterations)               
-               torch.save({
-                'tracker': tracker,
-
-                'model_type': unet,
-                'optimizer_type': optimizer,
-                'scheduler_type': scheduler,
-                
-                'model_state_dict': unet.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler': scheduler.state_dict(),
-                'loss_function': loss_function,  
-                
-                }, save_name)
+                     """ Plot metrics every epoch """      
+                     if cur_epoch % plot_every_num_epochs == 0:       
+                          
+                         
+                          """ Plot metrics in tracker """
+                          plot_tracker(tracker, s_path)
+                          
+                          """ custom plot """
+                          output_train = output_train.cpu().data.numpy()            
+                          output_train = np.moveaxis(output_train, 1, -1)              
+                          seg_train = np.argmax(output_train[0], axis=-1)  
+                          
+                          # convert back to CPU
+                          batch_x = batch_x.cpu().data.numpy() 
+                          batch_y = batch_y.cpu().data.numpy() 
+                          batch_x_val = batch_x_val.cpu().data.numpy()
+                          
+                          
+                          batch_y_val = batch_y_val.cpu().data.numpy() 
+                          output_val = output_val.cpu().data.numpy()            
+                          output_val = np.moveaxis(output_val, 1, -1)       
+                          seg_val = np.argmax(output_val[0], axis=-1)  
+                          
+                          plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_val, batch_x[0], batch_x_val[0], batch_y[0], batch_y_val[0],
+                                                   s_path, tracker.iterations, plot_depth=8)
+                                                         
+                          
+                     """ To save tracker and model (every x iterations) """
+                     if cur_epoch % save_every_num_epochs == 0:           
+                           stop_time_epoch = time.perf_counter(); diff = stop_time_epoch - start_time_epoch; print(diff); 
+                          
+                           save_name = s_path + 'check_' +  str(tracker.iterations)               
+                           torch.save({
+                            'tracker': tracker,
+            
+                            'model_type': unet,
+                            'optimizer_type': optimizer,
+                            'scheduler_type': scheduler,
+                            
+                            'model_state_dict': unet.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict(),
+                            'scheduler': scheduler.state_dict(),
+                            'loss_function': loss_function,  
+                            
+                            }, save_name)
      
+
+
+   
+    
+                     """ check and plot params during training """             
+                     for param_group in optimizer.param_groups:
+                           #tracker.alpha = 0.5
+                           #param_group['lr'] = 1e-6   # manually sets learning rate
+                           cur_lr = param_group['lr']
+                           tracker.lr_plot.append(cur_lr)
+                           tracker.print_essential()
+            
+                     unet.train()  ### set PYTORCH to training mode
+            
+                     start_time_epoch = time.perf_counter();
+                     loss_train = 0; jacc_train = 0; ce_train = 0; dc_train = 0; hd_train = 0;
+                     iter_cur_epoch = 0; starter = 0;                     
+                     
                 
 
                 

@@ -176,13 +176,27 @@ def scale_coords_of_crop_to_full(coords, box_xyz, box_over):
         return scaled  
 
 """ Organize coordinates of line into line order """
-def order_coords(coords):
+def order_coords(coords, idx_start=0):
     
-    clf = NearestNeighbors(n_neighbors=2).fit(coords)
+    clf = NearestNeighbors(n_neighbors=3).fit(coords)
     G = clf.kneighbors_graph()
-    T = nx.from_scipy_sparse_matrix(G)
-    order = list(nx.dfs_preorder_nodes(T, 0))
-    organized_coords = coords[order]   # SORT BY ORDER
+    
+    
+    """ New sorting, changed num neighbors to 3 above """
+    from scipy.sparse.csgraph import shortest_path
+    dist_matrix, predecessors = shortest_path(csgraph=G, directed=False, return_predecessors=True)
+
+
+    from tsp_solver.greedy import solve_tsp
+    path = solve_tsp(dist_matrix, endpoints=(0, len(coords) - 1))
+    
+    sorted_coords = coords[path[::1]]
+    organized_coords = sorted_coords
+    
+    ### old sorting below
+    # T = nx.from_scipy_sparse_matrix(G)
+    # order = list(nx.dfs_preorder_nodes(T, 0))
+    # organized_coords = coords[order]   # SORT BY ORDER
     
     return organized_coords
 
@@ -193,8 +207,6 @@ def connect_nearby_px(coords):
     
     """ must only look at UNIQUE elements """
     coords = np.unique(coords, axis=0)
-    
-    
     clf = NearestNeighbors(n_neighbors=3).fit(coords)
     distances, indices = clf.kneighbors(coords)
     
@@ -253,14 +265,17 @@ def get_parent_nodes(tree, start_ind, num_parents, parent_coords):
         if parent_ind == -1:
             print("hit bottom of tree")
             return parent_coords
-        
-        parent_coords.append(tree.coords[parent_ind])
+      
         
         parent_coords.append(tree.start_be_coord[parent_ind][math.floor(len(tree.start_be_coord[parent_ind])/2)])
-      
+        parent_coords.append(tree.coords[parent_ind])
+        
         if not np.isnan(tree.end_be_coord[parent_ind]).any():
             parent_coords.append(tree.end_be_coord[parent_ind][math.floor(len(tree.end_be_coord[parent_ind])/2)])
             
+        
+            
+        
             
         parent_coords = get_parent_nodes(tree, start_ind=parent_ind, num_parents=num_parents - 1, parent_coords=parent_coords)
 

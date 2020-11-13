@@ -5,7 +5,14 @@ virtualenv --no-download pytorch
 source pytorch/bin/activate        ### this activates the virtual environment anytime you want to use it
 
 (2) Installation of python packages (within virtual environment):
-	pip install matplotlib scipy scikit-image pillow numpy natsort opencv-python keras pandas skan Cython sklearn numba torchio tifffile
+	pip install matplotlib scipy scikit-image pillow numpy natsort opencv-python pandas skan sklearn torchio tifffile
+
+
+### For Graham builds:
+pip install Cython
+pip install --upgrade pip   ### to be able to install opencv-python
+
+
 
 ### other side notes:
 	# ***installing sklearn requires Cython!

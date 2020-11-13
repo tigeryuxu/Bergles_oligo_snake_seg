@@ -168,7 +168,7 @@ def find_overlap_by_max_intensity(bw, intensity_map, min_size_obj=0):
         
         if max_val > 1 and len(coords) > min_size_obj:
              for c_idx in range(len(coords)):
-                  only_coloc[coords[c_idx,0], coords[c_idx,1], coords[c_idx,2] ] = 1
+                  only_coloc[coords[c_idx,0], coords[c_idx,1], coords[c_idx,2]] = 1
        
    return only_coloc
 
@@ -465,15 +465,20 @@ def create_auto_seeds(input_im, only_colocalized_mask, overall_coord, seed_crop_
 
 
 """ run UNet inference """
-def UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=None, deep_supervision=False):
+def UNet_inference_PYTORCH(unet, crop, crop_seed, mean_arr, std_arr, device=None, deep_supervision=False, past_im=None):
    """ Combine seed mask with input im"""
    input_im_and_seeds = np.zeros(np.shape(crop) + (2, ))
    input_im_and_seeds[:, :, :, 0] = crop
    input_im_and_seeds[:, :, :, 1] = crop_seed  
+   
+
 
 
    """ Rearrange channels """
    input_im_and_seeds = np.moveaxis(input_im_and_seeds, -1, 0)
+   if len(past_im) > 0:
+       input_im_and_seeds = np.concatenate((input_im_and_seeds, past_im))  
+   
    input_im_and_seeds = np.moveaxis(input_im_and_seeds, -1, 1)
    
    """ Normalization """

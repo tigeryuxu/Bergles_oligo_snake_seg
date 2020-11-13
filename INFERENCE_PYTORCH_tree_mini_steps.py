@@ -42,11 +42,6 @@ from matlab_crop_function import *
 from off_shoot_functions import *
 from tree_functions import *
 from skimage.morphology import skeletonize_3d, skeletonize
-
-
-
-
-
 from skimage.transform import rescale, resize, downscale_local_mean
 
 
@@ -61,7 +56,7 @@ device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
-pregenerated = 0
+pregenerated = 1
         
 """  Network Begins: """
 tracker = 0
@@ -87,18 +82,31 @@ tracker = 0
 #check_path = './(56) Checkpoint_unet_nested_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 
 
-check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+#check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+
+check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
+
 #check_path = './(60) Checkpoint_unet_COMPLEX_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; deep_supervision = False; tracker = 1;
 
 
 #check_path = './(62) Checkpoint_unet_COMPLEX_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
+
+z_size = 32
+
+
+""" Historical with 2 step training data """
+z_size = 48
+check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step_REAL_HISTORICAL/';  dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 1;
+
+""" No historical, 2 step matched """
+#check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(66) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 
 
 #storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
 #check_path = storage_path + '(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_FULL_DATA_REPEAT_SW_ACCID/'; dilation = 1; deep_supervision = False; tracker = 1;
 
 
-#s_path = check_path + 'TEST_inference_132455_last_first_REAL/'
+s_path = check_path + 'TEST_inference_185437_shortest_first_REAL_ANIMATED_HISTORICAL_20/'
 
 #s_path = check_path + 'TEST_inference_158946_shortest_first_CLEANED_3_FULL_AUTO/'
 
@@ -109,7 +117,7 @@ check_path = './(59) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_H
 
 #s_path = check_path + 'FULL_AUTO_TEST_inference_158946_last_first_REAL_2_CARE_RESTORED_FULL_AUTO/'
 
-s_path = check_path + 'TEST_inference_185437_shortest_first_NEURON_INTENSITY/'
+#s_path = check_path + 'TEST_inference_185437_shortest_first_NEURON_INTENSITY/'
 
 #s_path = check_path + 'TEST_inference_185437_shortest_first_NEURON_TWO/'
 #s_path = check_path + 'TEST_inference_185437_last_first_NEURON/'
@@ -121,13 +129,13 @@ try:
 except FileExistsError:
     print("Directory " , s_path ,  " already exists")
 
-#input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px_NEW/';  seed_crop_size=100; seed_z_size=80
+input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px_NEW/';  seed_crop_size=100; seed_z_size=80
 #input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
 
 #input_path = '/media/user/storage/Data/(1) snake seg project/CARE_flipped_reconstruction/to segment/'
 
 
-input_path = '/media/user/storage/Data/(1) snake seg project/BigNeuron data/gold166/Training data neurons/test/';  seed_crop_size=150; seed_z_size=80
+#input_path = '/media/user/storage/Data/(1) snake seg project/BigNeuron data/gold166/Training data neurons/test/';  seed_crop_size=150; seed_z_size=80
 
 #input_path = '/media/user/storage/Data/(1) snake seg project/BigNeuron data/gold166/Training data neurons/test/';  seed_crop_size=80; seed_z_size=50
 
@@ -171,7 +179,7 @@ unet.eval();   unet.to(device)
 input_size = 80
 
 crop_size = int(input_size/2)
-z_size = 32
+
 
 
 """ Change to scaling per crop??? """
@@ -181,7 +189,7 @@ scale_factor = original_scaling/target_scale;
 scaled_crop_size = round(input_size/scale_factor);
 scaled_crop_size = math.ceil(scaled_crop_size / 2.) * 2  ### round up to even num
 
-scale_for_animation = 1
+scale_for_animation = 0
 
 for i in range(len(examples)):              
 
@@ -190,7 +198,6 @@ for i in range(len(examples)):
         sorted_list, input_im, width_tmp, height_tmp, depth_tmp, overall_coord, all_seeds, all_seeds_no_50 = load_input_as_seeds(examples, im_num=i,
                                                                                                                                  pregenerated=pregenerated, s_path=s_path,
                                                                                                                                  seed_crop_size=seed_crop_size, seed_z_size=seed_z_size)   
-
         input_name = examples[i]['input']
         filename = input_name.split('/')[-1].split('.')[0:-1]
         filename = '.'.join(filename)
@@ -200,7 +207,7 @@ for i in range(len(examples)):
         if scale_for_animation:
             
              input_im_rescaled = convert_matrix_to_multipage_tiff(input_im)   
-             input_im_rescaled = resize(input_im_rescaled, (input_im_rescaled.shape[0], input_im_rescaled.shape[1] * scale_for_animation, input_im_rescaled.shape[2]  * scale_for_animation))
+             input_im_rescaled = resize(input_im_rescaled, (input_im_rescaled.shape[0] * scale_for_animation, input_im_rescaled.shape[1] * scale_for_animation, input_im_rescaled.shape[2]  * scale_for_animation))
              
             
         """ add seeds to form roots of tree """
@@ -245,32 +252,23 @@ for i in range(len(examples)):
             all_trees.append(tree_df)
             
             ### skip rest for debugging
-            #if i_r == 0:
+            # if i_r == 0:
             #       break
             
-
- 
-
-
         track_trees = np.zeros(np.shape(input_im))    
         num_tree = 0
 
         """ Create box in middle to only get seed colocalized with middle after splitting branchpoints """
         center_cube = create_cube_in_im(width=10, input_size=input_size, z_size=z_size)
         #small_center_cube = create_cube_in_im(width=8, input_size=input_size, z_size=z_size)
-        
-        
         center_cube_pm = create_cube_in_im(width=8, input_size=input_size * 2, z_size=z_size * 2)
-    
-        small_cube = create_cube_in_im(width=5, input_size=160, z_size=64) 
-        
-        
-        matplotlib.use('Agg')
+        small_cube = create_cube_in_im(width=5, input_size=input_size * 2, z_size=z_size * 2) 
         
         
         for iterator, tree in enumerate(all_trees):
              #if iterator != 2:
              #     continue
+             matplotlib.use('Agg')
              
             
              """ Keep looping until everything has been visited """  
@@ -302,13 +300,11 @@ for i in range(len(examples)):
                     all_lengths.append(len(parent_coords))                 
                 node_idx = unvisited_indices[np.argmin(all_lengths)]
                 
-                
-                
+                    
                 """ Or, just go to very last position """
                 #node_idx = unvisited_indices[-1]
                 
-                
-                
+
                 ### SKIP IF NO END_BE_COORD FROM 
                 if np.isnan(tree.end_be_coord[node_idx]).any():
                      tree.visited[node_idx] = 1; iterator += 1; continue;
@@ -327,13 +323,19 @@ for i in range(len(examples)):
                     a = 1
  
                 if len(parent_coords) > 0:
+                    save_start = parent_coords[0, :]
+                    save_end = parent_coords[-1, :]
                     parent_coords = connect_nearby_px(parent_coords)
                 
-                
-                
+                    idx_start = np.where((parent_coords == (save_start)).all(axis=1))[0][0]
+                    parent_coords = np.delete(parent_coords, idx_start, axis=0)
+                    parent_coords = np.vstack((save_start, parent_coords))
+                    
+                       
+                    idx_end = np.where((parent_coords == (save_end)).all(axis=1))[0][0]
+                    parent_coords = np.delete(parent_coords, idx_end, axis=0)
+                    parent_coords = np.vstack((parent_coords, save_end))
 
-                
-                                
 
                 # cur_seg_im = np.zeros(np.shape(input_im))   # maybe speed up here by not creating the image every time???
                 # cur_seg_im[cur_coords[:, 0], cur_coords[:, 1], cur_coords[:, 2]] = 1
@@ -347,14 +349,42 @@ for i in range(len(examples)):
                 # crop_seed, output_non_bin = bridge_end_points(crop_seed, bridge_radius=2)
                 
 
-                
                 """ Order coords """
                 ### SKIP IF TOO SHORT for mini-steps
                 if len(cur_coords) == 1:
                      tree.visited[node_idx] = 1; iterator += 1; continue;
                 else:
-                    cur_coords = order_coords(cur_coords)   ### ***order the points into line coordinates
+                    size_in = len(cur_coords)
+                    if len(cur_coords) > 3:
+                        cur_coords = order_coords(cur_coords)   ### ***order the points into line coordinates
+                        #cur_coords = np.flip(cur_coords, axis=0)
+                    
+                    ### check if size in == size out!!!
+                    if size_in != len(cur_coords):
+                        print('weird size change from order coords!!!')
+                        #zzz
 
+
+                """ Setup image so can get historical crops later """                
+                if len(parent_coords) > 0:
+                    im_hist = np.zeros(input_im.shape, dtype=np.int32)
+                    # for idx_hist, row in enumerate(parent_coords):
+                    #     im_hist[row[0], row[1], row[2]] = idx_hist + 1
+                    # plot_max(im_hist, ax=-1)
+                    
+                    # im_hist[parent_coords[:, 0], parent_coords[:, 1], parent_coords[:, 2]] = 1
+                    # import dijkstra3d
+                    # field = im_hist
+                    # source = (parent_coords[0, :])
+                    # target = (parent_coords[-1, :])
+                    
+                    # path = dijkstra3d.dijkstra(field, source, target, bidirectional=True) 
+                    
+                    # im_hist = np.zeros(input_im.shape, dtype=np.int32)
+                    # im_hist[path[:, 0], path[:, 1], path[:, 2]] = 1
+                    # plot_max(im_hist, ax=-1)
+                    
+                    
                 """ Split into mini-steps """
                 ### Step size:
                 step_size = 5; 
@@ -364,9 +394,60 @@ for i in range(len(examples)):
              
                 
                 output_tracker = np.zeros(np.shape(input_im))
+                
+                """ REVERSE DIRECTION FOR parent COORDS and cur coords ??? """
+                # parent_coords = np.flip(parent_coords, axis=0)
+                # cur_coords_flip = np.flip(cur_coords, axis=0)
+                if len(parent_coords) > 3:                    
+                    parent_coords = order_coords(parent_coords)
+                    
+                    
                 for step in range(step_size_first, len(cur_coords), step_size):
                     
-                        
+                      """ Setup to get historical crops """
+                      past_im = []
+                      if HISTORICAL and len(parent_coords) > 0:
+
+                          hist_coords = np.concatenate((parent_coords, cur_coords[0:step]))
+                          im_hist[hist_coords[:, 0], hist_coords[:, 1], hist_coords[:, 2]] = 1 
+        
+                            
+                          for hist_id in range(len(hist_coords) - 1, 0, -20):
+                              
+                              x_pa = int(hist_coords[hist_id, 0]); y_pa =  int(hist_coords[hist_id, 1]); z_pa = int(hist_coords[hist_id, 2])
+                              """ use centroid of object to make seed crop """
+                              crop_hist, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(input_im, y_pa, x_pa, z_pa, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                
+                              #cur_seg_im[x,y,z] = 2   ### IF WANT TO SEE WHAT THE CROP IS CENTERING ON
+                              crop_seed_hist, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(im_hist, y_pa, x_pa, z_pa, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
+    
+    
+                              """ Dilate the seed by sphere 1 to mimic training data """
+                              crop_seed_hist = skeletonize_3d(crop_seed_hist)
+                              """ Make sure no gaps in crop_seed """
+                              crop_seed_hist, output_non_bin = bridge_end_points(crop_seed_hist, bridge_radius=2)
+                              crop_seed_hist = dilate_by_ball_to_binary(crop_seed_hist, radius=dilation)
+                              crop_seed_hist[crop_seed_hist > 0] = 255
+                              
+                                                    
+                              # plot_max(crop_hist, ax=-1)
+                              # plot_max(crop_seed_hist, ax=-1)
+                              
+                              past_im.append(crop_hist)
+                              past_im.append(crop_seed_hist)
+                              
+            
+                              if len(past_im) == 20:
+                                  break
+                             
+                      ### append blanks otherwise
+                      while len(past_im) < 20:
+                         past_im.append(np.zeros(np.shape(crop_hist)))
+                    
+                      past_im = np.asarray(past_im)
+                          
+             
+                     
+                      
                       """ DONT DO THE LAST STEP """
                       # if step_size_first > 0 and len(cur_coords) - step < step_size:
                       #     continue;
@@ -401,7 +482,7 @@ for i in range(len(examples)):
 
                       """ Send to segmentor for INFERENCE """
                       crop_seed[crop_seed > 0] = 255  
-                      output_PYTORCH = UNet_inference_PYTORCH(unet,np.asarray(crop, np.float32), crop_seed, mean_arr, std_arr, device=device, deep_supervision=deep_supervision)
+                      output_PYTORCH = UNet_inference_PYTORCH(unet,np.asarray(crop, np.float32), crop_seed, mean_arr, std_arr, device=device, deep_supervision=deep_supervision, past_im=past_im)
             
                       """ Since it's centered around crop, ensure doesn't go overboard """
                       output_PYTORCH[boundaries_crop == 0] = 0
@@ -419,11 +500,12 @@ for i in range(len(examples)):
                       prev_seg = output_tracker[box_xyz[0]:box_xyz[1], box_xyz[2]:box_xyz[3], box_xyz[4]:box_xyz[5]] 
                       output_tracker[box_xyz[0]:box_xyz[1], box_xyz[2]:box_xyz[3], box_xyz[4]:box_xyz[5]] = prev_seg + output_PYTORCH[box_over[0]:prev_seg.shape[0] + box_over[0], box_over[2]:prev_seg.shape[1] + box_over[2], box_over[4]:prev_seg.shape[2] + box_over[4]]
             
+                    
 
- 
-                # if iterator == 5:    ### ALSO IN THE 50s
+                # plt.close('all') 
+                # if iterator == 43:    ### ALSO IN THE 50s
                 #         zzz
-
+                        
 
                                 
                 """ ALSO HAVE TO RESET CUR_BE_END to align with current location of mini-step and NOT actual end of segment!!!
@@ -919,14 +1001,7 @@ for i in range(len(examples)):
                              degrees[all_lines[close_idx][:, 0], all_lines[close_idx][:, 1], all_lines[close_idx][:, 2]] = 2
                              
                              
-                             
-                                    
-                                                             
-                             
-                                    
-                         
-                            
-                         
+
                             
                          degrees[mid[0], mid[1], mid[2]] = 8
                     else:
@@ -949,10 +1024,6 @@ for i in range(len(examples)):
                     #degrees[bw_deg == 0] = 0
                     
 
-                    
-                    
-                
-                    
                     ###remove all the others that match this first one???
                     plot_save_max_project(fig_num=9, im=degrees, max_proj_axis=-1, title='segmentation_deleted', 
                                 name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator)  + '_step_' + str(step) + '_(5)_segmentation_deleted.png', pause_time=0.001) 
@@ -1105,7 +1176,7 @@ for i in range(len(examples)):
                              im[im > 0] = 1
                              
                              """ RESCALE IF WANT LOWER QUALITY DATA to save space!!! *** but must scale both ouptut AND input!!! """
-                             image_rescaled = resize(im, (im.shape[0], im.shape[1] * scale_for_animation, im.shape[2]  * scale_for_animation))
+                             image_rescaled = resize(im, (im.shape[0] * scale_for_animation, im.shape[1] * scale_for_animation, im.shape[2] * scale_for_animation))
                              image_rescaled[image_rescaled > 0.01] = 1   # binarize again
                              
                              imsave(s_path + filename + '_ANIMATION_crop_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(image_rescaled * 255, dtype=np.uint8)) 
@@ -1118,7 +1189,16 @@ for i in range(len(examples)):
                
              num_tree += 1 
              print('Tree #: ' + str(num_tree) + " of possible: " + str(len(all_trees)))
-             
+
+
+             """ Set globally """
+             matplotlib.use('Qt5Agg')
+             plt.rc('xtick',labelsize=16)
+             plt.rc('ytick',labelsize=16)
+             plt.rcParams['figure.dpi'] = 300
+             ax_title_size = 18
+             leg_size = 16
+                     
                  
              """ Save max projections and pickle file """
              im = show_tree(tree, track_trees)
@@ -1131,7 +1211,7 @@ for i in range(len(examples)):
                                         name=s_path + filename + '_overall_segmentation_BW' + str(num_tree) + '_.png', pause_time=0.001)        
 
         
-        
+             
         
         
         

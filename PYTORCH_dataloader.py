@@ -89,7 +89,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         self.skeletonize = skeletonize
         self.all_trees = all_trees
         
-        self.num_parents = 5
+        self.num_parents = 10
         
         
         ### Define orig idx and start indices so can be found easier later
@@ -97,7 +97,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         self.all_orig_idx = np.asarray(self.examples_arr['orig_idx'])
         self.all_start_indices =  np.where(self.all_orig_idx == 1)[0]
         
-        self.height = 80; self.width = 80; self.depth = 32;
+        self.height = 80; self.width = 80; self.depth = 48;
         
 
   def apply_transforms(self, image, labels):
@@ -329,6 +329,11 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         all_parent_im = []
         if np.max(parents) != 0:
                 
+            """ add current value to list of parents so can include past traces of itself as well 
+                    ***maybe move this to before this if statement???
+            """
+            parents = [cur_val] + parents
+            
             ### then search through examples to find matching
             
             ### to save memory, only search through - 10000 examples           
@@ -362,13 +367,12 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 
             all_parent_indices[::-1].sort()  ### sort into descending order
             
-            get_every = 4
+            get_every = 10
             all_parent_indices_skip = []
             for idx, val in enumerate(all_parent_indices):
-                rand_idx = randint(-get_every/2, 0)
+                rand_idx = randint(-2, 0)
                 
                 if idx % get_every == 0:           
-                    
                     if idx == 0:
                     
                         if  idx + 2 < len(all_parent_indices):
@@ -384,12 +388,13 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 
             #all_parent_indices_skip = all_parent_indices[0::4]  ### get every 4th index
             
-    
+            """ Scale indices to size of whole list """
+            all_parent_indices_skip = all_parent_indices_skip + start_im_num
          
             """ Actually load the parents """         
             for parent_idx in all_parent_indices_skip:
          
-                input_name = self.examples[parent_idx]['input']
+                input_name = self.examples[parent_idx]['input']    ### SCALE NUMBER BACK
                 truth_name = self.examples[parent_idx]['truth']
                 seed_name = self.examples[parent_idx]['seed_crop']
     
@@ -414,10 +419,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 
                 ### OTHERWISE, only use the crop, not the full length                
                 #parent_trace = seed_crop
-                
-                
-                
-                
+
                 parent_trace[parent_trace > 0] = 255
                 
                 
@@ -434,8 +436,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 ### DEBUG:
                 # plot_max(X, ax=0)
                 # plot_max(parent_trace, ax=0)
-            
-            
+
             
         """ If did NOT get enough parents, then append empty arrays """
         num_empty = 0
@@ -510,6 +511,8 @@ class Dataset_tiffs_snake_seg(data.Dataset):
             all_parent_im = self.load_parents(index, self.num_parents)
             all_parent_im = np.asarray(all_parent_im)
             
+            if len(all_parent_im.shape) == 1:
+                 print('debug')
             
             X = np.concatenate((X, all_parent_im))
             
