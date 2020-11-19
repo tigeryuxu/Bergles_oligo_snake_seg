@@ -64,7 +64,7 @@ def bridge_end_points(output_PYTORCH, bridge_radius=2):
             
   
     ### (2) Find the end points AND(???) branchpoints
-    degrees, coordinates = bw_skel_and_analyze(output_PYTORCH)
+    pixel_graph, degrees, coordinates = bw_skel_and_analyze(output_PYTORCH)
     be_points = np.copy(degrees); be_points[be_points == 2] = 0; be_points[be_points > 0] = 1;
     
     labelled = measure.label(be_points)
@@ -175,10 +175,19 @@ def scale_coords_of_crop_to_full(coords, box_xyz, box_over):
         scaled = coords
         return scaled  
 
+""" Given coord of shape x, y, z in a cropped image, scales back to size in full size image """
+def scale_coord_to_full(coord, box_xyz, box_over):
+        coord[0] = np.round(coord[0]) + (box_xyz[0] - box_over[0])   # SCALING the ep_center
+        coord[1] = np.round(coord[1]) + (box_xyz[2] - box_over[2])
+        coord[2] = np.round(coord[2]) + (box_xyz[4] - box_over[4])
+        scaled = coord
+        return scaled  
+
+
 """ Organize coordinates of line into line order """
 def order_coords(coords, idx_start=0):
     
-    clf = NearestNeighbors(n_neighbors=3).fit(coords)
+    clf = NearestNeighbors(n_neighbors=2).fit(coords)
     G = clf.kneighbors_graph()
     
     
@@ -267,17 +276,25 @@ def get_parent_nodes(tree, start_ind, num_parents, parent_coords):
             return parent_coords
       
         
-        parent_coords.append(tree.start_be_coord[parent_ind][math.floor(len(tree.start_be_coord[parent_ind])/2)])
-        parent_coords.append(tree.coords[parent_ind])
-        
-        if not np.isnan(tree.end_be_coord[parent_ind]).any():
-            parent_coords.append(tree.end_be_coord[parent_ind][math.floor(len(tree.end_be_coord[parent_ind])/2)])
-            
-        
-            
-        
-            
         parent_coords = get_parent_nodes(tree, start_ind=parent_ind, num_parents=num_parents - 1, parent_coords=parent_coords)
+
+
+        ### HACK: do this instead if neighborhood is just single coordinate
+        if len(tree.start_be_coord[parent_ind]) == 3:
+            #print('yeet')
+            parent_coords.append(tree.start_be_coord[parent_ind])
+            parent_coords.append(tree.coords[parent_ind])
+            parent_coords.append(tree.end_be_coord[parent_ind])
+    
+
+                    
+        else:
+            parent_coords.append(tree.start_be_coord[parent_ind][math.floor(len(tree.start_be_coord[parent_ind])/2)])
+            parent_coords.append(tree.coords[parent_ind])
+        
+            if not np.isnan(tree.end_be_coord[parent_ind]).any():
+                parent_coords.append(tree.end_be_coord[parent_ind][math.floor(len(tree.end_be_coord[parent_ind])/2)])
+    
 
         print(parent_ind)
         return parent_coords
@@ -303,7 +320,7 @@ def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp, all_
                                                                                 crop_size=250, z_size=100, height=height_tmp, width=width_tmp, depth=depth_tmp)
      
     """ add endpoints to a new list of points to visit (seed_idx) """
-    degrees_small, coordinates = bw_skel_and_analyze(crop)
+    pixel_graph, degrees_small, coordinates = bw_skel_and_analyze(crop)
     degrees_full_size = np.zeros(np.shape(input_im))
     degrees_full_size[box_x_min:box_x_max, box_y_min:box_y_max, box_z_min:box_z_max] = degrees_small
     degrees = degrees_full_size
@@ -330,7 +347,14 @@ def get_tree_from_im_list(root, input_im, width_tmp, height_tmp, depth_tmp, all_
     for check_coord in all_coords_root:
         expanded = expand_coord_to_neighborhood(check_coord, lower=1, upper=2)
         if (np.vstack(expanded)[:, None] == coords_end_points).all(-1).any():            
-            coord_root = check_coord
+            #coord_root = check_coord
+            
+            ### stack to find duplicates to figure out which coordinate matched!!!
+            stack = np.vstack([expanded, coords_end_points])
+            unq, count = np.unique(stack, axis=0, return_counts=True)
+            coord_root = unq[count>1]
+        
+            #print(coord_root)
             
     
     """ next find segment tied to each branchpoint by searching the +/- 1 neighborhood for matching indices
@@ -362,35 +386,53 @@ def get_next_coords(tree, node_idx, num_parents):
         parent_coords = np.vstack(parent_coords)
     
     """ Get center of crop """
-    cur_coords = []; cur_coords_full = [];
+    cur_coords = []; 
     
-    ### Get start of crop
-    cur_be_start = tree.start_be_coord[node_idx]
-      
-    ### adding starting node
-    centroid_start = cur_be_start[math.floor(len(cur_be_start)/2)]
-    cur_coords.append(centroid_start)
-       
-    ### Get middle of crop """
-    coords = tree.coords[node_idx]
-    cur_coords.append(coords)
     
-    ### Get end of crop if it exists
-    if not np.isnan(tree.end_be_coord[node_idx]).any():   # if there's no end index for some reason, use starting one???
-        """ OR ==> should use parent??? """             
-        cur_be_end = tree.end_be_coord[node_idx]
+    ### HACK: do this instead if neighborhood is just single coordinate
+    if len(tree.start_be_coord[node_idx]) == 3:
+        ### adding starting node
+        cur_be_start = tree.start_be_coord[node_idx];     centroid_start = cur_be_start
+        cur_coords.append(cur_be_start)
+           
+        ### Get middle of crop """
+        coords = tree.coords[node_idx]
+        cur_coords.append(coords)
         
-        centroid_end = cur_be_end[math.floor(len(cur_be_end)/2)]
-        cur_coords.append(centroid_end)      
-                
+        ### Get end of crop if it exists"        
+        cur_be_end = tree.end_be_coord[node_idx];     centroid_end = cur_be_end
+        cur_coords.append(cur_be_end)      
+                    
+        
     else:
-        ### otherwise, just leave ONLY the start index, and nothing else
-        # cur_coords = centroid
-        # cur_be_end = cur_be_start
+    
+        ### Get start of crop
+        cur_be_start = tree.start_be_coord[node_idx]
+          
+        ### adding starting node
+        centroid_start = cur_be_start[math.floor(len(cur_be_start)/2)]
+        cur_coords.append(centroid_start)
+           
+        ### Get middle of crop """
+        coords = tree.coords[node_idx]
+        cur_coords.append(coords)
         
-        
-        print('ERROR: NO END COORDINATE DETECTED')
-        #zzz
+        ### Get end of crop if it exists
+        if not np.isnan(tree.end_be_coord[node_idx]).any():   # if there's no end index for some reason, use starting one???
+            """ OR ==> should use parent??? """             
+            cur_be_end = tree.end_be_coord[node_idx]
+            
+            centroid_end = cur_be_end[math.floor(len(cur_be_end)/2)]
+            cur_coords.append(centroid_end)      
+                    
+        else:
+            ### otherwise, just leave ONLY the start index, and nothing else
+            # cur_coords = centroid
+            # cur_be_end = cur_be_start
+            
+            
+            print('ERROR: NO END COORDINATE DETECTED')
+            #zzz
       
     cur_coords = np.vstack(cur_coords)
     
@@ -427,14 +469,16 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_xyz=0, box_over=0, ord
       all_neighborhoods = []
       root_neighborhood = []
       
-      for branch_end in cc_be:
+      for ind, branch_end in enumerate(cc_be):
           coords = branch_end['coords']
           
           neighborhood_be = expand_coord_to_neighborhood(coords, lower=1, upper=2)
 
           if (np.vstack(neighborhood_be)[:, None] == coord_root).all(-1).any():
               root_neighborhood.append(np.vstack(neighborhood_be))
-              print(neighborhood_be)
+              #print(ind)
+              
+              
           else:
               neighborhood_be = np.vstack(neighborhood_be)
               if scale:
@@ -442,6 +486,7 @@ def get_neighborhoods(degrees, coord_root=0, scale=0, box_xyz=0, box_over=0, ord
                   neighborhood_be = scale_coords_of_crop_to_full(neighborhood_be, box_xyz, box_over)
                   
               all_neighborhoods.append(neighborhood_be)
+              
                       
       ### convert segments into just coords and ALSO get there neighborhoods for their FIRST and LAST indices
       labels = measure.label(only_segments)
@@ -542,6 +587,8 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                         cur_idx = np.max(tree_df.cur_idx[:]) + 1;  
 
                 full_seg_coords = np.vstack(cur_seg)
+                
+
                
                 ### ADD NEW NODE TO TREE
                 new_node = {'coords': full_seg_coords, 'parent': parent, 'child': [], 'depth': depth, 'cur_idx': cur_idx, 'start_be_coord': cur_be, 'end_be_coord': np.nan, 'visited': np.nan}
@@ -573,7 +620,7 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                         all_neighborhoods_tmp[idx_cur_be] = [];
                         isempty = 0
                         
-                print(cur_idx)
+                #print(cur_idx)
                 
 
                 # delete the neighborhood we currently assessed
@@ -587,6 +634,19 @@ def treeify(tree_df, depth, root_neighborhood, all_neighborhoods, all_hood_first
                     next_be = np.vstack(next_be)
                     idx_parent_df = np.where(tree_df.cur_idx == cur_idx)
                     tree_df.end_be_coord[idx_parent_df[0][0]] = next_be
+                    
+                    
+                    """ organize coordinates of full segmentation here??? """
+                    to_sort = np.vstack((cur_be[int(len(cur_be)/2)], full_seg_coords))
+                    to_sort = np.vstack((to_sort, next_be[int(len(next_be)/2)]))
+                    
+              
+                    if len(to_sort) > 3:
+                        ordered = order_coords(to_sort, idx_start=0)   
+                        
+                        tree_df.coords[idx_parent_df[0][0]] = ordered
+                    else:
+                        print('skipped')
                                                 
                     # recurse
                     tree_df, next_children = treeify(tree_df, depth + 1, 
@@ -650,13 +710,21 @@ def show_tree(tree_df, im):
         im[seg[:, 0], seg[:, 1], seg[:, 2]] = ind + 1 # because dont want non-zero
         
         
-        start_be = check_limits([start_be], width_tmp, height_tmp, depth_tmp)[0]  ### check to make sure none of the dilated neighborhoods go out of bounds
-        im[start_be[:, 0], start_be[:, 1], start_be[:, 2]] = 1
+        ### if only single coordinate, then don't check
+        if len(start_be) == 3:
+            im[start_be[0], start_be[1], start_be[2]] = 1           
+        else:
+            start_be = check_limits([start_be], width_tmp, height_tmp, depth_tmp)[0]  ### check to make sure none of the dilated neighborhoods go out of bounds
+            im[start_be[:, 0], start_be[:, 1], start_be[:, 2]] = 1
 
         
         if not np.isnan(end_be).any() and np.asarray(end_be).any():
-            end_be = check_limits([end_be], width_tmp, height_tmp, depth_tmp)[0]
-            im[end_be[:, 0], end_be[:, 1], end_be[:, 2]] = 2
+            ### if only single coordinate, then don't check
+            if len(start_be) == 3:
+                im[end_be[0], end_be[1], end_be[2]] = 1           
+            else:       
+                end_be = check_limits([end_be], width_tmp, height_tmp, depth_tmp)[0]
+                im[end_be[:, 0], end_be[:, 1], end_be[:, 2]] = 2
     return im
 
 

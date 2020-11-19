@@ -75,24 +75,11 @@ print(device)
 
 """  Network Begins: """
 
-# check_path = './(47) Checkpoint_nested_unet_SPATIALW_small_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
-# check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/train with 1e6 after here/'; dilation = 1; deep_supervision = False;
+z_size = 48
+check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step_REAL_HISTORICAL/';  dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 1;
 
-# check_path = './(49) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Haussdorf_balance/'; dilation = 1; deep_supervision = False;
-
-# tracker = 0
-
-# check_path = './(52) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_NO_1st_im/'; dilation = 1; deep_supervision = False; tracker = 1; tracker = 1;
-
-
-# check_path = './(54) Checkpoint_nested_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; dilation = 1; 
-
-check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(66) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step/';  dilation = 1; deep_supervision = False; tracker = 1;
-
-
-s_path = '/media/user/storage/Data/(1) snake seg project/Traces files/rerun training data seed 2 NO HISTORY/'; dataset = 'historical seed 2 z 48'
+s_path = '/media/user/storage/Data/(1) snake seg project/Traces files/rerun training data seed 2/'; dataset = 'historical seed 2 z 48'
     
-
 try:
     # Create target Directory
     os.mkdir(s_path)
@@ -100,18 +87,12 @@ try:
 except FileExistsError:
     print("Directory " , s_path ,  " already exists")
 
-
 input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING FORWARD PROP seed 2 COLORED 48 z DATA/'; dataset = 'historical seed 2 z 48'
    
-
-""" Load filenames from zip """
-# images = glob.glob(os.path.join(input_path,'*input.tif*'))
-# natsort_key1 = natsort_keygen(key = lambda y: y.lower())      # natural sorting order
-# images.sort(key = natsort_key1)
-# examples = [dict(input=i,truth=i.replace('input.tif','truth.tif'), cell_mask=i.replace('input.tif','input_cellMASK.tif'),
-#                  seeds = i.replace('input.tif', 'seeds.tif')) for i in images]
-
-# counter = list(range(len(examples)))  # create a counter, so can randomize it
+""" Also load in the all_tree_indices file """
+tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
+all_trees = load_all_trees(tree_csv_path)
+    
 
 """ TO LOAD OLD CHECKPOINT """
 onlyfiles_check = glob.glob(os.path.join(check_path,'check_*'))
@@ -144,15 +125,10 @@ unet.eval()
 unet.to(device)
 
 input_size = 80
-#depth = 32
-
-
 depth = 48
 
 crop_size = int(input_size/2)
 z_size = depth
-
-
 
 
 """ Load filenames from tiff """
@@ -163,13 +139,15 @@ examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_trut
                  orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
                  filename= i.split('/')[-1].split('_origId')[0].replace(',', ''))
                  for i in images]
-
 counter = list(range(len(examples)))
+
 """ Create datasets for dataloader """
-training_set = Dataset_tiffs_snake_seg(counter, examples, mean_arr, std_arr, sp_weight_bool=0, transforms = 0, all_trees=[])
+training_set = Dataset_tiffs_snake_seg(counter, examples, mean_arr, std_arr, sp_weight_bool=0, transforms = 0, all_trees=all_trees)
+
 training_generator = data.DataLoader(training_set, batch_size=1, shuffle=False, num_workers=0,
                   pin_memory=True, drop_last=True)
-     
+
+
 print('Total # training images per epoch: ' + str(len(training_set)))
 
 for cur_epoch in range(10000): 
@@ -198,6 +176,44 @@ for cur_epoch in range(10000):
  
                 plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_train, batch_x[0], batch_x[0], batch_y[0], batch_y[0],
                                             s_path, iter_cur_epoch, plot_depth=8)
-                iter_cur_epoch += 1
                 
+                
+                
+                plt.figure(100);
+                im_idx = 1
+                for p_idx in range(2, len(batch_x[0]), 2):
+                    
+                    im = batch_x[0][p_idx]
+                
+                    plt.subplot(2, 10, im_idx)
+                    ma = plot_max(im, plot=0)
+                    plt.imshow(ma); plt.axis('off')
+                    
+                    im = batch_x[0][p_idx + 1]
+                    plt.subplot(2, 10, (im_idx + 10))
+                    ma = plot_max(im, plot=0)
+                    plt.imshow(ma); plt.axis('off')
+                    
+                    im_idx += 1
+          
+                    print(p_idx)
+            
+                    
+                plt.savefig(s_path + '_'   + str(iter_cur_epoch) + '_HISTORICAL.png')
                 plt.close('all')
+                                
+                iter_cur_epoch += 1
+      
+      
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                

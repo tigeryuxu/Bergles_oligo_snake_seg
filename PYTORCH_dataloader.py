@@ -205,7 +205,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         skel = skeletonize_3d(truth)
         
         """ Link to center """
-        center = [15, 39, 30]
+        center = [15, 39, 39]
         degrees, coordinates = bw_skel_and_analyze(skel)
         coord_end = np.transpose(np.vstack(np.where(degrees == 1)))
         
