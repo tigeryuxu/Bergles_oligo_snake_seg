@@ -12,10 +12,7 @@ matplotlib.rc('ytick', labelsize=8)
 #matplotlib.use('Agg')
 
 """ Libraries to load """
-import torch
-from torch import nn
-import torch.nn.functional as F
-import torch.optim as optim
+
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,6 +21,11 @@ import datetime
 import time
 from sklearn.model_selection import train_test_split
 
+
+import torch
+from torch import nn
+import torch.nn.functional as F
+import torch.optim as optim
 from natsort import natsort_keygen, ns
 natsort_key1 = natsort_keygen(key = lambda y: y.lower())      # natural sorting order
 
@@ -80,7 +82,13 @@ if __name__ == '__main__':
     s_path = './(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step_REAL_HISTORICAL/'; HD = 1; alpha = 1; 
     
     
+    HISTORICAL = 1;
     s_path = './(66) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_REAL_HISTORICAL_NEURON/'; HD = 1; alpha = 1; 
+
+
+    HISTORICAL = 0;
+    s_path = './(67) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON/'; HD = 1; alpha = 1;
+    
     
     """ path to input data """
     # (2)
@@ -89,7 +97,7 @@ if __name__ == '__main__':
     #tracker.alpha = 0.5
     
     #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'; dataset = 'new crop pads'
-    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING FORWARD PROP seed 2 COLORED 48 z DATA/'; dataset = 'historical seed 2 z 48'
+    #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING FORWARD PROP seed 2 COLORED 48 z DATA/'; dataset = 'historical seed 2 z 48'
     
     input_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING_FORWARD_NEURON_SOLANGE/'
     
@@ -108,15 +116,19 @@ if __name__ == '__main__':
 
 
     """ Also load in the all_tree_indices file """
-    tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
-    all_trees = load_all_trees(tree_csv_path)
+    #tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
+    if HISTORICAL:
+        tree_csv_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
+        all_trees = load_all_trees(tree_csv_path)
+    else:
+        all_trees = [];
 
 
     # ### REMOVE IMAGE 1 from training data
     idx_skip = []
     for idx, im in enumerate(examples):
         filename = im['input']
-        if '1to1pair_b_series_t1_input' in filename:
+        if 'RBP4_HK_5_slice3_40x_stit-Create Image Subset-08-N3_' in filename:
             print('skip')
             idx_skip.append(idx)
     
@@ -128,6 +140,8 @@ if __name__ == '__main__':
           
             
     counter = list(range(len(examples)))
+    
+    counter_val = list(range(len(examples_test)))  ### NEWLY ADDED!!!
     
     # """ load mean and std for normalization later """  
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
@@ -154,12 +168,14 @@ if __name__ == '__main__':
         batch_size = 8;      
         test_size = 0.1  
         
+        if HISTORICAL: in_channels = 22
+        else: in_channels = 2
         
 
         """ Initialize network """  
         kernel_size = 7
         pad = int((kernel_size - 1)/2)
-        unet = UNet_online(in_channels=22, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
+        unet = UNet_online(in_channels=in_channels, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
                             batch_norm=True, batch_norm_switchable=switch_norm, up_mode='upsample')
         #unet = NestedUNet(num_classes=2, input_channels=2, deep_sup=deep_sup, padding=pad, batch_norm_switchable=switch_norm)
         #unet = UNet_3Plus(num_classes=2, input_channels=2, kernel_size=kernel_size, padding=pad)
@@ -174,7 +190,7 @@ if __name__ == '__main__':
             
 
         """ Select optimizer """
-        lr = 1e-5; milestones = [20, 100]  # with AdamW slow down
+        lr = 1e-5; milestones = [12, 100]  # with AdamW slow down
         optimizer = torch.optim.AdamW(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
 
         """ Add scheduler """
@@ -184,7 +200,7 @@ if __name__ == '__main__':
         #idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
         
         """ initialize training_tracker """
-        idx_valid = idx_skip
+        idx_valid = counter_val
         idx_train = counter
         
         tracker = tracker(batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=alpha, HD=HD,
@@ -227,10 +243,12 @@ if __name__ == '__main__':
     #transforms = initialize_transforms_simple(p=0.5)
 
     """ Create datasets for dataloader """
+    depth = 32  ### redefine for neuron dataset
+    
     training_set = Dataset_tiffs_snake_seg(tracker.idx_train, examples, tracker.mean_arr, tracker.std_arr,
-                                           sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms, resize_z=resize_z, skeletonize=skeletonize, all_trees=all_trees)
+                                           sp_weight_bool=tracker.sp_weight_bool, transforms = tracker.transforms, resize_z=resize_z, skeletonize=skeletonize, depth=depth, all_trees=all_trees)
     val_set = Dataset_tiffs_snake_seg(tracker.idx_valid, examples_test, tracker.mean_arr, tracker.std_arr,
-                                      sp_weight_bool=tracker.sp_weight_bool, transforms = 0, resize_z=resize_z, skeletonize=skeletonize, all_trees=all_trees)
+                                      sp_weight_bool=tracker.sp_weight_bool, transforms = 0, resize_z=resize_z, skeletonize=skeletonize, depth=depth, all_trees=all_trees)
     
     
     """ Create training and validation generators"""
@@ -255,7 +273,7 @@ if __name__ == '__main__':
          """ check and plot params during training """             
          for param_group in optimizer.param_groups:
                #tracker.alpha = 0.5
-               #param_group['lr'] = 1e-6   # manually sets learning rate
+               param_group['lr'] = 1e-6   # manually sets learning rate
                cur_lr = param_group['lr']
                tracker.lr_plot.append(cur_lr)
                tracker.print_essential()
@@ -344,8 +362,31 @@ if __name__ == '__main__':
  
                  # plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_train, batch_x[0], batch_x[0], batch_y[0], batch_y[0],
                  #                            s_path, iterations, plot_depth=8)
+                 
+                 """ Plot past traces (history) """
+                #  batch_x = batch_x.cpu().data.numpy()   
+                #  #batch_y = batch_y.cpu().data.numpy()   
+                #  plt.figure();
+                #  plot_idx = 0;
+                #  for p_idx in range(0, len(batch_x[0]), 2):
+                #     #truth = batch_y[p_idx]
+                     
+                #     im = batch_x[0][p_idx]
+                #     plt.subplot(2, 11, plot_idx + 1)
+                #     ma = plot_max(im, ax=0, plot=0)
+                #     plt.imshow(ma); plt.axis('off')
 
+                #     im = batch_x[0][p_idx + 1]
+                #     plt.subplot(2, 11, (plot_idx + 12))
+                #     ma = plot_max(im, ax=0, plot=0)
+                #     plt.imshow(ma); plt.axis('off')
+                    
+                #     plot_idx += 1;
+                #     #zzz
 
+                # #plt.savefig(s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) + '_HISTORICAL.png')
+                
+                
 
 
                  """ Should I keep track of loss on every single sample? and iteration? Just not plot it??? """   

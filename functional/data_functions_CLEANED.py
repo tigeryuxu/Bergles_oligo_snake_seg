@@ -225,51 +225,47 @@ def order_skel_graph(degrees, start=[], end=[]):
 
 """ Walk through NX tree and get ordered coordinates """    
 def recurse_NX_tree(all_coords, tree_order, cur_idx, parent_idx, ordered, discrete_segs, cur_ordered):
+
+    parent = tree_order[cur_idx][0]
+    child = tree_order[cur_idx][1]
     
-    if cur_idx == -1:
+    if parent == 0:
+        ordered.append(all_coords[parent])
+        cur_ordered.append(all_coords[parent])
+    
+    ordered.append(all_coords[child])
+    cur_ordered.append(all_coords[child])
+    
+    all_indices = np.vstack(tree_order)[:, 0]
+    idx_child = np.where(all_indices == child)[0]
+    
+    
+    ### if no more children, then also end
+    #print(ordered)
+    if len(idx_child) == 0:
+        discrete_segs.append(cur_ordered)   ### make sure have end_be_coord
+        cur_ordered = []
         return ordered, discrete_segs
     
-    else:
-        parent = tree_order[cur_idx][0]
-        child = tree_order[cur_idx][1]
-        
-        if parent == 0:
-            ordered.append(all_coords[parent])
-            cur_ordered.append(all_coords[parent])
-        
-        ordered.append(all_coords[child])
-        cur_ordered.append(all_coords[child])
-        
-        all_indices = np.vstack(tree_order)[:, 0]
-        idx_child = np.where(all_indices == child)[0]
-        
-        
-        ### if no more children, then also end
-        #print(ordered)
-        if len(idx_child) == 0:
-            discrete_segs.append(cur_ordered)   ### make sure have end_be_coord
-            cur_ordered = []
-            return ordered, discrete_segs
-        
+    if len(idx_child) > 1:
+        discrete_segs.append(cur_ordered)            
+
+    for idx in idx_child:
         if len(idx_child) > 1:
-            discrete_segs.append(cur_ordered)            
+            #print(cur_ordered)
+            cur_ordered = []
+            cur_ordered = list([all_coords[child]])         ### start with parent node so can have start_be_index in list!!!
+            
+            
+        coords, discrete_segs = recurse_NX_tree(all_coords, tree_order, cur_idx=idx, parent_idx=idx, ordered=ordered, discrete_segs=discrete_segs, cur_ordered=cur_ordered)
+        #ordered.append(coords)
     
-        for idx in idx_child:
-            if len(idx_child) > 1:
-                #print(cur_ordered)
-                cur_ordered = []
-                cur_ordered = list([all_coords[child]])         ### start with parent node so can have start_be_index in list!!!
-                
-                
-            coords, discrete_segs = recurse_NX_tree(all_coords, tree_order, cur_idx=idx, parent_idx=idx, ordered=ordered, discrete_segs=discrete_segs, cur_ordered=cur_ordered)
-            #ordered.append(coords)
-        
-        return ordered, discrete_segs
-        
+    return ordered, discrete_segs
+    
 
     
 """ Treeify the discretized segments by adding them to tree df """
-def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent):
+def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], start_tree=0):
     
     if disc_idx == -1:
         return tree
@@ -316,31 +312,72 @@ def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent):
 
         #print(children)
         ### add to tree
-        if len(children) > 0: child_vals = np.add(children, tree_idx).tolist()
+        if len(children) > 0 and start_tree: child_vals = np.add(children,  0).tolist();
+        
+        elif len(children) > 0 and len(num_missing) > 0:  child_vals = np.add(children, int(np.asarray(tree.cur_idx)[-1])).tolist()
+        elif len(children) > 0: child_vals = np.add(children, tree_idx).tolist()
+        
+        
         else: child_vals = []
+            
         
-        new_node = {'coords': coords, 'parent': parent, 'child': child_vals, 'depth': 0, 
-                    'cur_idx': int(cur_idx), 'start_be_coord': start, 'end_be_coord': end, 'visited': np.nan}
- 
-        if len(children) > 0:
-            new_node['visited'] = 1
-    
-        ### if it's a deleted node, then add back into the location it was deleted from!!!
-        if len(num_missing) > 0:
-            tree.loc[cur_idx] = new_node
-            tree = tree.sort_index()
-            ### else, add it to the end of the list
-        else:
-            tree = tree.append(new_node, ignore_index=True)
+        """ DON'T add if there are NO children AND the end coord is not contained in the list be_coords
+                this means that this is a loop that comes back onto itself
+        """
         
-           
-        ### go to all children
-        for child in children:
-            tree = treeify_nx(tree, discrete_segs, tree_idx=tree_idx, disc_idx=child, parent=cur_idx)
+        if len(children) == 0 and len(be_coords) > 0:
+            end_points = be_coords[0];
+            match = 0;
+            for row in end_points:
+                if (row == end).all():
+                    match = 1
+                    
+            for row in end_points:
+                if (np.vstack([coords, end]) == row).all(-1).any():
+                   match = 1 
+                    
+            # if not match:
+            #     try:
+            #         ### must also remove child from parent
+            #         childs_to_change = tree.child[parent]
+            #         print(cur_idx)
+            #         childs_to_change.remove(cur_idx)
+                    
+            #         ### shift all indices above this index down by 1 because something has been deleted
+            #         childs_to_change = np.asarray(childs_to_change)
+            #         childs_to_change[np.where(childs_to_change > cur_idx)[0]] = childs_to_change[np.where(childs_to_change > cur_idx)[0]] - 1
+            #         tree.child[parent] = childs_to_change
+            #     except:
+            #         print('already deleted?')
+                                            
+        else: match = 1
+                    
             
+        
+        if match:
+        
+            new_node = {'coords': coords, 'parent': parent, 'child': child_vals, 'depth': 0, 
+                        'cur_idx': int(cur_idx), 'start_be_coord': start, 'end_be_coord': end, 'visited': np.nan}
+     
+            if len(children) > 0:
+                new_node['visited'] = 1
+        
+            ### if it's a deleted node, then add back into the location it was deleted from!!!
+            if len(num_missing) > 0:
+                tree.loc[cur_idx] = new_node
+                tree = tree.sort_index()
+                ### else, add it to the end of the list
+            else:
+                tree = tree.append(new_node, ignore_index=True)
             
-            
-            #print(child)
+               
+            ### go to all children
+            for child in children:
+                tree = treeify_nx(tree, discrete_segs, tree_idx=tree_idx, disc_idx=child, parent=cur_idx, be_coords=be_coords)
+                
+                
+                
+                #print(child)
             
         return tree
         

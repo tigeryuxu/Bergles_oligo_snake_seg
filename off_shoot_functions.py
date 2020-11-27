@@ -29,35 +29,45 @@ from skimage.filters import gaussian
 import torch
 import scipy     
 
+from tifffile import TiffFile
 
 
 """ (1) Load input and parse into seeds """
 def load_input_as_seeds(examples, im_num, pregenerated, s_path='./', seed_crop_size=100, seed_z_size=80):
      """ Load input image """
      input_name = examples[im_num]['input']     
-     input_im = open_image_sequence_to_3D(input_name, width_max='default', height_max='default', depth='default')
+     #input_im = open_image_sequence_to_3D(input_name, width_max='default', height_max='default', depth='default')
+     
+     """ switch to reading with TIFFILE """
+     with TiffFile(input_name) as tif:
+         input_im = tif.asarray()
+            
      
      """ also detect shape of input_im and adapt accordingly """
      width_tmp = np.shape(input_im)[1]
      height_tmp = np.shape(input_im)[2]
      depth_tmp = np.shape(input_im)[0]
      
-     input_im = convert_multitiff_to_matrix(input_im)
+     #input_im = convert_multitiff_to_matrix(input_im)
+     input_im =  np.moveaxis(input_im, 0, 2)
  
      """ Decide whether to use auto seeds or pregenerated seeds"""
      if pregenerated:
           
           seed_name = examples[im_num]['seeds']
-          all_seeds = open_image_sequence_to_3D(seed_name, width_max='default', height_max='default', depth='default')             
-              
-          
+          #all_seeds = open_image_sequence_to_3D(seed_name, width_max='default', height_max='default', depth='default')             
+          """ switch to reading with TIFFILE """
+          with TiffFile(seed_name) as tif:
+             all_seeds = tif.asarray()
+         
           all_seeds_no_50 = np.copy(all_seeds)
           all_seeds_no_50[all_seeds_no_50 == 50] = 0
           labelled=np.uint8(all_seeds_no_50)
           labelled = np.moveaxis(labelled, 0, -1)
           overall_coord = []
 
-          all_seeds = convert_multitiff_to_matrix(all_seeds)
+          #all_seeds = convert_multitiff_to_matrix(all_seeds)
+          all_seeds =  np.moveaxis(all_seeds, 0, 2)
           
      else:        
           """ Plotting as interactive scroller """

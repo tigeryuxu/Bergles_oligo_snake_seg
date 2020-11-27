@@ -72,7 +72,7 @@ def get_examples_arr(examples):
                 
 """ Load data directly from tiffs with seed mask """
 class Dataset_tiffs_snake_seg(data.Dataset):
-  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0, resize_z=0, skeletonize=0, all_trees=[]):
+  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0, resize_z=0, skeletonize=0, depth=48, all_trees=[]):
         'Initialization'
         #self.labels = labels
         self.list_IDs = list_IDs
@@ -97,7 +97,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         self.all_orig_idx = np.asarray(self.examples_arr['orig_idx'])
         self.all_start_indices =  np.where(self.all_orig_idx == 1)[0]
         
-        self.height = 80; self.width = 80; self.depth = 48;
+        self.height = 80; self.width = 80; self.depth = depth;
         
 
   def apply_transforms(self, image, labels):
@@ -310,6 +310,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         match = 0
         for tree in self.all_trees:
             tree_name = tree['im_name']
+            #print(tree_name)
             if tree_name in im_name:   ### CHECK BY STRING CONTAINS
                 
                 parents = get_parents_csv_tree(tree, cur_val, parents = [], num_parents=1000)
@@ -374,12 +375,13 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 
                 if idx % get_every == 0:           
                     if idx == 0:
-                    
-                        if  idx + 2 < len(all_parent_indices):
-                            # don't get crop immediately a
-                            idx = 2
-                        else:                
-                            all_parent_indices_skip.append(int(all_parent_indices[idx]))
+                        skip = 1;
+                        """ Tiger added ==> skip very first trace!!! otherwise crop seed will be IN THE FOV!!! """
+                        # if  idx + 2 < len(all_parent_indices):
+                        #     # don't get crop immediately a
+                        #     idx = 2
+                        # else:                
+                        #     all_parent_indices_skip.append(int(all_parent_indices[idx]))
                             
                     else:
                         all_parent_indices_skip.append(int(all_parent_indices[idx + rand_idx]))
@@ -446,7 +448,9 @@ class Dataset_tiffs_snake_seg(data.Dataset):
             
         #print("num empty: " + str(num_empty))
         
-            
+        if len(np.asarray(all_parent_im).shape) == 1:
+             print('debug')
+                    
                 
 
         return all_parent_im
