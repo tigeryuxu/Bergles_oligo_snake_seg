@@ -42,6 +42,8 @@ from skimage.draw import line_nd
 
 from skimage.transform import resize
 
+from tree_functions import *
+
 
 """ Extended functions for SNAKE_SEG """
 def get_parents_csv_tree(tree, cur_val, parents, num_parents=10):
@@ -302,7 +304,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
 
 
         """ If want to load parents as well """
-  def load_parents(self, index, num_parents):
+  def load_parents(self, index, num_parents, seed_orig, Y_orig):
         ### Find matching tree from all_trees that matches with example
         im_name = self.examples[index]['filename']
         cur_val = self.examples[index]['orig_idx']
@@ -310,11 +312,12 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         match = 0
         for tree in self.all_trees:
             tree_name = tree['im_name']
+            tree_size = tree['size']
             #print(tree_name)
             if tree_name in im_name:   ### CHECK BY STRING CONTAINS
                 
                 parents = get_parents_csv_tree(tree, cur_val, parents = [], num_parents=1000)
-                
+                #print('yo')
                 match = 1
                 break;
                 
@@ -366,9 +369,10 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                     
                     all_parent_indices = np.concatenate((all_parent_indices, loc_parent))
                 
+            all_parent_indices = np.unique(all_parent_indices) ### REMOVE DUPLICATES
             all_parent_indices[::-1].sort()  ### sort into descending order
             
-            get_every = 10
+            get_every = 15
             all_parent_indices_skip = []
             for idx, val in enumerate(all_parent_indices):
                 rand_idx = randint(-2, 0)
@@ -390,6 +394,36 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 
             #all_parent_indices_skip = all_parent_indices[0::4]  ### get every 4th index
             
+            
+            """ Get real current crop size!!! so can compare """
+            ID = self.list_IDs[index]
+    
+            input_orig = self.examples[ID]['input']
+            # truth_name = self.examples[ID]['truth']
+            # seed_name = self.examples[ID]['seed_crop']
+    
+            X_orig = tifffile.imread(input_orig)
+            
+            # Y_orig = tifffile.imread(truth_name)
+            # seed_orig = tifffile.imread(seed_name)
+            # Y[Y > 0] = 1
+            # plot_max(Y_orig); plot_max(seed_orig); plot_max(X_orig); plot_max(X); plot_max(Y); plot_max(seed_crop)
+            x_scale = self.examples[ID]['x']
+            y_scale = self.examples[ID]['y']
+            z_scale = self.examples[ID]['z']
+            coords_Y_orig = np.transpose(np.where(Y_orig > 0))
+            # coords_Y_orig[:, 0] = coords_Y_orig[:, 0] - np.shape(X_orig)[0]/2
+            # coords_Y_orig[:, 1] = coords_Y_orig[:, 1] - np.shape(X_orig)[1]/2
+            # coords_Y_orig[:, 2] = coords_Y_orig[:, 2] - np.shape(X_orig)[2]/2
+            
+            coords_Y_orig[:, 0] = coords_Y_orig[:, 0] + z_scale
+            coords_Y_orig[:, 1] = coords_Y_orig[:, 1] + x_scale
+            coords_Y_orig[:, 2] = coords_Y_orig[:, 2] + y_scale  
+            
+            coords_Y_orig = expand_coord_to_neighborhood(coords_Y_orig, 3, 4)
+            coords_Y_orig = np.unique(coords_Y_orig,axis=0)
+                            
+            
             """ Scale indices to size of whole list """
             all_parent_indices_skip = all_parent_indices_skip + start_im_num
          
@@ -404,6 +438,37 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 Y = tifffile.imread(truth_name)
                 seed_crop = tifffile.imread(seed_name)
                 
+                """ Get location """
+                x_scale = self.examples[parent_idx]['x']
+                y_scale = self.examples[parent_idx]['y']
+                z_scale = self.examples[parent_idx]['z']
+                coords_Y = np.transpose(np.where(Y > 0))
+                # coords_Y[:, 0] = coords_Y[:, 0] - np.shape(X_orig)[0]/2
+                # coords_Y[:, 1] = coords_Y[:, 1] - np.shape(X_orig)[1]/2
+                # coords_Y[:, 2] = coords_Y[:, 2] - np.shape(X_orig)[2]/2                
+                    
+                coords_Y[:, 0] = coords_Y[:, 0] + z_scale
+                coords_Y[:, 1] = coords_Y[:, 1] + x_scale
+                coords_Y[:, 2] = coords_Y[:, 2] + y_scale                
+             
+                    
+
+                stack = np.concatenate((coords_Y, coords_Y_orig))
+                                
+                unq, count = np.unique(stack, axis=0, return_counts=True)
+                duplicated_coords = unq[count>1]
+                
+                ### scale back down
+                duplicated_coords[:, 0] = duplicated_coords[:, 0] - z_scale
+                duplicated_coords[:, 1] = duplicated_coords[:, 1] - x_scale
+                duplicated_coords[:, 2] = duplicated_coords[:, 2] - y_scale
+                
+                
+                
+                ### set to blank:
+                Y[duplicated_coords[:, 0], duplicated_coords[:, 1], duplicated_coords[:, 2]] = 0
+                
+                    
                 
                 """ EVENTUALLY WANT TO ADD IN FULL TRACE but cant right now b/c the TRUTH (Y) is too branchy """
 
@@ -436,8 +501,8 @@ class Dataset_tiffs_snake_seg(data.Dataset):
                 
                 
                 ### DEBUG:
-                # plot_max(X, ax=0)
-                # plot_max(parent_trace, ax=0)
+                #plot_max(X, ax=0)
+                #plot_max(parent_trace, ax=0)
 
             
         """ If did NOT get enough parents, then append empty arrays """
@@ -512,7 +577,7 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         
         """ Get parents for historical context """
         if len(self.all_trees) > 0:
-            all_parent_im = self.load_parents(index, self.num_parents)
+            all_parent_im = self.load_parents(index, self.num_parents, seed_orig=seed_crop, Y_orig=Y)
             all_parent_im = np.asarray(all_parent_im)
             
             if len(all_parent_im.shape) == 1:

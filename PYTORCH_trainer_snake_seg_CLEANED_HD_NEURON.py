@@ -90,6 +90,17 @@ if __name__ == '__main__':
     s_path = './(67) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON/'; HD = 1; alpha = 1;
     
     
+    s_path = './(68) Checkpoint_unet_MEDIUM_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2/'; HD = 1; alpha = 1;
+
+    s_path = './(68)_2 Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2/'; HD = 1; alpha = 1;
+    
+    
+    # s_path = './(69) Checkpoint_unet_MEDIUM_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2_NO_HD/'; HD = 2; alpha = 1;
+    
+    
+    HISTORICAL = 1;
+    s_path = './(70) Checkpoint_unet_MEDIUM_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2_HISTORICAL/'; HD = 1; alpha = 1;
+    
     """ path to input data """
     # (2)
     
@@ -99,7 +110,9 @@ if __name__ == '__main__':
     #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'; dataset = 'new crop pads'
     #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING FORWARD PROP seed 2 COLORED 48 z DATA/'; dataset = 'historical seed 2 z 48'
     
-    input_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING_FORWARD_NEURON_SOLANGE/'
+    #input_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING_FORWARD_NEURON_SOLANGE/'
+    
+    input_path = '/media/user/storage/Data/(1) snake seg project/Su_Jeong_data/TRAINING FORWARD PROP ONLY SCALED 32 z DILATE 2/Training_NEURON_32_DILATE_2_attempt_2/'
     
     #input_path = 'E:/7) Bergles lab data/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; 
     #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
@@ -110,15 +123,23 @@ if __name__ == '__main__':
     examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
                      seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
                      orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
+                     x = int(re.search('_x_(.*)_y_', i).group(1)),
+                     y = int(re.search('_y_(.*)_z_', i).group(1)),
+                     z = int(re.search('_z_(.*)_NOCLAHE_', i).group(1)),                     
                      filename= i.split('/')[-1].split('_origId')[0].replace(',', ''))
                      for i in images]
 
+
+   
 
 
     """ Also load in the all_tree_indices file """
     #tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
     if HISTORICAL:
-        tree_csv_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
+        #tree_csv_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
+        
+        
+        tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Su_Jeong_data/TRAINING FORWARD PROP ONLY SCALED 32 z DILATE 2/'
         all_trees = load_all_trees(tree_csv_path)
     else:
         all_trees = [];
@@ -131,10 +152,11 @@ if __name__ == '__main__':
         if 'RBP4_HK_5_slice3_40x_stit-Create Image Subset-08-N3_' in filename:
             print('skip')
             idx_skip.append(idx)
-    
-    
+
+
+
     ### USE THE EXCLUDED IMAGE AS VALIDATION/TESTING
-    examples_test = examples[0:len(idx_skip)]
+    examples_test = examples[idx_skip[0]:idx_skip[-1]]
 
     examples = [i for j, i in enumerate(examples) if j not in idx_skip]
           
@@ -190,7 +212,7 @@ if __name__ == '__main__':
             
 
         """ Select optimizer """
-        lr = 1e-5; milestones = [12, 100]  # with AdamW slow down
+        lr = 1e-5; milestones = [15, 100]  # with AdamW slow down
         optimizer = torch.optim.AdamW(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
 
         """ Add scheduler """
@@ -253,10 +275,10 @@ if __name__ == '__main__':
     
     """ Create training and validation generators"""
     val_generator = data.DataLoader(val_set, batch_size=tracker.batch_size, shuffle=False, num_workers=num_workers,
-                    pin_memory=True, drop_last = True)
+                    pin_memory=False, drop_last = True)
 
     training_generator = data.DataLoader(training_set, batch_size=tracker.batch_size, shuffle=True, num_workers=num_workers,
-                      pin_memory=True, drop_last=True)
+                      pin_memory=False, drop_last=True)
          
     print('Total # training images per epoch: ' + str(len(training_set)))
     print('Total # validation images: ' + str(len(val_set)))
@@ -273,7 +295,7 @@ if __name__ == '__main__':
          """ check and plot params during training """             
          for param_group in optimizer.param_groups:
                #tracker.alpha = 0.5
-               param_group['lr'] = 1e-6   # manually sets learning rate
+               #param_group['lr'] = 1e-6   # manually sets learning rate
                cur_lr = param_group['lr']
                tracker.lr_plot.append(cur_lr)
                tracker.print_essential()
@@ -285,6 +307,7 @@ if __name__ == '__main__':
          iter_cur_epoch = 0; starter = 0;
          for batch_x, batch_y, spatial_weight in training_generator:
                  ### Test speed for debug
+                 #print(starter)
                  starter += 1
                  if starter == 2:  start = time.perf_counter()
                  if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
@@ -307,9 +330,13 @@ if __name__ == '__main__':
                  output_train = unet(inputs)  ### forward + backward + optimize
                                   
                  """ calculate loss: includes HD loss functions """
-                 if tracker.HD:
+                 if tracker.HD == 1:
                      loss, tracker, ce_train, dc_train, hd_train = compute_HD_loss(output_train, labels, tracker.alpha, tracker, 
                                                                                    ce_train, dc_train, hd_train, val_bool=0)
+                 elif tracker.HD == 2:
+                     loss, tracker, ce_train, dc_train = compute_DICE_CE_loss(output_train, labels, tracker.alpha, tracker, 
+                                                                                   ce_train, dc_train, hd_train, val_bool=0)
+                     
                  else:
                      if deep_sup:   ### IF DEEP SUPERVISION
                         # compute output
@@ -364,28 +391,38 @@ if __name__ == '__main__':
                  #                            s_path, iterations, plot_depth=8)
                  
                  """ Plot past traces (history) """
-                #  batch_x = batch_x.cpu().data.numpy()   
-                #  #batch_y = batch_y.cpu().data.numpy()   
-                #  plt.figure();
-                #  plot_idx = 0;
-                #  for p_idx in range(0, len(batch_x[0]), 2):
-                #     #truth = batch_y[p_idx]
+                 # batch_x = batch_x.cpu().data.numpy()   
+                 # #batch_y = batch_y.cpu().data.numpy()   
+                 
+                 # # import matplotlib.gridspec as gridspec
+                 # # plt.figure();
+                 # # gs1 = gridspec.GridSpec(2, 21)
+                 # # gs1.update(wspace=0.025, hspace=0.05) # set the spacing between axes. 
+                 
+                 # plt.rcParams['figure.dpi'] = 300
+
+                 # plot_idx = 0;
+                 # for p_idx in range(0, len(batch_x[0]), 2):
+                 #    #truth = batch_y[p_idx]
                      
-                #     im = batch_x[0][p_idx]
-                #     plt.subplot(2, 11, plot_idx + 1)
-                #     ma = plot_max(im, ax=0, plot=0)
-                #     plt.imshow(ma); plt.axis('off')
-
-                #     im = batch_x[0][p_idx + 1]
-                #     plt.subplot(2, 11, (plot_idx + 12))
-                #     ma = plot_max(im, ax=0, plot=0)
-                #     plt.imshow(ma); plt.axis('off')
+                 #    im = batch_x[0][p_idx]
+                 #    ax = plt.subplot(2, 21, plot_idx + 1)
+                 #    ma = plot_max(im, ax=0, plot=0)
+                 #    plt.imshow(ma); plt.axis('off')
+                 #    ax.set_aspect('equal')
                     
-                #     plot_idx += 1;
-                #     #zzz
+                 #    im = batch_x[0][p_idx + 1]
+                 #    ax = plt.subplot(2, 21, (plot_idx + 22))
+                 #    ma = plot_max(im, ax=0, plot=0)
+                 #    plt.imshow(ma); plt.axis('off')
+                 #    ax.set_aspect('equal')
+                    
+                 #    plot_idx += 1;
+                    
+                 #    #zzz
 
-                # #plt.savefig(s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) + '_HISTORICAL.png')
-                
+                 # plt.savefig(s_path + 'Crop_'  + str(tracker.iterations ) + '_HISTORICAL.png')
+                 # plt.close('all')
                 
 
 
@@ -394,7 +431,7 @@ if __name__ == '__main__':
                      
 
                      """ calculate new alpha for next epoch """   
-                     if tracker.HD:
+                     if tracker.HD == 1:
                          tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch)
                          
                          #tracker.alpha = 0.5
@@ -420,9 +457,14 @@ if __name__ == '__main__':
             
                                     """ calculate loss 
                                             include HD loss functions """
-                                    if tracker.HD:
+                                    if tracker.HD == 1:
                                         loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
                                                                                                       ce_val, dc_val, hd_val, val_bool=1)
+                                        
+                                    elif tracker.HD == 2:
+                                        loss, tracker, ce_val, dc_val = compute_DICE_CE_loss(output_val, labels_val, tracker.alpha, tracker, 
+                                                                                                      ce_val, dc_val, hd_val, val_bool=1)                                        
+                                        
                                     else:
                                         if deep_sup:                                                
                                             # compute output
@@ -454,6 +496,7 @@ if __name__ == '__main__':
                                     
                                     jacc_val += jacc
                                     tracker.val_jacc_per_batch.append(jacc)   
+                                    print(jacc)
             
                                     val_idx = val_idx + tracker.batch_size
                                     print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
@@ -461,6 +504,18 @@ if __name__ == '__main__':
             
                                     #if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
             
+                                    """ Plot to check output """
+                                    # output_val = output_val.cpu().data.numpy()            
+                                    # output_val = np.moveaxis(output_val, 1, -1)              
+                                    # seg_train = np.argmax(output_val[0], axis=-1)  
+                                      
+                                    # # convert back to CPU
+                                    # batch_x_val = batch_x_val.cpu().data.numpy() 
+                                    # batch_y_val = batch_y_val.cpu().data.numpy() 
+                     
+                                    # plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_train, batch_x_val[0], batch_x_val[0], batch_y_val[0], batch_y_val[0],
+                                    #                             s_path, iter_cur_epoch, plot_depth=8)
+                                     
                                        
                                tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
                                tracker.val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       

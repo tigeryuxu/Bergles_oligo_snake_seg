@@ -294,7 +294,7 @@ def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], st
             cur_idx = 0   ### if starting tree from nothing!
                 
        
-        elif len(tree) > 2:
+        elif len(tree) > 1:
             
             ### First check if there is a missing value, because fill that first, otherwise, just do max + 1
             #print(tree.cur_idx)
@@ -312,10 +312,10 @@ def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], st
 
         #print(children)
         ### add to tree
-        if len(children) > 0 and start_tree: child_vals = np.add(children,  0).tolist();
+        if (len(children) > 0 and start_tree) or len(tree) == 0: child_vals = np.add(children,  0).tolist();
         
         elif len(children) > 0 and len(num_missing) > 0:  child_vals = np.add(children, int(np.asarray(tree.cur_idx)[-1])).tolist()
-        elif len(children) > 0: child_vals = np.add(children, tree_idx).tolist()
+        elif len(children) > 0: child_vals = np.add(children, int(np.asarray(tree.cur_idx)[-1])).tolist()
         
         
         else: child_vals = []

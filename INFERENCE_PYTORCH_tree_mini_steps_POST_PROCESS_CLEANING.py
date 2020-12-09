@@ -110,7 +110,7 @@ check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/
 
 """ Historical with 2 step training data """
 z_size = 48
-check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step_REAL_HISTORICAL/';  dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 1;
+#check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step_REAL_HISTORICAL/';  dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 1;
 
 """ No historical, 2 step matched """
 # HISTORICAL = 0;
@@ -127,7 +127,18 @@ storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoint
 check_path = storage_path + '(67) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON/'; dilation = 1; deep_supervision = False; tracker = 1;
 
 
-s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale/'
+
+""" For neuron """
+z_size = 32
+HISTORICAL = 0;
+storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
+check_path = storage_path + '(68) Checkpoint_unet_MEDIUM_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2/'; dilation = 2; deep_supervision = False; tracker = 1;
+
+
+#s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale/'
+
+
+s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale_200000_last_first/'
 
 #s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_HISTORICAL_NEURON/'
 #s_path = check_path + 'TEST_inference_185437_shortest_first_REAL_troubleshoot/'
@@ -155,7 +166,7 @@ except FileExistsError:
 
 #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px_NEW/';  seed_crop_size=100; seed_z_size=80
 """ CORRECTLY SCALED!!! """
-input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large REDO multiply scaling/';  seed_crop_size=100; seed_z_size=80
+#input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large REDO multiply scaling/';  seed_crop_size=100; seed_z_size=80
 
 #input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
 
@@ -267,8 +278,18 @@ for i in range(len(examples)):
                 print('SKIPPED, couldnt find initial starting point')
                 continue
             elif len(idx_start) > 1:
-                idx_start = idx_start[0]
+                
                 print('more than 1 start point found')
+                
+                """ If more than 1 start point, use the one closest to either beginning or end of list of coords """
+                if np.min(len(coords) - idx_start) < 3:
+                    idx_start = idx_start[np.argmin(len(coords) - idx_start)]
+                elif np.min(idx_start) < 3:
+                    idx_start = idx_start[np.argmin(idx_start)]
+                else:
+                    idx_start = idx_start[0]
+                        
+                
                 
             start_coords = coords[idx_start]
             if len(coords) < 4:
@@ -285,8 +306,22 @@ for i in range(len(examples)):
         num_tree = 0
         
         
-
-
+        """ Concatenate into one big tree """
+        # combined_trees = all_trees[0]
+        # for small_t in all_trees[1:]:
+            
+        #     small_t.cur_idx = small_t.cur_idx + np.max(combined_trees.cur_idx) + 1
+        #     for p_id, parent in enumerate(small_t.parent):
+        #         if parent != -1:
+        #             parent = parent + np.max(combined_trees.cur_idx) + 1
+                    
+        #         small_t.parent[p_id] = parent;
+            
+        #     combined_trees = pd.concat([combined_trees, small_t], ignore_index=True)
+        
+        # all_trees = []
+        # all_trees.append(combined_trees)
+        
         """ Create box in middle to only get seed colocalized with middle after splitting branchpoints """
         center_cube = create_cube_in_im(width=10, input_size=input_size, z_size=z_size)
         #small_center_cube = create_cube_in_im(width=8, input_size=input_size, z_size=z_size)
@@ -294,12 +329,13 @@ for i in range(len(examples)):
         small_cube = create_cube_in_im(width=5, input_size=input_size * 2, z_size=z_size * 2) 
         
         resize_crop = 0
-        for iterator, tree in enumerate(all_trees):
+        for it, tree in enumerate(all_trees):
              matplotlib.use('Agg')
                         
              
-             #tree = all_trees[6]
+             tree = all_trees[1]
              """ Keep looping until everything has been visited """  
+             iterator = 0;
              while np.asarray(tree.visited.isnull()).any():   
                  
                 ### convert center cube back to original size
@@ -334,6 +370,7 @@ for i in range(len(examples)):
                      tree.visited[node_idx] = 1; iterator += 1; continue;
                     
                 
+                
                 cur_coords, cur_be_start, cur_be_end, centroid_start, centroid_end, parent_coords = get_next_coords(tree, node_idx, num_parents=20)
                 
                 """ Skip if on edges of actual image """
@@ -345,53 +382,7 @@ for i in range(len(examples)):
                 ### SKIP IF TOO SHORT for mini-steps
                 if len(cur_coords) == 1:
                      tree.visited[node_idx] = 1; iterator += 1; continue;
-                # else:
-                #     size_in = len(cur_coords)
-                #     if len(cur_coords) > 3:
-                #         save_start = cur_coords[0, :]
-                #         save_end = cur_coords[-1, :]
-                #         #cur_coords = connect_nearby_px(cur_coords)
-                    
-                #         idx_start = np.where((cur_coords == (save_start)).all(axis=1))[0][0]
-                #         cur_coords = np.delete(cur_coords, idx_start, axis=0)
-                #         cur_coords = np.vstack((save_start, cur_coords))
-                        
-                #         idx_end = np.where((cur_coords == (save_end)).all(axis=1))[0][0]
-                #         cur_coords = np.delete(cur_coords, idx_end, axis=0)
-                #         cur_coords = np.vstack((cur_coords, save_end))
-                    
-                #         cur_coords = order_coords(cur_coords)   ### ***order the points into line coordinates
 
-
-                
-                # ### connect nearby pixels, but then ensure is still correct order!!!
-                # if len(parent_coords) > 0:
-                #     save_start = parent_coords[0, :]
-                #     save_end = parent_coords[-1, :]
-                #     #parent_coords = connect_nearby_px(parent_coords)
-                
-                #     idx_start = np.where((parent_coords == (save_start)).all(axis=1))[0][0]
-                #     parent_coords = np.delete(parent_coords, idx_start, axis=0)
-                #     parent_coords = np.vstack((save_start, parent_coords))
-                    
-                #     idx_end = np.where((parent_coords == (save_end)).all(axis=1))[0][0]
-                #     parent_coords = np.delete(parent_coords, idx_end, axis=0)
-                #     parent_coords = np.vstack((parent_coords, save_end))
-
-
-                """ REVERSE DIRECTION FOR parent COORDS and cur coords ??? """
-                # if len(parent_coords) > 3:                    
-                #     parent_coords = order_coords(parent_coords)
-                #     #parent_coords = np.flip(parent_coords, axis=0)
-
-                """ Setup image so can get historical crops later """                
-                if len(parent_coords) > 0:
-                    im_hist = np.zeros(input_im.shape, dtype=np.int32)
-                    for idx_hist, row in enumerate(parent_coords):
-                        im_hist[row[0], row[1], row[2]] = idx_hist + 1
-                #     #plot_max(im_hist, ax=-1)
-                    
-                    
                 """ Split into mini-steps """
                 ### Step size:
                 step_size = 5; 
@@ -409,7 +400,8 @@ for i in range(len(examples)):
                       plt.figure(100);
                       hist_step_size = 20   # pixels
                       if HISTORICAL and len(parent_coords) > 0:
-
+                          if len(parent_coords) > 0:
+                                im_hist = np.zeros(input_im.shape, dtype=np.int32)
                           """ Include current coords in it """
                           hist_coords = np.concatenate((parent_coords, cur_coords[0:step]))
                           
@@ -506,6 +498,13 @@ for i in range(len(examples)):
             
                       """ Since it's centered around crop, ensure doesn't go overboard """
                       output_PYTORCH[boundaries_crop == 0] = 0
+
+                      """ REMOVE EDGE """
+                      # dist_xy = 10; dist_z = 2
+                      # edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
+                      # edge[dist_xy:crop_size * 2-dist_xy, dist_xy:crop_size * 2-dist_xy, dist_z:z_size-dist_z] = 1
+                      # edge = np.where((edge==0)|(edge==1), edge^1, edge)
+                      # output_PYTORCH[edge == 1] = 0
                 
                       """ SAVE max projections"""
                       plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
@@ -523,7 +522,7 @@ for i in range(len(examples)):
                     
              
 
-                # if iterator == 4:
+                # if iterator == 38:
                 #     zzz
                     
                 """ ALSO HAVE TO RESET CUR_BE_END to align with current location of mini-step and NOT actual end of segment!!!
@@ -570,8 +569,7 @@ for i in range(len(examples)):
                                               
                 ### Don't let it get TOO crazy big
                 if mult >= 8:
-                   tree.visited[node_idx] = 1; print('Finished')                     
-                   iterator += 1;
+                   tree.visited[node_idx] = 1; print('Finished'); iterator += 1;               
                    continue                      
 
 
@@ -610,12 +608,7 @@ for i in range(len(examples)):
                          ***circle instead of cube subtraction??? ==> b/c creating bad cut-offs right now
                     """
   
-                """ REMOVE EDGE """
-                # dist_xy = 0; dist_z = 0
-                # edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
-                # edge[dist_xy:pm_crop_size * 2-dist_xy, dist_xy:pm_crop_size * 2-dist_xy, dist_z:pm_z_size-dist_z] = 1
-                # edge = np.where((edge==0)|(edge==1), edge^1, edge)
-                # output_PYTORCH[edge == 1] = 0
+
   
                 """ ***FIND anything that has previously been identified
                     ***EXCLUDING CURRENT CROP_SEED
@@ -722,7 +715,7 @@ for i in range(len(examples)):
                         tree.visited[node_idx] = 1; print('Finished')                     
                         plot_save_max_project(fig_num=10, im=np.zeros(np.shape(only_coloc)), max_proj_axis=-1, title='_final_added', 
                                 name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) +  '_step_' + str(step) + '_(6)_zfinal_added.png', pause_time=0.001) 
-                        iterator += 1
+                        iterator += 1;
                         continue                      
   
                 else:
@@ -874,28 +867,32 @@ for i in range(len(examples)):
                     ordered_non_scaled = np.copy(ordered)
                     ordered = scale_coords_of_crop_to_full(ordered, box_xyz, box_over)
 
+                    all_lengths = []
                     for idx_s, seg in enumerate(discrete_segs):
                         seg = scale_coords_of_crop_to_full(np.vstack(seg), box_xyz, box_over)
                         discrete_segs[idx_s] = seg
-                        
+                        all_lengths.append(len(seg))
                     
                     """ If discrete segs is only single segment, then also need to break it up by the current crop point so that it's not
                             just one looong segment that will get set as visited == 1    
+                            
+                        OR only one discrete segment is longer than 4 pixels
                     """
-                    if len(discrete_segs) == 1:
+                    if len(discrete_segs) == 1 or len(np.where(np.asarray(all_lengths) > 4)[0]) == 1:
+                        idx_longest = np.argmax(all_lengths)
                         all_dist = [];
-                        for coord in discrete_segs[0]:
+                        for coord in discrete_segs[idx_longest]:
     
                             all_dist.append(np.linalg.norm([x, y, z] - coord))
                             
                         min_id = np.argmin(all_dist)
-                        divider = discrete_segs[0][min_id]                                  
+                        divider = discrete_segs[idx_longest][min_id]                                  
                             
-                        first_seg = discrete_segs[0][0:min_id + 1]
-                        sec_seg = discrete_segs[0][min_id:]
+                        first_seg = discrete_segs[idx_longest][0:min_id + 1]
+                        sec_seg = discrete_segs[idx_longest][min_id:]
                         
                         ### add these newly divided segments into discrete_segs
-                        discrete_segs[0] = first_seg
+                        discrete_segs[idx_longest] = first_seg
                         discrete_segs.append(sec_seg)
         
                                 
@@ -915,10 +912,6 @@ for i in range(len(examples)):
 
                     plot_save_max_project(fig_num=10, im=check_debug, max_proj_axis=-1, title='_final_added', 
                                 name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator)  + '_step_' + str(step) + '_(6)_zfinal_added.png', pause_time=0.001) 
-
-                    # if iterator == 17:
-                    #       zzz    
-                         
 
                    
                     """ IF is empty (no following part) """
@@ -950,14 +943,6 @@ for i in range(len(examples)):
                         tree = treeify_nx(tree, discrete_segs, tree_idx=node_idx, disc_idx=0, parent=parent, be_coords=be_coords)
     
     
-                        
-                        
-                        """ Show final linked tree, after adding to tree object AND eliminating loops """
-                        # im = show_tree(tree, track_trees)
-                        # plot_save_max_project(fig_num=10, im=im, max_proj_axis=-1, title='_LINKED_TREE', 
-                        #             name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator)  + '_step_' + str(step) + '_(7)_LINKED_TREE.png', pause_time=0.001) 
-
-                        
                         """ DEBUG: ensure it is re-inserted """
                         print(tree.cur_idx[idx_to_del])
                         
@@ -975,9 +960,9 @@ for i in range(len(examples)):
                         """ set parent is visited to true """
                         tree.visited[node_idx] = 1;
                         
+                        iterator += 1;
+                        
                         print('Finished one iteration'); plt.close('all')
-                        iterator += 1
-                               
                        
                     """ Save image for animation """
                     if scale_for_animation:
@@ -1084,7 +1069,9 @@ for i in range(len(examples)):
                 idx += 1
                 continue
                  
-            tree.child = tree.child + len(all_trees_appended) 
+            
+            for r_id, row in enumerate(tree.child):                
+                tree.child[r_id] = np.add(tree.child[r_id], len(all_trees_appended) ).tolist() 
             tree.parent = tree.parent + len(all_trees_appended) 
             tree.cur_idx = tree.cur_idx + len(all_trees_appended) 
             

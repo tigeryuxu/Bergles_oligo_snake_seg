@@ -30,6 +30,7 @@ def load_all_trees(tree_csv_path):
             
             if row_num % 2 == 0:
                 parents = []
+                size = []
                 for num, entry in enumerate(row):
                     if num == 0:
                         #im_name = '.tif'.join(entry.split('.tif')[0:-1])
@@ -38,6 +39,8 @@ def load_all_trees(tree_csv_path):
                         
                     elif num == 1:
                         continue
+                    elif num == 2 or num == 3 or num == 4:
+                        size.append(int(entry))
                     
                     else:
                         if not entry == '':
@@ -46,14 +49,14 @@ def load_all_trees(tree_csv_path):
             else:
                 orig_idx = []
                 for num, entry in enumerate(row):
-                    if num == 0 or num == 1:
+                    if num == 0 or num == 1 or num == 2 or num == 3 or num == 4:
                         continue
                                         
                     else:
                         if not entry == '':
                             orig_idx.append(int(entry))    
                             
-                tree_entry = dict(im_name = im_name, orig_idx = np.transpose(orig_idx), parents = np.transpose(parents))
+                tree_entry = dict(im_name = im_name, orig_idx = np.transpose(orig_idx), parents = np.transpose(parents), size=size)
                 all_trees.append(tree_entry)  
                 
     return all_trees
@@ -81,7 +84,7 @@ def save_tree_to_swc(tree, s_path, filename='output.swc', scale_xy=0.20756792660
     all_vertices = []
     for index, vertex in tree.iterrows():
          if not np.isnan(vertex.start_be_coord).any():
-              all_vertices.append(vertex.start_be_coord[round(len(vertex.start_be_coord)/2)])        
+              all_vertices.append(vertex.start_be_coord)        
 
     all_vertices = np.vstack(all_vertices)  # stack into single array
     
@@ -108,6 +111,7 @@ def save_tree_to_swc(tree, s_path, filename='output.swc', scale_xy=0.20756792660
     datafile_path = s_path + filename
     with open(datafile_path, 'w+') as datafile_id:
         np.savetxt(datafile_id, full_arr, fmt=['%d','%d', '%.5f','%.5f', '%.5f','%.5f', '%d'])
+
 
 
 
@@ -166,7 +170,10 @@ def save_tree_to_obj(all_trees, s_path, filename, get_mid=1):
             idx += 1
             continue
              
-        tree.child = tree.child + len(all_trees_appended) 
+        for r_id, row in enumerate(tree.child):                
+                tree.child[r_id] = np.add(tree.child[r_id], len(all_trees_appended)).tolist() 
+                
+        #tree.child = tree.child + len(all_trees_appended) 
         tree.parent = tree.parent + len(all_trees_appended) 
         tree.cur_idx = tree.cur_idx + len(all_trees_appended) 
         
@@ -195,7 +202,7 @@ def save_tree_to_obj(all_trees, s_path, filename, get_mid=1):
          if not np.isnan(vertex.start_be_coord).any():
               
              if get_mid == 1:
-                 all_vertices.append(vertex.start_be_coord[round(len(vertex.start_be_coord)/2)])
+                 all_vertices.append(vertex.start_be_coord)
     
              else:
                  all_vertices.append(vertex.start_be_coord)

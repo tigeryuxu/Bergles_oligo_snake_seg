@@ -165,6 +165,25 @@ examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_trut
                  for i in images]
 
 counter = list(range(len(examples)))
+
+
+
+""" If want to run validation data """
+# # ### REMOVE IMAGE 1 from training data
+# idx_skip = []
+# for idx, im in enumerate(examples):
+#     filename = im['input']
+#     if 'RBP4_HK_5_slice3_40x_stit-Create Image Subset-08-N3_' in filename:
+#         print('skip')
+#         idx_skip.append(idx)
+
+
+# ### USE THE EXCLUDED IMAGE AS VALIDATION/TESTING
+# examples = examples[0:len(idx_skip)]
+# counter = list(range(len(examples_test)))  ### NEWLY ADDED!!!
+
+
+
 """ Create datasets for dataloader """
 training_set = Dataset_tiffs_snake_seg(counter, examples, mean_arr, std_arr, sp_weight_bool=0, transforms = 0, all_trees=[])
 training_generator = data.DataLoader(training_set, batch_size=1, shuffle=False, num_workers=0,
