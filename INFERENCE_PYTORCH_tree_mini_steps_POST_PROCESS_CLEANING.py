@@ -135,10 +135,19 @@ storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoint
 check_path = storage_path + '(68) Checkpoint_unet_MEDIUM_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2/'; dilation = 2; deep_supervision = False; tracker = 1;
 
 
+
+
+""" For neuron large network """
+# z_size = 32
+# HISTORICAL = 0;
+# storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
+# check_path = storage_path + '(68)_2 Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2/'; dilation = 2; deep_supervision = False; tracker = 1;
+
+
 #s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale/'
 
 
-s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale_200000_last_first/'
+s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale_100000_short_first_no_edge_ANIMATION/'
 
 #s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_HISTORICAL_NEURON/'
 #s_path = check_path + 'TEST_inference_185437_shortest_first_REAL_troubleshoot/'
@@ -233,7 +242,7 @@ scale_factor = original_scaling/target_scale;
 scaled_crop_size = round(input_size/scale_factor);
 scaled_crop_size = math.ceil(scaled_crop_size / 2.) * 2  ### round up to even num
 
-scale_for_animation = 0
+scale_for_animation = 0.3; animation_order = [];
 
 for i in range(len(examples)):              
 
@@ -307,20 +316,20 @@ for i in range(len(examples)):
         
         
         """ Concatenate into one big tree """
-        # combined_trees = all_trees[0]
-        # for small_t in all_trees[1:]:
+        combined_trees = all_trees[0]
+        for small_t in all_trees[1:]:
             
-        #     small_t.cur_idx = small_t.cur_idx + np.max(combined_trees.cur_idx) + 1
-        #     for p_id, parent in enumerate(small_t.parent):
-        #         if parent != -1:
-        #             parent = parent + np.max(combined_trees.cur_idx) + 1
+            small_t.cur_idx = small_t.cur_idx + np.max(combined_trees.cur_idx) + 1
+            for p_id, parent in enumerate(small_t.parent):
+                if parent != -1:
+                    parent = parent + np.max(combined_trees.cur_idx) + 1
                     
-        #         small_t.parent[p_id] = parent;
+                small_t.parent[p_id] = parent;
             
-        #     combined_trees = pd.concat([combined_trees, small_t], ignore_index=True)
+            combined_trees = pd.concat([combined_trees, small_t], ignore_index=True)
         
-        # all_trees = []
-        # all_trees.append(combined_trees)
+        all_trees = []
+        all_trees.append(combined_trees)
         
         """ Create box in middle to only get seed colocalized with middle after splitting branchpoints """
         center_cube = create_cube_in_im(width=10, input_size=input_size, z_size=z_size)
@@ -333,7 +342,7 @@ for i in range(len(examples)):
              matplotlib.use('Agg')
                         
              
-             tree = all_trees[1]
+             #tree = all_trees[1]
              """ Keep looping until everything has been visited """  
              iterator = 0;
              while np.asarray(tree.visited.isnull()).any():   
@@ -350,20 +359,23 @@ for i in range(len(examples)):
                 unvisited_indices = np.where(tree.visited.isnull() == True)[0]
                 
                 """ Go to index of SHORTEST PATH FIRST """
-                # all_lengths = []
-                # for ind in unvisited_indices:                 
-                #     parent_coords = get_parent_nodes(tree, ind, num_parents=100, parent_coords = [])
+                all_lengths = []
+                for ind in unvisited_indices:                 
+                    parent_coords = get_parent_nodes(tree, ind, num_parents=100, parent_coords = [])
                 
-                #     if len(parent_coords) > 0:
-                #         parent_coords = np.vstack(parent_coords)
+                    if len(parent_coords) > 0:
+                        parent_coords = np.vstack(parent_coords)
                 
-                #     all_lengths.append(len(parent_coords))                 
-                # node_idx = unvisited_indices[np.argmin(all_lengths)]
+                    all_lengths.append(len(parent_coords))                 
+                node_idx = unvisited_indices[np.argmin(all_lengths)]
                 
                     
                 """ Or, just go to very last position """
-                node_idx = unvisited_indices[-1]
+                #node_idx = unvisited_indices[-1]
                 
+                
+                """ Save order so can generate animation later """
+                animation_order.append(node_idx)
                 
                 ### SKIP IF NO END_BE_COORD FROM 
                 if np.isnan(tree.end_be_coord[node_idx]).any():
@@ -499,20 +511,13 @@ for i in range(len(examples)):
                       """ Since it's centered around crop, ensure doesn't go overboard """
                       output_PYTORCH[boundaries_crop == 0] = 0
 
-                      """ REMOVE EDGE """
-                      # dist_xy = 10; dist_z = 2
-                      # edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
-                      # edge[dist_xy:crop_size * 2-dist_xy, dist_xy:crop_size * 2-dist_xy, dist_z:z_size-dist_z] = 1
-                      # edge = np.where((edge==0)|(edge==1), edge^1, edge)
-                      # output_PYTORCH[edge == 1] = 0
-                
-                      """ SAVE max projections"""
-                      plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
-                                            name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(2)_seed.png', pause_time=0.001)
-                      plot_save_max_project(fig_num=2, im=output_PYTORCH, max_proj_axis=-1, title='segmentation', 
-                                            name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(3)_segmentation.png', pause_time=0.001)
-                      plot_save_max_project(fig_num=3, im=crop, max_proj_axis=-1, title='input', 
-                                            name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(1)_input_im.png', pause_time=0.001)
+                      # """ SAVE max projections"""
+                      # plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
+                      #                       name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(2)_seed.png', pause_time=0.001)
+                      # plot_save_max_project(fig_num=2, im=output_PYTORCH, max_proj_axis=-1, title='segmentation', 
+                      #                       name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(3)_segmentation.png', pause_time=0.001)
+                      # plot_save_max_project(fig_num=3, im=crop, max_proj_axis=-1, title='input', 
+                      #                       name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(1)_input_im.png', pause_time=0.001)
 
 
                       ### HACKY - figure out how to get sizes to be better
@@ -520,10 +525,17 @@ for i in range(len(examples)):
                       output_tracker[box_xyz[0]:box_xyz[1], box_xyz[2]:box_xyz[3], box_xyz[4]:box_xyz[5]] = prev_seg + output_PYTORCH[box_over[0]:prev_seg.shape[0] + box_over[0], box_over[2]:prev_seg.shape[1] + box_over[2], box_over[4]:prev_seg.shape[2] + box_over[4]]
             
                     
-             
+                """ SAVE max projections"""
+                plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
+                                      name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(2)_seed.png', pause_time=0.001)
+                plot_save_max_project(fig_num=2, im=output_PYTORCH, max_proj_axis=-1, title='segmentation', 
+                                      name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(3)_segmentation.png', pause_time=0.001)
+                plot_save_max_project(fig_num=3, im=crop, max_proj_axis=-1, title='input', 
+                                      name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(1)_input_im.png', pause_time=0.001)
+       
 
-                # if iterator == 38:
-                #     zzz
+                # if iterator == 479:
+                #      zzz
                     
                 """ ALSO HAVE TO RESET CUR_BE_END to align with current location of mini-step and NOT actual end of segment!!!
                 """
@@ -573,6 +585,15 @@ for i in range(len(examples)):
                    continue                      
 
 
+                """ REMOVE EDGE """
+                dist_xy = 5; dist_z = 2
+                edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
+                edge[dist_xy:pm_crop_size * 2-dist_xy, dist_xy:pm_crop_size * 2-dist_xy, dist_z:pm_z_size-dist_z] = 1
+                edge = np.where((edge==0)|(edge==1), edge^1, edge)
+                output_PYTORCH[edge == 1] = 0
+                
+
+
                 crop_seed, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
                 crop_seed = skeletonize_3d(crop_seed)     
                 
@@ -613,11 +634,14 @@ for i in range(len(examples)):
                 """ ***FIND anything that has previously been identified
                     ***EXCLUDING CURRENT CROP_SEED
                 """
-                im = show_tree(tree, track_trees)
+                all_segs = show_tree_FAST(tree)
                                   
                 ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
                 for cur_tree in all_trees:
-                    im += show_tree(cur_tree, track_trees)
+                    all_segs = np.concatenate((all_segs, show_tree_FAST(cur_tree)))
+                im = np.zeros(np.shape(input_im))
+                im[all_segs[:, 0], all_segs[:, 1], all_segs[:, 2]] = 1
+                
                 
                 im[im > 0] = 1
                 crop_prev, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                                                      
@@ -858,6 +882,23 @@ for i in range(len(examples)):
                     
 
 
+                    """ To fix: 
+                        
+                        
+                        DEC. 11th ==> start coord is being added at weird spot, so making small tiny segs
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        """
 
                     start = np.transpose(np.where(degrees == 20))[0]
                  
@@ -894,13 +935,7 @@ for i in range(len(examples)):
                         ### add these newly divided segments into discrete_segs
                         discrete_segs[idx_longest] = first_seg
                         discrete_segs.append(sec_seg)
-        
                                 
-                    
-                    
-                    
-
-                        
                     for idx_s, seg in enumerate(be_coords):
                         seg = scale_coords_of_crop_to_full(np.vstack(seg), box_xyz, box_over)
                         be_coords[idx_s] = seg
@@ -913,7 +948,135 @@ for i in range(len(examples)):
                     plot_save_max_project(fig_num=10, im=check_debug, max_proj_axis=-1, title='_final_added', 
                                 name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator)  + '_step_' + str(step) + '_(6)_zfinal_added.png', pause_time=0.001) 
 
-                   
+
+
+                                      
+                    
+                    """ Detect t-shape and only keep one direction"""
+                    
+                    """ (1) First combine all branchpoint neighborhoods """
+                    branchpoints = np.vstack(be_coords[1:])
+                    combined_b = []
+                    while len(branchpoints) > 0:
+                        branchpoint = branchpoints[-1]
+                        expanded = expand_coord_to_neighborhood([branchpoint], lower=3, upper=4)
+                        
+                        append_b = [branchpoint]
+                        branchpoints = np.delete(branchpoints, -1, axis=0) # delete current branchpoint
+                        
+                        bp_copy = np.copy(branchpoints); to_del = []
+                        for id_b, branch in enumerate(bp_copy):
+                            if branch.tolist() in expanded:
+                                append_b = np.concatenate((append_b, [branch]), axis=0)
+                                to_del.append(id_b)
+                        branchpoints = np.delete(branchpoints, to_del, axis=0) # delete current branchpoint that matched once already
+                        
+                        combined_b.append(append_b)
+         
+                    
+                    """ (2) then go through each neighborhood and find which discrete segs belong to which neighborhood
+                                - also must have minimum length > 5 pixels 
+                                - ALSO, must have an endpoint!!!
+                                
+                                """
+                    
+                    no_loops_segs = elim_loops(discrete_segs, tree_idx=0, disc_idx=0, parent=0, be_coords=be_coords, cleaned_segs=[])
+                    
+                    for neighbor_num, neighborhood in enumerate(combined_b):
+                        
+                        ### find matching discrete segs
+                        matched = []
+                       
+                        for seg in no_loops_segs:
+                            
+                            if len(neighborhood) == 1 and (seg[:, None] == neighborhood).all(-1).any() and len(seg) > 6 :
+                                start_id = np.where((seg[:, None] == neighborhood).all(-1))[0][0]
+                                seg_ord, empty, empty = order_coords_from_start(seg, start=seg[start_id])   ### ORDER COORDINATES SO START FROM START
+                                
+                                matched.append(seg_ord)
+                                
+                            elif len(neighborhood) > 1 and (neighborhood[:, None] == seg).all(-1).any() and len(seg) > 6 :
+                                
+                                start_id = np.transpose(np.where((neighborhood[:, None] == seg).all(-1)))
+                                start_id = start_id[0, 1]
+                                
+                                seg_ord, empty, empty = order_coords_from_start(seg, start=seg[start_id])   ### ORDER COORDINATES SO START FROM START
+                                
+                                matched.append(seg_ord)
+                                
+                        """ (3) If > 4 discrete segs at a neighborhood, then go through each discrete seg and find out directional vector
+                                between 2 lines in 2D (don't need 3D???), find max theta to any other segment
+                                        if theta == 180 for 2 pairs of discrete segs, choose discrete seg pair that is earliest in detection (ordered coords)
+                        """
+                        if len(matched) >= 4:
+                            id_s = 0
+                            pairs = []; pairs_2 = [];
+                            while len(matched) > 0:
+                            #for id_s, seg in enumerate(matched):
+                                seg = matched[0]
+                                vector_1 = seg[0] - seg[5]
+                                
+                                all_angles = []
+                                for id_c, check_seg in enumerate(matched):
+                                    #if id_s == id_c: continue
+                                    
+                                    vector_2 = check_seg[0] - check_seg[5]
+                                    
+                                    uv_1 = vector_1 / np.linalg.norm(vector_1)
+                                    uv_2 = vector_2 / np.linalg.norm(vector_2)
+                                    angle = np.arccos(np.dot(uv_1, uv_2))
+                                    deg = angle * (180/math.pi)
+                                    print(deg)
+                                    all_angles.append(deg)
+                                                                   
+                                ### if found pair that is > 160 degrees ==> means is a pair!!!
+                                if np.nanmax(all_angles) > 150:
+                                    idx_max = np.nanargmax(all_angles)
+                                    pairs.append(seg); pairs_2.append(matched[idx_max])
+                                    matched = np.delete(matched, [id_s, idx_max])  ### remove the matched AND current one from consideration   
+                            
+                                else:   ### even if didn't find any, just remove it
+                                    matched = np.delete(matched, [id_s])  ### remove current one from consideration   
+
+                        
+                            """ Next see which pair comes first! If there is more than 1 pair """
+                            if len(pairs) > 1:
+                                ### find index that the pairs correspond to
+                                id_pairs = []
+                                for p_seg in pairs:
+                                   for id_seg, seg in enumerate(discrete_segs):
+                                       if p_seg in seg:
+                                        id_pairs.append(id_seg)
+                                
+                                id_pairs_2 = []
+                                for p_seg in pairs_2:
+                                   for id_seg, seg in enumerate(discrete_segs):
+                                       if p_seg in seg:
+                                        id_pairs_2.append(id_seg)                                
+                                
+                                stack_ind = np.transpose(np.vstack([id_pairs, id_pairs_2]))
+                                row, col = np.unravel_index(stack_ind.argmin(), stack_ind.shape)
+                                
+                                ind_to_delete = np.delete(stack_ind, row, axis=0)  ### exclude the good row, so all that's left is what we want to delete
+                                ind_to_delete = np.asarray(ind_to_delete).flatten()
+                                
+                                """ (4) delete from discrete segs!!! """
+                                discrete_segs = np.delete(discrete_segs, ind_to_delete)
+                                
+                                print('DELETED a t-intersection!!! ')
+
+                                """ Plot for debug: """
+                                check_debug = np.zeros(degrees.shape, dtype=np.int32)
+                                for id_seg, seg in enumerate(discrete_segs):
+                                    scaled = scale_coords_of_crop_to_full(np.vstack(seg), -1 * np.asarray(box_xyz), -1 * np.asarray(box_over))
+                                    
+                                    check_debug[scaled[:, 0], scaled[:, 1], scaled[:, 2]] = id_seg + 1
+                
+                                plot_save_max_project(fig_num=10, im=check_debug, max_proj_axis=-1, title='_MINUS_T_INTER', 
+                                            name=s_path + filename + '_Crop_'  + str(num_tree) + '_' + str(iterator)  + '_step_' + str(step) + '_neighbor_num_' + str(neighbor_num) + '_(7)_MINUS_T_INTER.png', pause_time=0.001) 
+
+
+
                     """ IF is empty (no following part) """
                     if len(ordered) == 0:
                         tree.visited[node_idx] = 1;
@@ -966,24 +1129,43 @@ for i in range(len(examples)):
                        
                     """ Save image for animation """
                     if scale_for_animation:
-                         ### Just current tree???
-                         im = show_tree(tree, track_trees)
+                         # ### Just current tree???
+                         # im = show_tree_FAST(tree, track_trees)
                                              
+                         # ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
+                         # for cur_tree in all_trees:
+                         #       im += show_tree_FAST(cur_tree, track_trees)        
+
+                         all_segs = show_tree_FAST(tree)
+                                          
                          ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
                          for cur_tree in all_trees:
-                               im += show_tree(cur_tree, track_trees)        
+                            all_segs = np.concatenate((all_segs, show_tree_FAST(cur_tree)))
+                         # im = np.zeros(np.shape(input_im))
+                         # im[all_segs[:, 0], all_segs[:, 1], all_segs[:, 2]] = 1
+                         
+                         
+                         """ scale each axis """
+                         all_segs[:, 0] = all_segs[:, 0] * scale_for_animation
+                         all_segs[:, 1] = all_segs[:, 1] * scale_for_animation
+                         all_segs[:, 2] = all_segs[:, 2] * scale_for_animation
+
+                         im = np.zeros(np.shape(input_im_rescaled))
+                         #im = convert_matrix_to_multipage_tiff(im)   
+                         im[all_segs[:, 2], all_segs[:, 0], all_segs[:, 1]] = 1
+                         
                                
                          print("Saving animation")
-                         im = convert_matrix_to_multipage_tiff(im)                     
+                                           
                          
    
                          im[im > 0] = 1
                          
                          """ RESCALE IF WANT LOWER QUALITY DATA to save space!!! *** but must scale both ouptut AND input!!! """
-                         image_rescaled = resize(im, (im.shape[0] * scale_for_animation, im.shape[1] * scale_for_animation, im.shape[2] * scale_for_animation))
-                         image_rescaled[image_rescaled > 0.01] = 1   # binarize again
+                         # image_rescaled = resize(im, (im.shape[0] * scale_for_animation, im.shape[1] * scale_for_animation, im.shape[2] * scale_for_animation))
+                         # image_rescaled[image_rescaled > 0.01] = 1   # binarize again
                          
-                         imsave(s_path + filename + '_ANIMATION_crop_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(image_rescaled * 255, dtype=np.uint8)) 
+                         imsave(s_path + filename + '_ANIMATION_crop_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(im * 255, dtype=np.uint8)) 
                          imsave(s_path +  filename + '_ANIMATION_input_im_' + str(num_tree) + '_' + str(iterator) + '.tif', np.asarray(input_im_rescaled, dtype=np.uint8))
                                         
     
@@ -999,7 +1181,7 @@ for i in range(len(examples)):
              matplotlib.use('Qt5Agg')
              plt.rc('xtick',labelsize=0)
              plt.rc('ytick',labelsize=0)
-             plt.rcParams['figure.dpi'] = 300
+             #plt.rcParams['figure.dpi'] = 300
              ax_title_size = 18
              leg_size = 16
                      

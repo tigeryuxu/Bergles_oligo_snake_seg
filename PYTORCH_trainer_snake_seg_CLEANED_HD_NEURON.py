@@ -112,7 +112,7 @@ if __name__ == '__main__':
     
     #input_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING_FORWARD_NEURON_SOLANGE/'
     
-    input_path = '/media/user/storage/Data/(1) snake seg project/Su_Jeong_data/TRAINING FORWARD PROP ONLY SCALED 32 z DILATE 2/Training_NEURON_32_DILATE_2_attempt_2/'
+    input_path = '/media/user/storage/Data/(1) snake seg project/Su_Jeong_data/TRAINING FORWARD PROP DILATE 2 attempt 2/Training_cell_track_full_auto_COMPLETED/'
     
     #input_path = 'E:/7) Bergles lab data/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; 
     #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
@@ -139,7 +139,7 @@ if __name__ == '__main__':
         #tree_csv_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
         
         
-        tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Su_Jeong_data/TRAINING FORWARD PROP ONLY SCALED 32 z DILATE 2/'
+        tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Su_Jeong_data/TRAINING FORWARD PROP DILATE 2 attempt 2/'
         all_trees = load_all_trees(tree_csv_path)
     else:
         all_trees = [];

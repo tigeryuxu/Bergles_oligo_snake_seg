@@ -263,6 +263,61 @@ def recurse_NX_tree(all_coords, tree_order, cur_idx, parent_idx, ordered, discre
     return ordered, discrete_segs
     
 
+
+""" Treeify the discretized segments by adding them to tree df """
+def elim_loops(discrete_segs, tree_idx, disc_idx, parent, be_coords=[], cleaned_segs=[], start_tree=0):
+
+    cur_seg = discrete_segs[disc_idx]
+    cur_seg = np.vstack(cur_seg)
+    
+    start = cur_seg[0]
+    coords = cur_seg
+    end = cur_seg[-1]
+    
+    #print(len(cleaned_segs))
+    
+                                  
+    ### find next places to go by looking at which next segments starting points match current segment end point
+    children = []
+    for idx, seg in enumerate(discrete_segs):
+        if idx == disc_idx:
+            continue ### skip over current segment
+        start_check = seg[0]
+        #print(start_check)
+        if (start_check == end).all():
+            children.append(idx)
+            
+    """ DON'T add if there are NO children AND the end coord is not contained in the list be_coords
+            this means that this is a loop that comes back onto itself
+    """
+    
+    if len(children) == 0 and len(be_coords) > 0:
+        end_points = be_coords[0];
+        match = 0;
+        for row in end_points:
+            if (row == end).all():
+                match = 1
+                
+        for row in end_points:
+            if (np.vstack([coords, end]) == row).all(-1).any():
+               match = 1 
+                        
+    else: match = 1
+    
+
+    
+    if match:     
+        ### go to all children
+        cleaned_segs.append(cur_seg)
+        
+        for child in children:
+            cleaned_segs = elim_loops(discrete_segs, tree_idx=tree_idx, disc_idx=child, parent=child, be_coords=be_coords, cleaned_segs=cleaned_segs)
+            
+            #cleaned_segs.append(child_segs)
+            
+    return cleaned_segs
+    
+    
     
 """ Treeify the discretized segments by adding them to tree df """
 def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], start_tree=0):
