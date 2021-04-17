@@ -20,7 +20,7 @@ import scipy.io as sio
 from tifffile import imsave
 
 import zipfile
-import bz2
+#import bz2
 
 #from plot_functions_CLEANED import *
 #from data_functions import *
@@ -136,7 +136,8 @@ def bw_skel_and_analyze(bw):
           except:
                pixel_graph = np.zeros(np.shape(skeleton))
                coordinates = []
-               degrees = np.zeros(np.shape(skeleton))               
+               degrees = np.zeros(np.shape(skeleton))     
+               print('error, could not skeletonize')
      else:
           pixel_graph = np.zeros(np.shape(skeleton))
           coordinates = []
@@ -328,21 +329,29 @@ def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], st
         cur_seg = discrete_segs[disc_idx]
         cur_seg = np.vstack(cur_seg)
         
-        start = cur_seg[0]
-        coords = cur_seg
-        end = cur_seg[-1]
+        if len(discrete_segs[disc_idx]) <= 2 and start_tree:
+            start = discrete_segs[disc_idx][0]
+            coords = np.vstack(discrete_segs[disc_idx])
+            end = discrete_segs[disc_idx][0]
+        else:              
+            start = cur_seg[0]
+            coords = cur_seg
+            end = cur_seg[-1]
                      
  
                         
         ### find next places to go by looking at which next segments starting points match current segment end point
-        children = []
+        children_disc = [];   # this index is for the discrete_segs
+        child_numeric = []; num_child = 1;    # this index is for the actual children
         for idx, seg in enumerate(discrete_segs):
             if idx == disc_idx:
                 continue ### skip over current segment
             start_check = seg[0]
             #print(start_check)
             if (start_check == end).all():
-                children.append(idx)
+                children_disc.append(idx)
+                
+                child_numeric.append(num_child); num_child += 1
 
         num_missing = []
         if len(tree) == 0:
@@ -367,10 +376,11 @@ def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], st
 
         #print(children)
         ### add to tree
-        if (len(children) > 0 and start_tree) or len(tree) == 0: child_vals = np.add(children,  0).tolist();
+        if (len(child_numeric) > 0 and start_tree) or len(tree) == 0: child_vals = np.add(child_numeric,  0).tolist();   ### if tree is starting out, dont add values to children
         
-        elif len(children) > 0 and len(num_missing) > 0:  child_vals = np.add(children, int(np.asarray(tree.cur_idx)[-1])).tolist()
-        elif len(children) > 0: child_vals = np.add(children, int(np.asarray(tree.cur_idx)[-1])).tolist()
+        ### HACK: double check if this next line is correct when missing values
+        elif len(child_numeric) > 0 and len(num_missing) > 0:  child_vals = np.add(child_numeric, int(np.asarray(tree.cur_idx)[-1])).tolist()  ### if there is missing things in between, add
+        elif len(child_numeric) > 0: child_vals = np.add(child_numeric, int(np.asarray(tree.cur_idx)[-1]) + 1).tolist();    ### if this is normal appending to end of list, then also need to do + 1 to children!
         
         
         else: child_vals = []
@@ -380,7 +390,7 @@ def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], st
                 this means that this is a loop that comes back onto itself
         """
         
-        if len(children) == 0 and len(be_coords) > 0:
+        if len(children_disc) == 0 and len(be_coords) > 0:
             end_points = be_coords[0];
             match = 0;
             for row in end_points:
@@ -414,7 +424,7 @@ def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], st
             new_node = {'coords': coords, 'parent': parent, 'child': child_vals, 'depth': 0, 
                         'cur_idx': int(cur_idx), 'start_be_coord': start, 'end_be_coord': end, 'visited': np.nan}
      
-            if len(children) > 0:
+            if len(children_disc) > 0:
                 new_node['visited'] = 1
         
             ### if it's a deleted node, then add back into the location it was deleted from!!!
@@ -427,7 +437,7 @@ def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], st
             
                
             ### go to all children
-            for child in children:
+            for child in children_disc:
                 tree = treeify_nx(tree, discrete_segs, tree_idx=tree_idx, disc_idx=child, parent=cur_idx, be_coords=be_coords)
                 
                 
@@ -440,9 +450,86 @@ def treeify_nx(tree, discrete_segs, tree_idx, disc_idx, parent, be_coords=[], st
         
     
     
+import math
+
+""" Walk through discrete_segs only LINEARLY!!! (no branching) """
+def linear_walk(discrete_segs, disc_idx, linear_segs=[]):
     
+    ### First get current segment from discrete_segs
+    cur_seg = discrete_segs[disc_idx]
+    cur_seg = np.vstack(cur_seg)
+    
+    if len(discrete_segs[disc_idx]) <= 2:
+        start = discrete_segs[disc_idx][0]
+        coords = np.vstack(discrete_segs[disc_idx])
+        end = discrete_segs[disc_idx][-1]
+    else:              
+        start = cur_seg[0]
+        coords = cur_seg
+        end = cur_seg[-1]
+                     
+ 
+                        
+    ### find next places to go by looking at which next segments starting points match current segment end point
+    children_disc = [];   # this index is for the discrete_segs
+    for idx, seg in enumerate(discrete_segs):
+        if idx == disc_idx:
+            continue ### skip over current segment
+        start_check = seg[0]
+        print(start_check)
+        if (start_check == end).all():
+            children_disc.append(idx)
 
 
+
+    if len(children_disc) == 0:   ### END LOOP IF NO CHILDREN
+        return linear_segs
+
+    elif len(children_disc) > 1:    ### if more than 1 child, then find one with angle that is closest to 180
+    
+                ### drop the children that are NOT closest to straight line
+        
+        ### (1) first get angle/direction of current vector 
+        if len(cur_seg) > 8:
+            cur_vec = cur_seg[-1] - cur_seg[-8]   ### using last and last - 8 pixel vector
+        else: cur_vec = cur_seg[-1] - cur_seg[0]
+
+        
+        print('many children')
+        all_angles = []
+        for child_id in children_disc:
+            
+            child_seg = discrete_segs[child_id]
+            
+            
+            if len(child_seg) > 8:
+                child_vec = child_seg[0] - child_seg[7]   ### using last and last - 8 pixel vector
+                
+            else:   ### if really short, then just ignore it and keep looping???
+                child_vec = child_seg[0] - child_seg[-1]
+                # linear_segs.append(discrete_segs[child_id])
+                # linear_segs = linear_walk(discrete_segs, disc_idx=child_id, linear_segs=linear_segs)
+                
+            
+            
+            uv_1 = cur_vec / np.linalg.norm(cur_vec)
+            uv_2 = child_vec / np.linalg.norm(child_vec)
+            angle = np.arccos(np.dot(uv_1, uv_2))
+            deg = angle * (180/math.pi)
+            all_angles.append(deg)
+            print(deg)
+
+        id_max = np.argmax(all_angles)
+        
+        children_disc = [children_disc[id_max]]
+                         
+
+    linear_segs.append(discrete_segs[children_disc[0]])
+    linear_segs = linear_walk(discrete_segs, disc_idx=children_disc[0], linear_segs=linear_segs)
+                
+    return linear_segs
+        
+        
 
 
 

@@ -728,7 +728,7 @@ def show_tree(tree_df, im):
     return im
 
 
-""" Plot tree """
+""" Get ALL coords of tree """
 def show_tree_FAST(tree_df):
     all_segments = np.asarray(tree_df.coords[:])
     indices = np.asarray(tree_df.cur_idx)
@@ -738,3 +738,16 @@ def show_tree_FAST(tree_df):
         
     return all_segs
 
+
+""" Get all coords of tree EXCEPT for... """
+def show_tree_FAST_drop_index(tree_df, drop_id):
+    
+    copy_tree = tree_df.copy()
+    copy_tree = copy_tree.drop([drop_id])
+    all_segments = np.asarray(copy_tree.coords[:])
+    indices = np.asarray(copy_tree.cur_idx)
+    #start_be_coord = np.asarray(tree_df.start_be_coord[:])
+    all_segs = np.vstack(all_segments)
+    #im[all_segs[:, 0], all_segs[:, 1], all_segs[:, 2]] = 1 # because dont want non-zero
+        
+    return all_segs

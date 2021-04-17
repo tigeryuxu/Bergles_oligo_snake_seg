@@ -17,20 +17,20 @@ import scipy
 import math
 import tifffile as tifffile
 
-import torchio
-from torchio.transforms import (
-    RescaleIntensity,
-    RandomFlip,
-    RandomAffine,
-    RandomElasticDeformation,
-    RandomMotion,
-    RandomBiasField,
-    RandomBlur,
-    RandomNoise,
-    Interpolation,
-    Compose
-)
-from torchio import Image, Subject, ImagesDataset
+# import torchio
+# from torchio.transforms import (
+#     RescaleIntensity,
+#     RandomFlip,
+#     RandomAffine,
+#     RandomElasticDeformation,
+#     RandomMotion,
+#     RandomBiasField,
+#     RandomBlur,
+#     RandomNoise,
+#     Interpolation,
+#     Compose
+# )
+# from torchio import Image, Subject, ImagesDataset
 
 
 from functional.data_functions_CLEANED import *
@@ -43,6 +43,57 @@ from skimage.draw import line_nd
 from skimage.transform import resize
 
 from tree_functions import *
+
+
+
+
+""" Calculate Jaccard on the GPU """
+def jacc_eval_GPU_torch(output, truth, ax_labels=-1, argmax_truth=1):
+    
+      output = torch.argmax(output,axis=1)
+      intersection = torch.sum(torch.sum(output * truth, axis=ax_labels),axis=ax_labels)
+      union = torch.sum(torch.sum(torch.add(output, truth)>= 1, axis=ax_labels),axis=ax_labels) + 0.0000001
+      jaccard = torch.mean(intersection / union)  # find mean of jaccard over all slices     
+          
+      
+      ### per image ==> is the same???
+      # all_jacc = [];
+      # for o_single, t_single in zip(output, truth):
+      #     o_single = torch.argmax(o_single,axis=0)
+      #     intersection = torch.sum(torch.sum(o_single * t_single, axis=ax_labels),axis=ax_labels)
+      #     union = torch.sum(torch.sum(torch.add(o_single, t_single)>= 1, axis=ax_labels),axis=ax_labels) + 0.0000001
+      #     jaccard = torch.mean(intersection / union)  # find mean of jaccard over all slices   
+      #     all_jacc.append(jaccard.cpu().data.numpy())
+
+          
+      return jaccard
+
+
+""" Find cID metric: """
+import cIDice_metric as cID_metric
+def cID_metric_eval_CPU(output_train, labels):
+    ### FOR DEBUGGING:
+
+    labels = labels.cpu().data.numpy()                  
+    output_train = output_train.cpu().data.numpy()            
+    output_train = np.moveaxis(output_train, 1, -1)   
+    
+    sum_cID = 0
+    for i in range(len(output_train)):
+    
+        seg_val = np.argmax(output_train[i], axis=-1)  
+        truth_3D = labels[i]
+        cID_val_3D = cID_metric.clDice(truth_3D, seg_val)
+        
+        sum_cID += cID_val_3D
+        
+    return sum_cID/len(output_train)
+                           
+
+
+
+
+
 
 
 """ Extended functions for SNAKE_SEG """
@@ -74,7 +125,7 @@ def get_examples_arr(examples):
                 
 """ Load data directly from tiffs with seed mask """
 class Dataset_tiffs_snake_seg(data.Dataset):
-  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0, resize_z=0, skeletonize=0, depth=48, all_trees=[]):
+  def __init__(self, list_IDs, examples, mean, std, sp_weight_bool=0, transforms=0, dist_loss=0, resize_z=0, skeletonize=0, depth=48, num_parents = 10, all_trees=[], HISTORICAL=0):
         'Initialization'
         #self.labels = labels
         self.list_IDs = list_IDs
@@ -91,15 +142,17 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         self.skeletonize = skeletonize
         self.all_trees = all_trees
         
-        self.num_parents = 10
+        self.num_parents = num_parents
         
         
         ### Define orig idx and start indices so can be found easier later
         self.examples_arr = get_examples_arr(examples)
-        self.all_orig_idx = np.asarray(self.examples_arr['orig_idx'])
-        self.all_start_indices =  np.where(self.all_orig_idx == 1)[0]
+        #self.all_orig_idx = np.asarray(self.examples_arr['orig_idx'])
+        #self.all_start_indices =  np.where(self.all_orig_idx == 1)[0]
         
         self.height = 80; self.width = 80; self.depth = depth;
+        
+        self.HISTORICAL = HISTORICAL
         
 
   def apply_transforms(self, image, labels):
@@ -301,7 +354,203 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         truth_resize = dilate_by_ball_to_binary(skel, radius = 1)
 
 
+        """ If want to load parents as well """
+  def load_HISTORICAL_internodes(self, index, num_parents, seed_orig, Y_orig):
+        ### Find matching tree from all_trees that matches with example
+        im_name = self.examples[index]['filename']
+        cur_val = self.examples[index]['orig_idx']
+        
+                
+        """ If parents were found: """
+        all_parent_im = []
+        parents = []
+      
+        """ add current value to list of parents so can include past traces of itself as well 
+                ***maybe move this to before this if statement???
+        """
+        parents = [cur_val] + parents
+        
+        ### then search through examples to find matching
+        
+        ### to save memory, only search through - 10000 examples           
+            
+        index_beginning_of_im = np.max(np.where(self.all_start_indices <= index)[0])
+        start_im_num = self.all_start_indices[index_beginning_of_im]
+        while len(np.where(self.all_start_indices == start_im_num)[0]) > 0:
+            start_im_num -= 1
+        start_im_num += 1
+            
+        search_examples = self.examples[start_im_num:index]
+        
+        search_example_orig_idx = self.all_orig_idx[start_im_num:index]
+        
+        
+        """ Grab random image from within the parent seed 
+        
+                OR actually, get parents exactly 20 pixels apart from each other (i.e. every 4 +/- 1 crops from each other)
+        """
+        from random import randint
+        all_parent_indices = []
+        for parent in parents:
+            
+            if parent != 0:
+                loc_parent = np.where(search_example_orig_idx == parent)[0]
+                #rand_idx = randint(0, len(loc_parent) - 1)
+                #parent_idx = loc_parent[rand_idx] + start_im_num
+                #all_parent_indices.append(parent_idx)
+                
+                all_parent_indices = np.concatenate((all_parent_indices, loc_parent))
+            
+        all_parent_indices = np.unique(all_parent_indices) ### REMOVE DUPLICATES
+        all_parent_indices[::-1].sort()  ### sort into descending order
+        
+        get_every = 4   ### because 8 pixels apart * 4 == 32
+        all_parent_indices_skip = []
+        for idx, val in enumerate(all_parent_indices):
+            rand_idx = randint(-2, 0)
+            
+            if idx % get_every == 0:           
+                if idx == 0:
+                    skip = 1;
+                    """ Tiger added ==> skip very first trace!!! otherwise crop seed will be IN THE FOV!!! """
+                    # if  idx + 2 < len(all_parent_indices):
+                    #     # don't get crop immediately a
+                    #     idx = 2
+                    # else:                
+                    #     all_parent_indices_skip.append(int(all_parent_indices[idx]))
+                        
+                else:
+                    all_parent_indices_skip.append(int(all_parent_indices[idx + rand_idx]))
+                
+                
+            
+        #all_parent_indices_skip = all_parent_indices[0::4]  ### get every 4th index
+        
+        
+        """ Get real current crop size!!! so can compare """
+        ID = self.list_IDs[index]
 
+        input_orig = self.examples[ID]['input']
+        # truth_name = self.examples[ID]['truth']
+        # seed_name = self.examples[ID]['seed_crop']
+
+        X_orig = tifffile.imread(input_orig)
+        
+        # Y_orig = tifffile.imread(truth_name)
+        # seed_orig = tifffile.imread(seed_name)
+        # Y[Y > 0] = 1
+        # plot_max(Y_orig); plot_max(seed_orig); plot_max(X_orig); plot_max(X); plot_max(Y); plot_max(seed_crop)
+        x_scale = self.examples[ID]['x']
+        y_scale = self.examples[ID]['y']
+        z_scale = self.examples[ID]['z']
+        coords_Y_orig = np.transpose(np.where(Y_orig > 0))
+        # coords_Y_orig[:, 0] = coords_Y_orig[:, 0] - np.shape(X_orig)[0]/2
+        # coords_Y_orig[:, 1] = coords_Y_orig[:, 1] - np.shape(X_orig)[1]/2
+        # coords_Y_orig[:, 2] = coords_Y_orig[:, 2] - np.shape(X_orig)[2]/2
+        
+        coords_Y_orig[:, 0] = coords_Y_orig[:, 0] + z_scale
+        coords_Y_orig[:, 1] = coords_Y_orig[:, 1] + x_scale
+        coords_Y_orig[:, 2] = coords_Y_orig[:, 2] + y_scale  
+        
+        coords_Y_orig = expand_coord_to_neighborhood(coords_Y_orig, 3, 4)
+        coords_Y_orig = np.unique(coords_Y_orig,axis=0)
+                        
+        
+        """ Scale indices to size of whole list """
+        all_parent_indices_skip = all_parent_indices_skip + start_im_num
+     
+        """ Actually load the parents """         
+        for parent_idx in all_parent_indices_skip:
+     
+            input_name = self.examples[parent_idx]['input']    ### SCALE NUMBER BACK
+            truth_name = self.examples[parent_idx]['truth']
+            seed_name = self.examples[parent_idx]['seed_crop']
+
+            X = tifffile.imread(input_name)
+            Y = tifffile.imread(truth_name)
+            seed_crop = tifffile.imread(seed_name)
+            
+            """ Get location """
+            x_scale = self.examples[parent_idx]['x']
+            y_scale = self.examples[parent_idx]['y']
+            z_scale = self.examples[parent_idx]['z']
+            coords_Y = np.transpose(np.where(Y > 0))
+            # coords_Y[:, 0] = coords_Y[:, 0] - np.shape(X_orig)[0]/2
+            # coords_Y[:, 1] = coords_Y[:, 1] - np.shape(X_orig)[1]/2
+            # coords_Y[:, 2] = coords_Y[:, 2] - np.shape(X_orig)[2]/2                
+                
+            coords_Y[:, 0] = coords_Y[:, 0] + z_scale
+            coords_Y[:, 1] = coords_Y[:, 1] + x_scale
+            coords_Y[:, 2] = coords_Y[:, 2] + y_scale                
+         
+                
+
+            stack = np.concatenate((coords_Y, coords_Y_orig))
+                            
+            unq, count = np.unique(stack, axis=0, return_counts=True)
+            duplicated_coords = unq[count>1]
+            
+            ### scale back down
+            duplicated_coords[:, 0] = duplicated_coords[:, 0] - z_scale
+            duplicated_coords[:, 1] = duplicated_coords[:, 1] - x_scale
+            duplicated_coords[:, 2] = duplicated_coords[:, 2] - y_scale
+            
+            
+            
+            ### set to blank:
+            Y[duplicated_coords[:, 0], duplicated_coords[:, 1], duplicated_coords[:, 2]] = 0
+            
+                
+            
+            """ EVENTUALLY WANT TO ADD IN FULL TRACE but cant right now b/c the TRUTH (Y) is too branchy """
+
+            ### only keep parts of trace that are the parent
+            check_with = self.all_orig_idx[all_parent_indices_skip]
+            check_with = np.append(check_with, cur_val)
+            
+            uniq_Y = np.unique(Y)   ### find all values that are unique in the crop
+            for uniq_Y in np.unique(Y):
+                if uniq_Y not in check_with:
+                    Y[Y == uniq_Y] = 0
+            parent_trace = seed_crop + Y
+            parent_trace[parent_trace > 0] = 1
+            
+            
+            ### OTHERWISE, only use the crop, not the full length                
+            #parent_trace = seed_crop
+
+            parent_trace[parent_trace > 0] = 255
+            
+            
+            
+            all_parent_im.append(X)
+            all_parent_im.append(parent_trace)
+            
+            
+            ### AT MOST ONLY APPEND SO MANY PARENTS
+            if len(all_parent_im)/2 == num_parents:
+                break
+            
+            
+            ### DEBUG:
+            #plot_max(X, ax=0)
+            #plot_max(parent_trace, ax=0)
+
+            
+        """ If did NOT get enough parents, then append empty arrays """
+        num_empty = 0
+        while len(all_parent_im)/2 < num_parents:
+            all_parent_im.append(np.zeros([self.depth, self.height, self.width]))
+            num_empty += 1
+            
+        #print("num empty: " + str(num_empty))
+        
+        if len(np.asarray(all_parent_im).shape) == 1:
+             print('debug')
+                    
+                
+
+        return all_parent_im
 
         """ If want to load parents as well """
   def load_parents(self, index, num_parents, seed_orig, Y_orig):
@@ -585,6 +834,16 @@ class Dataset_tiffs_snake_seg(data.Dataset):
             
             X = np.concatenate((X, all_parent_im))
             
+        elif self.HISTORICAL:
+            
+            all_parent_im = self.load_HISTORICAL_internodes(index, self.num_parents, seed_orig=seed_crop, Y_orig=Y)
+            all_parent_im = np.asarray(all_parent_im)
+            
+            if len(all_parent_im.shape) == 1:
+                 print('debug')
+            
+            X = np.concatenate((X, all_parent_im))            
+            
             
             
 
@@ -627,27 +886,6 @@ class Dataset_tiffs_snake_seg(data.Dataset):
 
 
 
-
-""" Calculate Jaccard on the GPU """
-def jacc_eval_GPU_torch(output, truth, ax_labels=-1, argmax_truth=1):
-    
-      output = torch.argmax(output,axis=1)
-      intersection = torch.sum(torch.sum(output * truth, axis=ax_labels),axis=ax_labels)
-      union = torch.sum(torch.sum(torch.add(output, truth)>= 1, axis=ax_labels),axis=ax_labels) + 0.0000001
-      jaccard = torch.mean(intersection / union)  # find mean of jaccard over all slices     
-          
-      
-      ### per image ==> is the same???
-      # all_jacc = [];
-      # for o_single, t_single in zip(output, truth):
-      #     o_single = torch.argmax(o_single,axis=0)
-      #     intersection = torch.sum(torch.sum(o_single * t_single, axis=ax_labels),axis=ax_labels)
-      #     union = torch.sum(torch.sum(torch.add(o_single, t_single)>= 1, axis=ax_labels),axis=ax_labels) + 0.0000001
-      #     jaccard = torch.mean(intersection / union)  # find mean of jaccard over all slices   
-      #     all_jacc.append(jaccard.cpu().data.numpy())
-
-          
-      return jaccard
 
 """ Define transforms"""
 
@@ -729,75 +967,4 @@ def transfer_to_GPU(X, Y, device, mean, std, transforms = 0):
      inputs = inputs.unsqueeze(1)   
 
      return inputs, labels
-
-
-
-""" Load data directly from tiffs """
-class Dataset_tiffs(data.Dataset):
-  'Characterizes a dataset for PyTorch'
-  def __init__(self, list_IDs, examples, mean, std, transforms = 0):
-        'Initialization'
-        #self.labels = labels
-        self.list_IDs = list_IDs
-        self.examples = examples
-        self.transforms = transforms
-        self.mean = mean
-        self.std = std
-
-  def apply_transforms(self, image, labels):
-        #inputs = np.asarray(image, dtype=np.float32)
-        inputs = image
-
- 
-        inputs = torch.tensor(inputs, dtype = torch.float,requires_grad=False)
-        labels = torch.tensor(labels, dtype = torch.long, requires_grad=False)         
- 
-        subject_a = Subject(
-                one_image=Image(None,  torchio.INTENSITY, inputs),   # *** must be tensors!!!
-                a_segmentation=Image(None, torchio.LABEL, labels))
-          
-        subjects_list = [subject_a]
-
-        subjects_dataset = ImagesDataset(subjects_list, transform=self.transforms)
-        subject_sample = subjects_dataset[0]
-          
-          
-        X = subject_sample['one_image']['data'].numpy()
-        Y = subject_sample['a_segmentation']['data'].numpy()
-        
-        return X[0], Y[0]    
-
-  def __len__(self):
-        'Denotes the total number of samples'
-        return len(self.list_IDs)
-
-  def __getitem__(self, index):
-        'Generates one sample of data'
-        # Select sample
-        ID = self.list_IDs[index]
-
-        # Load data and get label
-        #X = torch.load('data/' + ID + '.pt')
-        #y = self.labels[ID]
-
- 
-        input_name = self.examples[ID]['input']
-        truth_name = self.examples[ID]['truth']
-
-        X = tifffile.imread(input_name)
-        #X = np.expand_dims(X, axis=0)
-        Y = tifffile.imread(truth_name)
-        Y[Y > 0] = 1
-        #Y = np.expand_dims(Y, axis=0)
-
-        """ Do normalization here??? """
-        #X  = (X  - self.mean)/self.std
-
-
-        """ If want to do transform on CPU """
-        if self.transforms:
-             X, Y = self.apply_transforms(X, Y)  
-        
-             
-        return X, Y
 

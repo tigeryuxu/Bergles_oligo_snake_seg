@@ -41,9 +41,17 @@ from layers.unet3_3D import *
 from layers.switchable_BN import *
 
 from losses_pytorch.HD_loss import *
+import tifffile
+
+
+import cIDice_metric as cID_metric
+import cIDice_loss as cID_loss
+
+import Hausdorff_metric as HD_metric
+
 
 """ optional dataviewer if you want to load it """
-#import napari
+# import napari
 # with napari.gui_qt():
 #     viewer = napari.view_image(seg_val)
 
@@ -57,10 +65,12 @@ if __name__ == '__main__':
     print(device)
     
     """" path to checkpoints """       
-    s_path = './(51) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_repeat_MARCC/'; HD = 1; alpha = 1;
-    s_path = './(52) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_NO_1st_im/'; dilation = 1; deep_supervision = False; tracker = 1;
+    # s_path = './(51) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_repeat_MARCC/'; HD = 1; alpha = 1;
+    # s_path = './(52) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_NO_1st_im/'; dilation = 1; deep_supervision = False; tracker = 1;
 
-    s_path = './(53) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; HD = 1; alpha = 1;
+    # s_path = './(53) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; HD = 1; alpha = 1;
+    
+    s_path = './(85) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_sW_kernel/';  HD = 1; alpha = 1;
     
     
     """ path to input data """
@@ -69,10 +79,57 @@ if __name__ == '__main__':
 
     #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
 
+
+    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING SCALED crop pads seed 4 COLORED 48 z DENSE LABELS/Training_snake_seg/'; dataset = 'full historical type seed 4 z 48 dataset'
+
+
+    im_type = 'c'
+
+    """ Load filenames from tiff """
+    # images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
+    # images.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
+    # examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop')) for i in images]
+    
     """ Load filenames from tiff """
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
     images.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
-    examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop')) for i in images]
+    # examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
+    #                  seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
+    #                  orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
+    #                  x = int(re.search('_x_(.*)_y_', i).group(1)),
+    #                  y = int(re.search('_y_(.*)_z_', i).group(1)),
+    #                  z = int(re.search('[^=][^a-z]_z_(.*)_type_', i).group(1)),     ### had to exclude anything that starts with "=0_z" b/c that shows up earlier
+    #                  im_type = str(re.search('_type_(.*)_branch_', i).group(1)),    
+    #                  filename= i.split('/')[-1].split('_origId')[0].replace(',', ''))
+    #                  for i in images]
+      
+    examples = []
+    for i in images:
+        type_check = str(re.search('_type_(.*)_branch_', i).group(1))
+                         
+        if im_type == type_check:
+            examples.append(dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
+                             seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
+                             orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
+                             x = int(re.search('_x_(.*)_y_', i).group(1)),
+                             y = int(re.search('_y_(.*)_z_', i).group(1)),
+                             z = int(re.search('[^=][^a-z]_z_(.*)_type_', i).group(1)),     ### had to exclude anything that starts with "=0_z" b/c that shows up earlier
+                             im_type = str(re.search('_type_(.*)_branch_', i).group(1)),    
+                             filename= i.split('/')[-1].split('_origId')[0].replace(',', '')))
+            
+            
+            
+    
+    """ Also load in full images """
+    full_input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/'
+    images_full = glob.glob(os.path.join(full_input_path,'*_input.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
+    images_full.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
+    examples_full = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop')) for i in images]
+    
+    
+    input_im = tifffile.imread(images_full[0])
+        
+    
     
     
     # ### REMOVE IMAGE 1 from training data
@@ -123,7 +180,7 @@ if __name__ == '__main__':
     
     tracker.idx_train = []
 
-    tracker.batch_size = 1
+    #tracker.batch_size = 1
     tracker.train_loss_per_batch = [] 
     tracker.train_jacc_per_batch = []
     tracker.val_loss_per_batch = []; tracker.val_jacc_per_batch = []
@@ -142,7 +199,7 @@ if __name__ == '__main__':
     
     #tracker.
 
-
+    print(onlyfiles_check)
     for check_file in onlyfiles_check:      
         last_file = check_file
         """ Find last checkpoint """       
@@ -193,14 +250,15 @@ if __name__ == '__main__':
         #train_steps_per_epoch = len(tracker.idx_train)/tracker.batch_size
         validation_size = len(tracker.idx_valid)
         #epoch_size = len(tracker.idx_train)    
-       
-        
-
+      
          
          
         """ Should I keep track of loss on every single sample? and iteration? Just not plot it??? """   
-        loss_val = 0; jacc_val = 0; val_idx = 0;
-        iter_cur_epoch = 0;  ce_val = 0; dc_val = 0; hd_val = 0;
+       
+        loss_val = 0; jacc_val = []; val_idx = 0;
+        iter_cur_epoch = 0;  ce_val = 0; dc_val = 0; hd_val = 0; hd_value = []
+        
+        all_cID_3D = []; all_cID_2D = []
         if tracker.cur_epoch % validate_every_num_epochs == 0:
             
              with torch.set_grad_enabled(False):  # saves GPU RAM
@@ -216,7 +274,15 @@ if __name__ == '__main__':
    
                        """ calculate loss 
                                include HD loss functions """
-                       if tracker.HD:
+                               
+                       
+                       if hasattr(tracker, 'cID') and tracker.cID:
+      
+                            ### USE SOFTMAX, and NOT argmax because argmax creates some discontinuous skeleton
+                            outputs_soft = F.softmax(output_val, dim=1)
+                            loss = cID_loss_function(labels_val.type(torch.float32).unsqueeze(1), outputs_soft[:, 1, :, :, :].unsqueeze(1))
+                               
+                       elif tracker.HD:
                            loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
                                                                                          ce_val, dc_val, hd_val, val_bool=1)
                        else:
@@ -245,49 +311,199 @@ if __name__ == '__main__':
                        loss_val += loss.cpu().data.numpy()
                                         
                        """ Calculate jaccard on GPU """
-                       jacc = jacc_eval_GPU_torch(output_val, labels_val)
-                       jacc = jacc.cpu().data.numpy()
+                       #jacc = jacc_eval_GPU_torch(output_val, labels_val)
+                       #jacc = jacc.cpu().data.numpy()
+                       jacc = cID_metric_eval_CPU(output_val, labels=batch_y_val)
                        
-                       jacc_val += jacc
+                       jacc_val.append(jacc)
                        tracker.val_jacc_per_batch.append(jacc)   
-   
+
+             
+
+                       """ HD_metric """
+                       outputs_argm = torch.argmax(output_val, dim=1)
+                       hd_metric = HD_metric.HausdorffDistance()
+                       hd_m = hd_metric.compute(outputs_argm.unsqueeze(1), labels_val.unsqueeze(1))
+                       hd_value.append(hd_m.cpu().data.numpy())
+  
+        
+
+
                        val_idx = val_idx + tracker.batch_size
                        print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
+                       
+
+                       
                        iter_cur_epoch += 1
    
                        #if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
-   
+                       
+                       
+                       """ check each image and all metrics """
+                       batch_x_val = batch_x_val.cpu().data.numpy()
+                         
+                         
+                       batch_y_val = batch_y_val.cpu().data.numpy() 
+                       output_val = output_val.cpu().data.numpy()            
+                       output_val = np.moveaxis(output_val, 1, -1)       
+                       seg_val = np.argmax(output_val[0], axis=-1)  
+                       
+                       
+                       
+                       # input_3D = batch_x_val[0][0]
+                       # truth_3D = batch_y_val[0]
+                       # seg_3D = seg_val
+                       # #plot_max(truth_3D + seg_3D)
+                       
+                       
+                       # ### DEBUG: plot
+                       # #plt.close('all')
+                       # in_im = plot_max(batch_x_val[0][0], plot=0)
+                       # truth_im = plot_max(batch_y_val[0], plot=0)
+                       # seg_im = plot_max(seg_val, plot=0)
+                                              
+                       # # plt.figure()
+                       # # plt.subplot(1, 3, 1); plt.imshow(in_im)
+                       # # if len(tracker.val_dc_pb) > 0:
+                       # #     plt.title('DC: ' + str(np.round(tracker.val_dc_pb[-1], 4)))
+                      
+                       
+                       # # plt.subplot(1, 3, 2); plt.imshow(truth_im); 
+                       # # if len(tracker.val_jacc_per_batch) > 0:
+                       # #     plt.title('Jacc: ' + str(np.round(tracker.val_jacc_per_batch[-1], 4)))
+                           
+                       
+                       # cID_val_2D = cID_metric.clDice(truth_im, seg_im)
+                       # cID_val_3D = cID_metric.clDice(truth_3D, seg_3D)
+                       
+                       # all_cID_3D.append(cID_val_3D); all_cID_2D.append(cID_val_2D); 
+                       
+
+                       
+                       # # cID_loss_val = cID_loss.soft_dice_cldice(iter_=3, alpha=0.5, smooth = 1.)
+                       
+                       
+                       # # cID_loss_val(y_true=truth_im, y_pred=seg_im)
+
+                       # # plt.subplot(1, 3, 3); plt.imshow(seg_im);  
+                       # # if len(tracker.val_hd_pb) > 0:
+                       # #     plt.title('HD: ' + str(np.round(tracker.val_hd_pb[-1], 4))  + '\n' + 'cID_metric: ' + str(round(cID_val_3D, 4))
+                                                                         
+                       # #               )
+ 
+                       # ### DEBUG:
+                       #  # plt.figure(); plt.scatter(all_cID_3D, all_cID_2D, s=1); plt.xlabel('cID 3D'); plt.ylabel('cID 2D')
+                       #  # plt.figure(); plt.scatter(all_cID_3D, np.vstack(tracker.val_dc_pb), s=1); plt.xlabel('cID 3D'); plt.ylabel('DICE')                       
+                       #  # plt.figure(); plt.scatter(all_cID_3D, np.vstack(tracker.val_hd_pb), s=1); plt.xlabel('cID 3D'); plt.ylabel('HD')     
+                       
+                       #  # plt.figure(); plt.scatter(all_cID_3D, np.vstack(tracker.val_jacc_per_batch), s=1); plt.xlabel('cID 3D'); plt.ylabel('JACCARD')    
+                        
+                       #  # plt.figure(); plt.hist(all_cID_3D); plt.xlabel('cID 3D'); plt.xlim([0, 1])
+                       #  # plt.figure(); plt.hist(np.vstack(tracker.val_dc_pb)); plt.xlabel('DICE'); plt.xlim([0, 1])                
+                       #  # plt.figure(); plt.hist(np.vstack(tracker.val_hd_pb)); plt.xlabel('HD')     
+                       
+                       #  # plt.figure(); plt.hist(np.vstack(tracker.val_jacc_per_batch)); plt.xlabel('JACCARD')    
+                                                
+
+                        
+                       print('num_tested')
+                      
+                       """ Early stop """
+                       # if val_idx > 500:
+                       #     break
+                       #zzz
+                       
+                        
+                  #print('mean cID 3D: ' + str(np.nanmean(all_cID_3D)))
+                  print('mean DICE: ' + str(np.mean(np.vstack(tracker.val_dc_pb))))
+                  print('mean HD: ' + str(np.mean(np.vstack(tracker.val_hd_pb))))
+                  print('mean cID_3D: ' + str(np.nanmean(np.vstack(tracker.val_jacc_per_batch))))   
                           
                   tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
-                  tracker.val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       
+                  tracker.val_jacc_per_eval.append(np.nanmean(jacc_val))       
+                  tracker.val_ce_pb.append(np.nanmean(hd_value))
+                                   
                   
                   """ Add to scheduler to do LR decay """
                   #scheduler.step()
                  
         """ Plot metrics every epoch """      
         if tracker.cur_epoch % plot_every_num_epochs == 0:       
-             
             
-             """ Plot metrics in tracker """
-             plot_tracker(tracker, s_path)
+            plot_metric_fun(tracker.train_jacc_per_epoch, tracker.val_jacc_per_eval, class_name='', metric_name='cID', plot_num=32)
+            plt.figure(32); plt.savefig(s_path + '_RETRAIN_cID.png')
+            
+            plot_metric_fun(tracker.train_loss_per_epoch, tracker.val_loss_per_eval, class_name='', metric_name='loss', plot_num=33)
+            plt.figure(33); plt.yscale('log'); plt.savefig(s_path + '_RETRAIN_loss_per_epoch.png')          
+
+
+            plot_metric_fun(tracker.val_ce_pb, tracker.val_ce_pb, class_name='', metric_name='HD_metric', plot_num=32)
+            plt.figure(32); plt.savefig(s_path + '_RETRAIN_HD_metric.png')
+                        
+
+            """ Separate losses """
+            if tracker.HD:
+                # plot_cost_fun(tracker.train_ce_pb, tracker.train_ce_pb)                   
+                # plt.figure(25); plt.savefig(s_path + '_RETRAIN_global_loss_LOG_CE.png')
+                # plt.close('all')
+                  
+                # plot_cost_fun(tracker.train_hd_pb, tracker.train_hd_pb)                   
+                # plt.figure(25); plt.savefig(s_path + '_RETRAIN_global_loss_LOG_HD.png')
+                # plt.close('all')
+                  
+                # plot_cost_fun(tracker.train_dc_pb, tracker.train_dc_pb)                   
+                # plt.figure(25); plt.savefig(s_path + '_RETRAIN_global_loss_LOG_DC.png')
+                # plt.close('all')                  
+                
+         
+                ### for validation
+                # plot_cost_fun(tracker.val_ce_pb, tracker.val_ce_pb)                   
+                # plt.figure(25); plt.savefig(s_path + '_RETRAIN_VAL_global_loss_LOG_CE_per_epoch.png')
+                # plt.close('all')
+                  
+                plot_cost_fun(tracker.val_hd_pb, tracker.val_hd_pb)                   
+                plt.figure(25); plt.savefig(s_path + '_RETRAIN_VAL_global_loss_LOG_HD.png')
+                plt.close('all')
+                  
+                plot_cost_fun(tracker.val_dc_pb, tracker.val_dc_pb)                   
+                plt.figure(25); plt.savefig(s_path + '_RETRAIN_VAL_global_loss_LOG_DC.png')
+                plt.close('all')        
+            
+         
+            
+            """ VALIDATION LOSS PER BATCH??? """
+            plot_cost_fun(tracker.val_loss_per_batch, tracker.val_loss_per_batch)                   
+            plt.figure(18); plt.savefig(s_path + '_RETRAIN_VAL_global_loss_VAL.png')
+            plt.figure(19); plt.savefig(s_path + '_RETRAIN_VAL_detailed_loss_VAL.png')
+            plt.figure(25); plt.savefig(s_path + '_RETRAIN_VAL_global_loss_LOG_VAL.png')
+            plt.close('all')
+              
+        
+            
+            """ Plot metrics per batch """                
+            # plot_metric_fun(tracker.train_jacc_per_batch, [], class_name='', metric_name='jaccard', plot_num=34)
+            # plt.figure(34); plt.savefig(s_path + '_RETRAIN_Jaccard_per_batch.png')
+              
+            # plot_cost_fun(tracker.train_loss_per_batch, tracker.train_loss_per_batch)                   
+            # plt.figure(18); plt.savefig(s_path + '_RETRAIN_global_loss.png')
+            # plt.figure(19); plt.savefig(s_path + '_RETRAIN_detailed_loss.png')
+            # plt.figure(25); plt.savefig(s_path + '_RETRAIN_global_loss_LOG.png')
+            # plt.close('all')
+
+
+
              
-             """ custom plot """
-             # output_train = output_train.cpu().data.numpy()            
-             # output_train = np.moveaxis(output_train, 1, -1)              
-             # seg_train = np.argmax(output_train[0], axis=-1)  
+            """ custom plot """
+            # output_train = output_train.cpu().data.numpy()            
+            # output_train = np.moveaxis(output_train, 1, -1)              
+            # seg_train = np.argmax(output_train[0], axis=-1)  
              
-             # convert back to CPU
-             # batch_x = batch_x.cpu().data.numpy() 
-             # batch_y = batch_y.cpu().data.numpy() 
-             batch_x_val = batch_x_val.cpu().data.numpy()
+            # convert back to CPU
+            # batch_x = batch_x.cpu().data.numpy() 
+            # batch_y = batch_y.cpu().data.numpy() 
+
              
-             
-             batch_y_val = batch_y_val.cpu().data.numpy() 
-             output_val = output_val.cpu().data.numpy()            
-             output_val = np.moveaxis(output_val, 1, -1)       
-             seg_val = np.argmax(output_val[0], axis=-1)  
-             
-             plot_trainer_3D_PYTORCH_snake_seg(seg_val, seg_val, batch_x_val[0], batch_x_val[0], batch_y_val[0], batch_y_val[0],
+            plot_trainer_3D_PYTORCH_snake_seg(seg_val, seg_val, batch_x_val[0], batch_x_val[0], batch_y_val[0], batch_y_val[0],
                                       s_path, tracker.iterations, plot_depth=8)
                                             
              

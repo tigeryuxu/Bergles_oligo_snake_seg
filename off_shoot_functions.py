@@ -21,7 +21,6 @@ from skimage.filters import threshold_otsu, threshold_triangle, try_all_threshol
 import skimage.morphology
 from skimage.exposure import equalize_adapthist
 from matlab_crop_function import *
-import cv2 as cv2
 from skimage.filters import threshold_local
 from skimage.feature import hessian_matrix, hessian_matrix_eigvals
 from skimage.filters import gaussian

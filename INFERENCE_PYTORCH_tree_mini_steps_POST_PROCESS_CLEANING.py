@@ -24,6 +24,24 @@ Created on Sunday Dec. 24th
     
     
     
+        
+    
+    ### ERRORS:
+        - unlucky bend might bend back from edge of image frame... somehow need to prevent that...
+                ==> example: crop 6, 29
+            
+        - myelin is cutting off wayyy too much. Need to allow propagation to new non-myelin segments beyond!!!
+                
+    
+    
+    ### To add:
+        - better paranode detection/association at the end
+        - ***identify all un-associated myelin segments at the end and associate based on proximity of nearest?
+            also can try re-running snake seg from tips??? to search for thin cytosolic segments???
+    
+    
+    
+    
     
 """
 import matplotlib
@@ -58,6 +76,7 @@ from tree_functions import *
 from skimage.morphology import skeletonize_3d, skeletonize
 from skimage.transform import rescale, resize, downscale_local_mean
 
+import tifffile as tifffile
 
 torch.backends.cudnn.benchmark = True  
 torch.backends.cudnn.enabled = True 
@@ -105,7 +124,19 @@ check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/
 
 #check_path = './(62) Checkpoint_unet_COMPLEX_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/';  dilation = 1; deep_supervision = False; tracker = 1;
 
+
+check_path = './(82) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol/';  dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
+load_myelin = 1;
 #z_size = 32
+
+
+check_path = './(80) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_only_cytosol/';dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
+#check_path = './(81) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_only_cytosol/';dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
+#check_path = './(83) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_sps_only_cytosol/'; dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
+
+#check_path = './(84) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_sps_CYTOSOL_and_MYELIN/'; dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
+
+
 
 
 """ Historical with 2 step training data """
@@ -121,19 +152,20 @@ z_size = 48
 
 
 """ For neuron """
-z_size = 32
-HISTORICAL = 0;
-storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
-check_path = storage_path + '(67) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON/'; dilation = 1; deep_supervision = False; tracker = 1;
+# z_size = 32
+# HISTORICAL = 0;
+# storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
+# check_path = storage_path + '(67) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON/'; dilation = 1; deep_supervision = False; tracker = 1;
+# combine_tree = 1;
 
 
-
-""" For neuron """
+""" For neuron """   ### used for presentation???
 z_size = 32
 HISTORICAL = 0;
 storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
 check_path = storage_path + '(68) Checkpoint_unet_MEDIUM_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2/'; dilation = 2; deep_supervision = False; tracker = 1;
-
+combine_tree = 1;
+load_myelin = 0;
 
 
 
@@ -142,13 +174,19 @@ check_path = storage_path + '(68) Checkpoint_unet_MEDIUM_filt7x7_b4_NEW_DATA_B_N
 # HISTORICAL = 0;
 # storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
 # check_path = storage_path + '(68)_2 Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2/'; dilation = 2; deep_supervision = False; tracker = 1;
-
+# combine_tree = 1;
 
 #s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale/'
 
 
 s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale_100000_short_first_no_edge_ANIMATION/'
 
+#s_path = check_path + 'TEST_inference_185437_CLEANED_correct_scale_100000_short_first_EDGE_REMOVAL_different_subtractor/'
+
+
+
+
+s_path = check_path + 'TEST_inference_last_first_MYELIN_edge_remove_last_first/'
 #s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_HISTORICAL_NEURON/'
 #s_path = check_path + 'TEST_inference_185437_shortest_first_REAL_troubleshoot/'
 
@@ -197,7 +235,8 @@ images = glob.glob(os.path.join(input_path,'*input.tif*'))
 natsort_key1 = natsort_keygen(key = lambda y: y.lower())      # natural sorting order
 images.sort(key = natsort_key1)
 examples = [dict(input=i,truth=i.replace('input.tif','truth.tif'), cell_mask=i.replace('input.tif','input_cellMASK.tif'),
-                 seeds = i.replace('input.tif', 'seeds.tif')) for i in images]
+                 seeds = i.replace('input.tif', 'seeds.tif'),
+                 myelin = i.replace('input.tif', 'input_overall_output_1st_iteration_COLOR_INTERNODES.tif')) for i in images]
 
 counter = list(range(len(examples)))  # create a counter, so can randomize it
 
@@ -242,9 +281,31 @@ scale_factor = original_scaling/target_scale;
 scaled_crop_size = round(input_size/scale_factor);
 scaled_crop_size = math.ceil(scaled_crop_size / 2.) * 2  ### round up to even num
 
-scale_for_animation = 0.3; animation_order = [];
+scale_for_animation = 0; animation_order = [];
 
-for i in range(len(examples)):              
+for i in range(len(examples)):            
+    
+    
+        """ NEW: load in myelin segments """
+        myelin_df = pd.DataFrame()
+        if load_myelin:
+            myelin_im = tifffile.imread(examples[i]['myelin'])
+            myelin_im =  np.moveaxis(myelin_im, 0, 2)
+            
+            cc_myelin = measure.regionprops(myelin_im, intensity_image=myelin_im)
+            
+            ### sort and eliminate all small segments (which are paranodes)
+            for cc in cc_myelin:
+                if len(cc['coords']) > 10:
+                        print(len(cc['coords']))
+                        myelin_df = myelin_df.append({'myelin_cc': cc, 'myelin_val': cc['max_intensity'], 'cytosol_matched': []}, ignore_index=True)
+                    
+
+            ### dilate the myelin im a bit
+            myelin_im_dil = dilate_by_ball_to_binary(myelin_im, radius=1)
+
+    
+    
 
         """ (1) Loads data as sorted list of seeds """
         
@@ -282,7 +343,9 @@ for i in range(len(examples)):
                 idx_start = np.where(all_seeds[coords[:, 0], coords[:, 1], coords[:, 2]] == 50)[0]
             else:
                 idx_start = np.where(all_seeds[coords[:, 0], coords[:, 1], coords[:, 2]] == 2)[0]
-                
+  
+            print(idx_start)
+    
             if len(idx_start) == 0:
                 print('SKIPPED, couldnt find initial starting point')
                 continue
@@ -310,26 +373,35 @@ for i in range(len(examples)):
             tree_df = treeify_nx(tree_df, discrete_segs, tree_idx=0, disc_idx=0, parent=-1, start_tree=1)            
     
             all_trees.append(tree_df)
-                
+            
+            
         track_trees = np.zeros(np.shape(input_im))    
         num_tree = 0
         
         
         """ Concatenate into one big tree """
-        combined_trees = all_trees[0]
-        for small_t in all_trees[1:]:
+        if combine_tree:
+            combined_trees = all_trees[0]
+            for small_t in all_trees[1:]:
+                
+                small_t.cur_idx = small_t.cur_idx + np.max(combined_trees.cur_idx) + 1
+                for p_id, parent in enumerate(small_t.parent):
+                    if parent != -1:
+                        parent = parent + np.max(combined_trees.cur_idx) + 1   ### add values of the maximum of full list of trees
+                        
+                    ### also add this value to the children
+                    children = small_t.iloc[p_id].child
+                    if len(children) > 0:
+                        children = list(np.asarray(children) + np.max(combined_trees.cur_idx) + 1)
+                        small_t.child[p_id] = children
+               
+                        
+                    small_t.parent[p_id] = parent;
+                
+                combined_trees = pd.concat([combined_trees, small_t], ignore_index=True)
             
-            small_t.cur_idx = small_t.cur_idx + np.max(combined_trees.cur_idx) + 1
-            for p_id, parent in enumerate(small_t.parent):
-                if parent != -1:
-                    parent = parent + np.max(combined_trees.cur_idx) + 1
-                    
-                small_t.parent[p_id] = parent;
-            
-            combined_trees = pd.concat([combined_trees, small_t], ignore_index=True)
-        
-        all_trees = []
-        all_trees.append(combined_trees)
+            all_trees = []
+            all_trees.append(combined_trees)
         
         """ Create box in middle to only get seed colocalized with middle after splitting branchpoints """
         center_cube = create_cube_in_im(width=10, input_size=input_size, z_size=z_size)
@@ -337,12 +409,12 @@ for i in range(len(examples)):
         center_cube_pm = create_cube_in_im(width=8, input_size=input_size * 2, z_size=z_size * 2)
         small_cube = create_cube_in_im(width=5, input_size=input_size * 2, z_size=z_size * 2) 
         
-        resize_crop = 0
+        resize_crop = 0;
         for it, tree in enumerate(all_trees):
              matplotlib.use('Agg')
                         
              
-             #tree = all_trees[1]
+             #tree = all_trees[6]
              """ Keep looping until everything has been visited """  
              iterator = 0;
              while np.asarray(tree.visited.isnull()).any():   
@@ -359,19 +431,22 @@ for i in range(len(examples)):
                 unvisited_indices = np.where(tree.visited.isnull() == True)[0]
                 
                 """ Go to index of SHORTEST PATH FIRST """
-                all_lengths = []
-                for ind in unvisited_indices:                 
-                    parent_coords = get_parent_nodes(tree, ind, num_parents=100, parent_coords = [])
+                # all_lengths = []
+                # for ind in unvisited_indices:                 
+                #     parent_coords = get_parent_nodes(tree, ind, num_parents=100, parent_coords = [])
                 
-                    if len(parent_coords) > 0:
-                        parent_coords = np.vstack(parent_coords)
+                #     if len(parent_coords) > 0:
+                #         parent_coords = np.vstack(parent_coords)
                 
-                    all_lengths.append(len(parent_coords))                 
-                node_idx = unvisited_indices[np.argmin(all_lengths)]
+                #     all_lengths.append(len(parent_coords))                 
+                # node_idx = unvisited_indices[np.argmin(all_lengths)]
+                
+                # print(all_lengths)
+                
                 
                     
                 """ Or, just go to very last position """
-                #node_idx = unvisited_indices[-1]
+                node_idx = unvisited_indices[-1]
                 
                 
                 """ Save order so can generate animation later """
@@ -384,6 +459,150 @@ for i in range(len(examples)):
                 
                 
                 cur_coords, cur_be_start, cur_be_end, centroid_start, centroid_end, parent_coords = get_next_coords(tree, node_idx, num_parents=20)
+                
+                
+                
+                    
+                
+                """ NEW addition: Feb. 23, 2021
+                
+                        instead of deleting out prev_seg components OR myelin, we just find out here whether these
+                        endpoints are falling into that territory! If so, we give these endpoints a value:
+                                visited = 0 ==> means colocalized with previous segment
+                                visited = -3 ==> means colocalized with myelin segment
+                                
+                        then, at the end of the analysis, we can prune these segments accordingly
+                """
+
+                ### insert entire current segment and get a crop of it to compare with later
+                x_n = int(cur_be_end[0]); y_n = int(cur_be_end[1]); z_n = int(cur_be_end[2])
+                cur_seg = np.zeros(np.shape(input_im))
+                cur_seg[cur_coords[:, 0], cur_coords[:, 1], cur_coords[: , 2]] = 1
+                crop_seed, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(cur_seg, y_n, x_n, z_n, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                
+               
+                crop_input, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(input_im, y_n, x_n, z_n, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                
+                             
+                if load_myelin:
+                    print('checking myelin association')
+                    
+                    ### if this matches, then end point is in a myelin segment!
+                    crop_myelin_dil, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(myelin_im_dil, y_n, x_n, z_n, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                
+                    bool_myelin = myelin_im_dil[cur_be_end[0], cur_be_end[1], cur_be_end[2]]
+                    
+                    
+                    ### matched section must also be AT LEAST 10 pixels long
+                    bool_myelin_len = myelin_im_dil[cur_coords[:, 0], cur_coords[:, 1], cur_coords[: , 2]]
+                    bool_myelin_len = len(np.where(bool_myelin_len)[0])
+                    
+                    ### if bool_myelin is true, then print out the image for debugging
+                    ### also set visited == -3
+                    if bool_myelin and bool_myelin_len >= 10:
+                        
+                        plot_save_max_project(fig_num=20, im=crop_input, max_proj_axis=-1, title='input_im', 
+                                              name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(1)_input_im.png', pause_time=0.001)                         
+                        plot_save_max_project(fig_num=20, im=crop_seed, max_proj_axis=-1, title='myelin_block', 
+                                              name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(2)_seed.png', pause_time=0.001) 
+                        plot_save_max_project(fig_num=20, im=crop_myelin_dil, max_proj_axis=-1, title='myelin_block', 
+                                              name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(3)_myelin_BLOCK.png', pause_time=0.001) 
+                        
+                        tree.visited[node_idx] = -3; iterator += 1; continue;
+                        
+                    
+                ### also check if end point is located within a previously segmented location
+
+                all_coords = show_tree_FAST_drop_index(tree, drop_id=node_idx)  ### eliminate current coords from that previous coords
+                im_prev = np.zeros(np.shape(input_im))
+                im_prev[all_coords[:, 0], all_coords[:, 1], all_coords[:, 2]] = 1
+                                
+                prev_crop, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(im_prev, y_n, x_n, z_n, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                
+                
+                prev_crop = dilate_by_ball_to_binary(prev_crop, radius=2)
+                bool_prev = prev_crop[crop_size - 1, crop_size - 1, int(z_size/2 - 1)]
+                
+                if bool_prev:
+                        plot_save_max_project(fig_num=20, im=crop_input, max_proj_axis=-1, title='input_im', 
+                                              name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(1)_input_im.png', pause_time=0.001)                         
+                        plot_save_max_project(fig_num=20, im=crop_seed, max_proj_axis=-1, title='myelin_block', 
+                                              name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(2)_seed.png', pause_time=0.001) 
+                        plot_save_max_project(fig_num=20, im=prev_crop, max_proj_axis=-1, title='myelin_block', 
+                                              name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(3)_prev_BLOCK.png', pause_time=0.001) 
+                        
+                        tree.visited[node_idx] = 0; iterator += 1; continue;
+                                            
+                
+                
+                
+                # if load_myelin:
+                #     
+                    
+                    
+                #     # if num_tree == 1:
+                #     #     zzz
+                        
+                #     myelin_crop, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(myelin_im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
+            
+            
+                #     ### might need to dilate out only_coloc a bit??? to make sure matches myelin???
+                    
+                #     coloc_myelin = dilate_by_ball_to_binary(output_PYTORCH, radius=2)
+                #     val_myelin = myelin_crop[coloc_myelin > 0]
+                #     val_myelin = val_myelin[val_myelin > 0]                    
+                #     if len(val_myelin) > 0:
+
+                    
+                #         ### find all unique values, and only keep the one that is MOST colocalized
+                        
+                #         from collections import Counter
+                #         unique = np.unique(val_myelin)
+                #         counts = Counter(val_myelin)
+                #         most_match = counts.most_common(1)   ### gets the most common
+                        
+                #         myelin_val = most_match[0][0]   ### get value of myelin sheath matched
+                #         num_matched = most_match[0][1]  ### get length of pixels matched
+                        
+                #         # skip if too short of a match
+                #         # if num_matched < 5:
+                #         #     continue
+                        
+                        
+                #         # otherwise, subtract out the myelin segment
+                #         #myelin_dil = dilate_by_ball_to_binary(myelin_crop, radius=2)
+                #         #only_coloc[myelin_dil > 0] = 0;
+                        
+                        
+                #         ### Actually, just add the myelin to the crop_seed_full, which will be subtracted from the image later in a smarter way!!!
+                #         myelin_crop[myelin_crop > 0] = 1
+                #         myelin_dil = dilate_by_ball_to_binary(myelin_crop, radius=2)
+                #         crop_seed_full = crop_seed_full + myelin_dil
+                #         crop_seed_full[crop_seed_full > 0] = 1
+                        
+                        
+                #         ### add values to myelin dataframe
+                    
+                    
+
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+
                 
                 """ Skip if on edges of actual image """
                 st = centroid_start
@@ -492,8 +711,13 @@ for i in range(len(examples)):
                       #cur_seg_im[x,y,z] = 2   ### IF WANT TO SEE WHAT THE CROP IS CENTERING ON
                       crop_seed, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(cur_seg_im, y, x, z, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                                                      
                       
+                      
+                      
+                      
                       """ Dilate the seed by sphere 1 to mimic training data """
                       crop_seed = skeletonize_3d(crop_seed)
+                      
+                      
                       
                       """ Make sure no gaps in crop_seed """
                       crop_seed, output_non_bin = bridge_end_points(crop_seed, bridge_radius=2)
@@ -510,6 +734,16 @@ for i in range(len(examples)):
             
                       """ Since it's centered around crop, ensure doesn't go overboard """
                       output_PYTORCH[boundaries_crop == 0] = 0
+
+
+                      """ REMOVE EDGE """
+                      # dist_xy = 5; dist_z = 2
+                      # edge = np.zeros(np.shape(crop_seed)).astype(np.uint8)
+                      # #edge[dist_xy:pm_crop_size * 2-dist_xy, dist_xy:pm_crop_size * 2-dist_xy, dist_z:pm_z_size-dist_z] = 1
+                      # edge[dist_xy:crop_size * 2-dist_xy, dist_xy:crop_size * 2-dist_xy, dist_z:z_size-dist_z] = 1
+                      # edge = np.where((edge==0)|(edge==1), edge^1, edge)
+                      # output_PYTORCH[edge == 1] = 0
+
 
                       # """ SAVE max projections"""
                       # plot_save_max_project(fig_num=5, im=crop_seed, max_proj_axis=-1, title='crop seed dilated', 
@@ -534,9 +768,8 @@ for i in range(len(examples)):
                                       name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '_step_' + str(step) +  '_(1)_input_im.png', pause_time=0.001)
        
 
-                # if iterator == 479:
-                #      zzz
-                    
+
+                
                 """ ALSO HAVE TO RESET CUR_BE_END to align with current location of mini-step and NOT actual end of segment!!!
                 """
                 #cur_be_end = np.vstack(expand_coord_to_neighborhood([cur_coords[step]], lower=1, upper=2))
@@ -550,7 +783,9 @@ for i in range(len(examples)):
                 cur_seg_im = np.zeros(np.shape(input_im))   # maybe speed up here by not creating the image every time???
                 cur_seg_im[cur_coords[:, 0], cur_coords[:, 1], cur_coords[:, 2]] = 1
                 
-                
+                # add the parent
+                # if len(parent_coords) > 0:
+                #     cur_seg_im[parent_coords[:, 0], parent_coords[:, 1], parent_coords[:, 2]] = 1                
  
         
                 ### Define size of larger crop:
@@ -585,12 +820,7 @@ for i in range(len(examples)):
                    continue                      
 
 
-                """ REMOVE EDGE """
-                dist_xy = 5; dist_z = 2
-                edge = np.zeros(np.shape(output_PYTORCH)).astype(np.int64)
-                edge[dist_xy:pm_crop_size * 2-dist_xy, dist_xy:pm_crop_size * 2-dist_xy, dist_z:pm_z_size-dist_z] = 1
-                edge = np.where((edge==0)|(edge==1), edge^1, edge)
-                output_PYTORCH[edge == 1] = 0
+
                 
 
 
@@ -639,12 +869,12 @@ for i in range(len(examples)):
                 ### or IN ALL PREVIOUS TREES??? *** can move this do beginning of loop
                 for cur_tree in all_trees:
                     all_segs = np.concatenate((all_segs, show_tree_FAST(cur_tree)))
-                im = np.zeros(np.shape(input_im))
-                im[all_segs[:, 0], all_segs[:, 1], all_segs[:, 2]] = 1
+                im_prev = np.zeros(np.shape(input_im))
+                im_prev[all_segs[:, 0], all_segs[:, 1], all_segs[:, 2]] = 1
                 
                 
-                im[im > 0] = 1
-                crop_prev, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                                                      
+                im_prev[im_prev > 0] = 1
+                crop_prev, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(im_prev, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                                                      
                 crop_prev = skeletonize_3d(crop_prev)
                 crop_prev[crop_prev > 0] = 1
                 
@@ -677,13 +907,105 @@ for i in range(len(examples)):
                 """ add in crop seed and subtract later??? """
                 output_PYTORCH = output_PYTORCH + crop_seed
                 output_PYTORCH[output_PYTORCH > 0] = 1
-               
+
+                
+                """ Keep only what is colocalized with the center """   ### Feb. 25th, 2021 ==> Tiger moved earlier!
+                # (1) use old start_coords to find only nearby segments           
+                # ***or just use center cube
+                coloc_with_center = output_PYTORCH + center_cube_pm
+                output_PYTORCH = find_overlap_by_max_intensity(bw=output_PYTORCH, intensity_map=coloc_with_center) 
+                
+
+
+
                 """ LINK EVERY END POINT TOGETHER USING line_nd """      
                 output_PYTORCH = skeletonize_3d(output_PYTORCH)                    
-                output_PYTORCH, output_non_bin = bridge_end_points(output_PYTORCH, bridge_radius=0)
+                output_PYTORCH, output_non_bin = bridge_end_points(output_PYTORCH, bridge_radius=2)  ### Tiger: added this back in on Feb. 25th, because dilation ==> skel results in some missing pixels... that make fragments...
                 
+                
+                only_coloc = output_PYTORCH
+
+
                 plot_save_max_project(fig_num=3, im=output_non_bin, max_proj_axis=-1, title='output_be', 
                                       name=s_path + filename + '_Crop_' + str(num_tree) + '_' + str(iterator) +  '_step_' + str(step) +'_(4)_output_be.png', pause_time=0.001)                                              
+                    
+
+
+                """ Subtract out previously identified myelin segments
+                        and also add this current cytsol value to corresponding myelin segment so 
+                        can find out what is attached to what at the end
+                        
+                        
+                        
+                        
+                    *** NEED TO ADD IN A SMART-STOP:
+                            
+                        
+                        ### (1) remove all objects that are NOT connected to main center point object
+                        
+                        ### (2) output_PYTORCH - (prev_seg + myelin  ==> specifically myelin that has been matched in ouput_pytorch
+                        
+                        ### (3) then 
+                        
+                        ### (2) identify what is the
+                                            
+                
+                """
+
+                # if load_myelin:
+                #     print('checking myelin association')
+                    
+                    
+                #     # if num_tree == 1:
+                #     #     zzz
+                        
+                #     myelin_crop, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(myelin_im, y, x, z, pm_crop_size, pm_z_size, height_tmp, width_tmp, depth_tmp)                
+            
+            
+                #     ### might need to dilate out only_coloc a bit??? to make sure matches myelin???
+                    
+                #     coloc_myelin = dilate_by_ball_to_binary(output_PYTORCH, radius=2)
+                #     val_myelin = myelin_crop[coloc_myelin > 0]
+                #     val_myelin = val_myelin[val_myelin > 0]                    
+                #     if len(val_myelin) > 0:
+
+                    
+                #         ### find all unique values, and only keep the one that is MOST colocalized
+                        
+                #         from collections import Counter
+                #         unique = np.unique(val_myelin)
+                #         counts = Counter(val_myelin)
+                #         most_match = counts.most_common(1)   ### gets the most common
+                        
+                #         myelin_val = most_match[0][0]   ### get value of myelin sheath matched
+                #         num_matched = most_match[0][1]  ### get length of pixels matched
+                        
+                #         # skip if too short of a match
+                #         # if num_matched < 5:
+                #         #     continue
+                        
+                        
+                #         # otherwise, subtract out the myelin segment
+                #         #myelin_dil = dilate_by_ball_to_binary(myelin_crop, radius=2)
+                #         #only_coloc[myelin_dil > 0] = 0;
+                        
+                        
+                #         ### Actually, just add the myelin to the crop_seed_full, which will be subtracted from the image later in a smarter way!!!
+                #         myelin_crop[myelin_crop > 0] = 1
+                #         myelin_dil = dilate_by_ball_to_binary(myelin_crop, radius=2)
+                #         crop_seed_full = crop_seed_full + myelin_dil
+                #         crop_seed_full[crop_seed_full > 0] = 1
+                        
+                        
+                #         ### add values to myelin dataframe
+                    
+                    
+                #         plot_save_max_project(fig_num=20, im=myelin_crop, max_proj_axis=-1, title='_final_added', 
+                #                name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) +  '_step_' + str(step) + '_(5_5)_myelin.png', pause_time=0.001) 
+    
+                    
+                    
+                    
                     
 
                 """ Subtract out previous segmentations, but do so smartly:
@@ -695,41 +1017,41 @@ for i in range(len(examples)):
                             ***this allows propagation of segmentation to OVERLAP IF there is new segments identified WITHIN the current segmentation
                     
                     """
-                sub_seed = subtract_im_no_sub_zero(output_PYTORCH, crop_seed_full)
-                #crop_prev[sub_seed == 0] = 0
-                added = np.copy(sub_seed)
-                added[im_dil > 0] = 2
-                added[added == 2] = 0
+                # sub_seed = subtract_im_no_sub_zero(output_PYTORCH, crop_seed_full)
+                # #crop_prev[sub_seed == 0] = 0
+                # added = np.copy(sub_seed)
+                # added[im_dil > 0] = 2
+                # added[added == 2] = 0
                 
-                added = sub_seed + added
-                bw_added = np.copy(added)
-                bw_added[bw_added > 0] = 1
+                # added = sub_seed + added
+                # bw_added = np.copy(added)
+                # bw_added[bw_added > 0] = 1
                 
-                labelled = measure.label(bw_added)
-                cc = measure.regionprops(labelled, intensity_image=added); 
-                cleaned = np.zeros(np.shape(output_PYTORCH))
-                for seg in cc:
-                       coord = seg['coords']
-                       max_intensity = seg['max_intensity']
-                       if max_intensity == 2:
-                           cleaned[coord[:, 0], coord[:, 1], coord[:, 2]] = 1
+                # labelled = measure.label(bw_added)
+                # cc = measure.regionprops(labelled, intensity_image=added); 
+                # cleaned = np.zeros(np.shape(output_PYTORCH))
+                # for seg in cc:
+                #        coord = seg['coords']
+                #        max_intensity = seg['max_intensity']
+                #        if max_intensity == 2:
+                #            cleaned[coord[:, 0], coord[:, 1], coord[:, 2]] = 1
   
-                output_PYTORCH = cleaned                
-                output_PYTORCH = output_PYTORCH + crop_seed ### add it back in
+                # output_PYTORCH = cleaned                
+                # output_PYTORCH = output_PYTORCH + crop_seed ### add it back in
                     
                     
                 
-                """ Keep only what is colocalized with the center """
-                # (1) use old start_coords to find only nearby segments           
-                # ***or just use center cube
-                coloc_with_center = output_PYTORCH + center_cube_pm
-                only_coloc = find_overlap_by_max_intensity(bw=output_PYTORCH, intensity_map=coloc_with_center) 
+
                 
+                """ moved here: subtract out past identified regions LAST to not prevent propagation
                 
-                """ moved here: subtract out past identified regions LAST to not prevent propagation """
+                    this is just a way to see how much of the image is NEW segmentation (i.e. is it worth it to even keep going here)
+                
+                """
                 only_coloc[only_coloc > 0] = 1
                 sub_seed = subtract_im_no_sub_zero(only_coloc, crop_seed)
                 sub_seed = subtract_im_no_sub_zero(sub_seed, im_dil)
+                
                 
                 
                 
@@ -756,7 +1078,8 @@ for i in range(len(examples)):
 
 
 
-
+                    
+                
 
                     """ REMOVE EDGE end points b/c crop is bigger than possible to ever reach edges """
                     # dist_xy = 2; dist_z = 1
@@ -778,7 +1101,54 @@ for i in range(len(examples)):
                     """ Also need to add in the starting point """
                     tmp_degrees = np.copy(degrees)
                     cur_start = np.copy(cur_be_start)
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    """TIGER:HACK -- IS THIS SCALE LINE BELOW CORRECT???"""
+                    
+
+                    
                     cur_start = scale_coord_to_full(cur_start, -1 * np.asarray(box_xyz), -1 * np.asarray(box_over))
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
                     
                     ### check limits to ensure doesnt go out of frame
                     #cur_start = check_limits([cur_start], pm_crop_size * 2, pm_crop_size * 2, pm_z_size)[0]
@@ -879,25 +1249,18 @@ for i in range(len(examples)):
                                 
                     
                         degrees[loc_start[0][0], loc_start[0][1], loc_start[0][2]] = 20
-                    
+
+
+
+                    # if node_idx == 30:
+                    #     zzz                    
 
 
                     """ To fix: 
                         
                         
                         DEC. 11th ==> start coord is being added at weird spot, so making small tiny segs
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
+   
                         """
 
                     start = np.transpose(np.where(degrees == 20))[0]
@@ -937,6 +1300,12 @@ for i in range(len(examples)):
                         discrete_segs.append(sec_seg)
                                 
                     for idx_s, seg in enumerate(be_coords):
+                        
+                        
+                        
+                        """ TIGER-HACK: -- is this scaling statemement correct??? """
+                        
+                        
                         seg = scale_coords_of_crop_to_full(np.vstack(seg), box_xyz, box_over)
                         be_coords[idx_s] = seg
 
@@ -1044,15 +1413,15 @@ for i in range(len(examples)):
                                 ### find index that the pairs correspond to
                                 id_pairs = []
                                 for p_seg in pairs:
-                                   for id_seg, seg in enumerate(discrete_segs):
-                                       if p_seg in seg:
-                                        id_pairs.append(id_seg)
+                                    for id_seg, seg in enumerate(discrete_segs):
+                                        if p_seg in seg:
+                                            id_pairs.append(id_seg)
                                 
                                 id_pairs_2 = []
                                 for p_seg in pairs_2:
-                                   for id_seg, seg in enumerate(discrete_segs):
-                                       if p_seg in seg:
-                                        id_pairs_2.append(id_seg)                                
+                                    for id_seg, seg in enumerate(discrete_segs):
+                                        if p_seg in seg:
+                                            id_pairs_2.append(id_seg)                                
                                 
                                 stack_ind = np.transpose(np.vstack([id_pairs, id_pairs_2]))
                                 row, col = np.unravel_index(stack_ind.argmin(), stack_ind.shape)
@@ -1089,6 +1458,7 @@ for i in range(len(examples)):
                                 only need to update parent idx to be parent of node_idx BEFORE deleting AND depth
                         """
 
+                    
                         tmp = tree.copy()
                         
                         #tree = tmp.copy()
@@ -1100,6 +1470,8 @@ for i in range(len(examples)):
                         cur_idx = tree.cur_idx[node_idx]
                        
                         tree = tree.drop(index = idx_to_del)
+                        
+                        
                         
                         
                         """ else add to tree """

@@ -67,3 +67,6 @@ sample.swc
 *.v3draw
 *.BMP
 *.avi
+*.pkl
+*.pyc
+*.pyc

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 """ Tracker class """
 class tracker():
     
-    def __init__(self, batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup, switch_norm, alpha=1, HD=1, sp_weight_bool=0, transforms=0, dataset=''):
+    def __init__(self, batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup, switch_norm, alpha=1, HD=1, sp_weight_bool=0, transforms=0, dataset='', im_type=0, cID=0):
         """ Get metrics per batch """
         self.train_loss_per_batch = [] 
         self.train_jacc_per_batch = []
@@ -53,6 +53,11 @@ class tracker():
         self.sp_weight_bool = sp_weight_bool
         self.transforms = transforms
         self.dataset = dataset
+        
+        self.cID = cID
+        
+        self.im_type=0
+        
 
 
     def print_essential(self):
@@ -64,6 +69,7 @@ class tracker():
         print('deep_supervision is: ' + str(self.deep_sup))
         print('alpha is: ' + str(self.alpha))    
         print('HD_bool is: ' + str(self.HD))    
+        print('im_type is: ' + str(self.im_type))    
         
 
 def show_vars(obj_name):
@@ -75,8 +81,8 @@ def show_vars(obj_name):
 """ Plot metrics in tracker """           
 def plot_tracker(tracker, s_path):
 
-    plot_metric_fun(tracker.train_jacc_per_epoch, tracker.val_jacc_per_eval, class_name='', metric_name='jaccard', plot_num=32)
-    plt.figure(32); plt.savefig(s_path + 'Jaccard.png')
+    plot_metric_fun(tracker.train_jacc_per_epoch, tracker.val_jacc_per_eval, class_name='', metric_name='cID_metric', plot_num=32)
+    plt.figure(32); plt.savefig(s_path + 'cID_metric.png')
     
        
     plot_metric_fun(tracker.train_loss_per_epoch, tracker.val_loss_per_eval, class_name='', metric_name='loss', plot_num=33)
@@ -90,11 +96,11 @@ def plot_tracker(tracker, s_path):
       
     """ Separate losses """
     if tracker.HD:
-        plot_cost_fun(tracker.train_ce_pb, tracker.train_ce_pb)                   
-        plt.figure(18); plt.savefig(s_path + '_global_loss_CE.png')
-        #plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')
-        plt.figure(25); plt.savefig(s_path + '_global_loss_LOG_CE.png')
-        plt.close('all')
+        # plot_cost_fun(tracker.train_ce_pb, tracker.train_ce_pb)                   
+        # plt.figure(18); plt.savefig(s_path + '_global_loss_CE.png')
+        # #plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')
+        # plt.figure(25); plt.savefig(s_path + '_global_loss_LOG_CE.png')
+        # plt.close('all')
           
         plot_cost_fun(tracker.train_hd_pb, tracker.train_hd_pb)                   
         plt.figure(18); plt.savefig(s_path + '_global_loss_HD.png')
@@ -110,11 +116,11 @@ def plot_tracker(tracker, s_path):
         
  
         ### for validation
-        plot_cost_fun(tracker.val_ce_pb, tracker.val_ce_pb)                   
-        plt.figure(18); plt.savefig(s_path + '_VAL_global_loss_CE.png')
-        #plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')
-        plt.figure(25); plt.savefig(s_path + '_VAL_global_loss_LOG_CE.png')
-        plt.close('all')
+        # plot_cost_fun(tracker.val_ce_pb, tracker.val_ce_pb)                   
+        # plt.figure(18); plt.savefig(s_path + '_VAL_global_loss_CE.png')
+        # #plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')
+        # plt.figure(25); plt.savefig(s_path + '_VAL_global_loss_LOG_CE.png')
+        # plt.close('all')
           
         plot_cost_fun(tracker.val_hd_pb, tracker.val_hd_pb)                   
         plt.figure(18); plt.savefig(s_path + '_VAL_global_loss_HD.png')
@@ -142,8 +148,8 @@ def plot_tracker(tracker, s_path):
     plt.figure(35); plt.savefig(s_path + 'lr_per_epoch.png') 
     
     """ Plot metrics per batch """                
-    plot_metric_fun(tracker.train_jacc_per_batch, [], class_name='', metric_name='jaccard', plot_num=34)
-    plt.figure(34); plt.savefig(s_path + 'Jaccard_per_batch.png')
+    plot_metric_fun(tracker.train_jacc_per_batch, [], class_name='', metric_name='cID_metric', plot_num=34)
+    plt.figure(34); plt.savefig(s_path + 'cID_metric_per_batch.png')
       
     plot_cost_fun(tracker.train_loss_per_batch, tracker.train_loss_per_batch)                   
     plt.figure(18); plt.savefig(s_path + 'global_loss.png')

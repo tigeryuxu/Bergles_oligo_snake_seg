@@ -43,7 +43,11 @@ from layers.switchable_BN import *
 
 from losses_pytorch.HD_loss import *
  
+import cIDice_metric as cID_metric
+import cIDice_loss as cID_loss
+
 import re
+import sps
     
 """ optional dataviewer if you want to load it """
 # import napari
@@ -74,14 +78,45 @@ if __name__ == '__main__':
     skeletonize = 0
     
     #s_path = './(63) Checkpoint_unet_LARGE_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_SKEL/'; HD = 1; alpha = 1; skeletonize = 1
-    s_path = './(64) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_HISTORICAL/'; HD = 1; alpha = 1; 
+    # s_path = './(64) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step_HISTORICAL/'; HD = 1; alpha = 1; 
     
     
-    s_path = './(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step_REAL_HISTORICAL/'; HD = 1; alpha = 1; 
+    # s_path = './(65) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step_REAL_HISTORICAL/'; HD = 1; alpha = 1; 
     
     
-    s_path = './(66) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_REAL_HISTORICAL_NEURON/'; HD = 1; alpha = 1; 
+    # s_path = './(66) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_REAL_HISTORICAL_NEURON/'; HD = 1; alpha = 1; 
     
+    
+    
+    # s_path = './(80) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_only_cytosol/'; HD = 1; alpha = 1; sps_bool = 0; im_type = 1; HISTORICAL = 0;
+    # s_path = './(81) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_only_cytosol/'; HD = 0; alpha = 0; sps_bool = 0; im_type = 1; HISTORICAL = 0;
+    # s_path = './(82) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol/'; HD = 1; alpha = 1; sps_bool = 1; im_type = 1; HISTORICAL = 0;
+    
+    s_path = './(83) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_sps_only_cytosol/'; HD = 0; alpha = 0; sps_bool = 1; im_type = 'c'; HISTORICAL = 0;
+    
+    #s_path = './(84) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_sps_CYTOSOL_and_MYELIN/'; HD = 0; alpha = 0; sps_bool = 1; cytosol_only = 0;
+    
+    
+    ### Add spatial weight kernel
+    s_path = './(85) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_sW_kernel/'; HD = 1; alpha = 1; sps_bool = 1; im_type = 'c'; sW_centroid = 1; HISTORICAL = 0;
+    
+    
+
+    ### add cID_loss and metric
+    s_path = './(86) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_cID_loss/'; cID = 1; HD = 0; alpha = 0; sps_bool = 1; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+    
+
+    #s_path = './(86_fast) Checkpoint_unet_SMALL_filt_3x3_b4_type_dataset_NO_1st_im_sps_cytosol_cID_FAST/'; cID = 1; HD = 0; alpha = 0; sps_bool = 1; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+        
+
+    
+    ### run with NEW Haussdorff loss
+    s_path = './(87) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_loss/'; cID = 0; HD = 1; alpha = 1; sps_bool = 0; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+
+    s_path = './(88) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_loss_YES_SPS/'; cID = 0; HD = 1; alpha = 1; sps_bool = 1; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+        
+       
+
     """ path to input data """
     # (2)
     
@@ -89,27 +124,48 @@ if __name__ == '__main__':
     #tracker.alpha = 0.5
     
     #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/TRAINING FORWARD PROP ONLY SCALED crop pads seed 5/'; dataset = 'new crop pads'
-    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING FORWARD PROP seed 2 COLORED 48 z DATA/'; dataset = 'historical seed 2 z 48'
+    # input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING FORWARD PROP seed 2 COLORED 48 z DATA/'; dataset = 'historical seed 2 z 48'
     
-    input_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/TRAINING_FORWARD_NEURON_SOLANGE/'
-    
+    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING SCALED crop pads seed 4 COLORED 48 z DENSE LABELS/Training_snake_seg/'; dataset = 'full historical type seed 4 z 48 dataset'
+
     #input_path = 'E:/7) Bergles lab data/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; 
     #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
 
     """ Load filenames from tiff """
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
     images.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
-    examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
-                     seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
-                     orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
-                     filename= i.split('/')[-1].split('_origId')[0].replace(',', ''))
-                     for i in images]
-
+    # examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
+    #                  seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
+    #                  orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
+    #                  x = int(re.search('_x_(.*)_y_', i).group(1)),
+    #                  y = int(re.search('_y_(.*)_z_', i).group(1)),
+    #                  z = int(re.search('[^=][^a-z]_z_(.*)_type_', i).group(1)),     ### had to exclude anything that starts with "=0_z" b/c that shows up earlier
+    #                  im_type = str(re.search('_type_(.*)_branch_', i).group(1)),    
+    #                  filename= i.split('/')[-1].split('_origId')[0].replace(',', ''))
+    #                  for i in images]
+      
+    examples = []
+    for i in images:
+        type_check = str(re.search('_type_(.*)_branch_', i).group(1))
+                         
+        if im_type == type_check:
+            examples.append(dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
+                             seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
+                             orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
+                             x = int(re.search('_x_(.*)_y_', i).group(1)),
+                             y = int(re.search('_y_(.*)_z_', i).group(1)),
+                             z = int(re.search('[^=][^a-z]_z_(.*)_type_', i).group(1)),     ### had to exclude anything that starts with "=0_z" b/c that shows up earlier
+                             im_type = str(re.search('_type_(.*)_branch_', i).group(1)),    
+                             filename= i.split('/')[-1].split('_origId')[0].replace(',', '')))
+        
 
 
     """ Also load in the all_tree_indices file """
-    tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
-    all_trees = load_all_trees(tree_csv_path)
+    all_trees = []
+    if HISTORICAL:
+        tree_csv_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads seed 2 COLORED 48 z/'
+        all_trees = load_all_trees(tree_csv_path)
+
 
 
     # ### REMOVE IMAGE 1 from training data
@@ -126,14 +182,20 @@ if __name__ == '__main__':
 
     examples = [i for j, i in enumerate(examples) if j not in idx_skip]
           
-            
+
+    """ Shorten for over-fitting """
+    # examples = examples[0:500]
+    # examples_test = examples_test[0:1000]
+
+
+
     counter = list(range(len(examples)))
     
     # """ load mean and std for normalization later """  
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
     std_arr = np.load('./normalize/' + 'std_VERIFIED.npy')   
 
-    num_workers = 4;
+    num_workers = 2;
  
     save_every_num_epochs = 1; plot_every_num_epochs = 1; validate_every_num_epochs = 1;      
     
@@ -142,10 +204,11 @@ if __name__ == '__main__':
     onlyfiles_check = glob.glob(os.path.join(s_path,'check_*'))
     onlyfiles_check.sort(key = natsort_key1)
     
+    deep_sup = False
     if not onlyfiles_check:   ### if no old checkpoints found, start new network and tracker
  
         """ Hyper-parameters """
-        deep_sup = False
+        
         switch_norm = False
         sp_weight_bool = 0
         #transforms = initialize_transforms(p=0.5)
@@ -159,7 +222,7 @@ if __name__ == '__main__':
         """ Initialize network """  
         kernel_size = 7
         pad = int((kernel_size - 1)/2)
-        unet = UNet_online(in_channels=22, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
+        unet = UNet_online(in_channels=2, n_classes=2, depth=5, wf=4, kernel_size = kernel_size, padding= int((kernel_size - 1)/2), 
                             batch_norm=True, batch_norm_switchable=switch_norm, up_mode='upsample')
         #unet = NestedUNet(num_classes=2, input_channels=2, deep_sup=deep_sup, padding=pad, batch_norm_switchable=switch_norm)
         #unet = UNet_3Plus(num_classes=2, input_channels=2, kernel_size=kernel_size, padding=pad)
@@ -169,16 +232,32 @@ if __name__ == '__main__':
         print('parameters:', sum(param.numel() for param in unet.parameters()))  
         
         """ Select loss function *** unimportant if using HD loss """
-        if not HD:    loss_function = torch.nn.CrossEntropyLoss(reduction='none')
-        else:         loss_function = 'Haussdorf'
+        if not HD and not cID:    
+            loss_function = torch.nn.CrossEntropyLoss(reduction='none')
+        
+        elif cID:
+            loss_function = cID_loss.soft_dice_cldice(iter_=3, alpha=0.5, smooth = 1.)
+                      
+        else:         
+            loss_function = 'Haussdorf'
             
 
         """ Select optimizer """
         lr = 1e-5; milestones = [20, 100]  # with AdamW slow down
-        optimizer = torch.optim.AdamW(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+        if not sps_bool:
+            optimizer = torch.optim.AdamW(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+            """ Add scheduler """
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1, last_epoch=-1)
+            
+        else:
+            
+            
+            """ add useless scheduler """
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(torch.optim.AdamW(unet.parameters()), milestones, gamma=0.1, last_epoch=-1)
+            
+            """ Define SPS optimizer"""
+            optimizer = sps.Sps(unet.parameters())
 
-        """ Add scheduler """
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1, last_epoch=-1)
             
         """ initialize index of training set and validation set, split using size of test_size """
         #idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
@@ -188,7 +267,7 @@ if __name__ == '__main__':
         idx_train = counter
         
         tracker = tracker(batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=alpha, HD=HD,
-                                          sp_weight_bool=sp_weight_bool, transforms=transforms, dataset=input_path)
+                                          sp_weight_bool=sp_weight_bool, transforms=transforms, dataset=input_path, im_type=im_type, cID=cID)
 
         tracker.resize_z = resize_z
 
@@ -208,11 +287,18 @@ if __name__ == '__main__':
         tracker = check['tracker']
         
         unet = check['model_type']
-        optimizer = check['optimizer_type']
         scheduler = check['scheduler_type']
         unet.load_state_dict(check['model_state_dict'])
         unet.to(device)
-        optimizer.load_state_dict(check['optimizer_state_dict'])
+        
+        
+        """ OPTIMIZER HAS TO BE LOADED IN AFTER THE MODEL!!!"""
+        if not sps_bool:
+            optimizer = check['optimizer_type']
+            optimizer.load_state_dict(check['optimizer_state_dict'])
+        else:
+            optimizer = sps.Sps(unet.parameters()) 
+        
         scheduler.load_state_dict(check['scheduler'])     
         loss_function = check['loss_function']
 
@@ -249,22 +335,57 @@ if __name__ == '__main__':
     validation_size = len(tracker.idx_valid)
     epoch_size = len(tracker.idx_train)    
    
+    
+   
+    
+    """ Generate spatial weight matrix """
+    def create_spatial_weight_mat(labels, edgeFalloff=10,background=0.01,approximate=True):    
+           if approximate:   # does chebyshev
+               dist1 = scipy.ndimage.distance_transform_cdt(labels)
+               dist2 = scipy.ndimage.distance_transform_cdt(np.where(labels>0,0,1))    # sets everything in the middle of the OBJECT to be 0
+                       
+           else:   # does euclidean
+               dist1 = scipy.ndimage.distance_transform_edt(labels, sampling=[1,1,1])
+               dist2 = scipy.ndimage.distance_transform_edt(np.where(labels>0,0,1), sampling=[1,1,1])
+               
+           """ DO CLASS WEIGHTING instead of spatial weighting WITHIN the object """
+           dist1[dist1 > 0] = 0.5
+       
+           dist = dist1+dist2
+           attention = math.e**(1-dist/edgeFalloff) + background   # adds background so no loses go to zero
+           
+           
+           """ TIGER REMOVED THIS SO NOT SO EXTREME - Jan. 9th, 2021 """
+           #attention /= np.average(attention)
+           
+           return np.reshape(attention,labels.shape)
+    
+    center_im = np.zeros([48, 80, 80])
+    center_im[int(center_im.shape[0]/2 - 1), int(center_im.shape[1]/2 - 1), int(center_im.shape[2]/2 - 1)] = 1
+    
+    spatial_center = create_spatial_weight_mat(center_im, edgeFalloff=20,background=0.01,approximate=False)
+    torch_spatial_center = torch.tensor(spatial_center, dtype = torch.float, device=device, requires_grad=False)    
+    
+
+   
     """ Start training """
     for cur_epoch in range(len(tracker.train_loss_per_epoch), 10000): 
-     
+        
          """ check and plot params during training """             
          for param_group in optimizer.param_groups:
                #tracker.alpha = 0.5
                #param_group['lr'] = 1e-6   # manually sets learning rate
-               cur_lr = param_group['lr']
-               tracker.lr_plot.append(cur_lr)
+               if not sps_bool:
+                    cur_lr = param_group['lr']
+                    tracker.lr_plot.append(cur_lr)
+               else:  tracker.lr_plot.append(0)
                tracker.print_essential()
 
          unet.train()  ### set PYTORCH to training mode
 
          start_time_epoch = time.perf_counter();
-         loss_train = 0; jacc_train = 0; ce_train = 0; dc_train = 0; hd_train = 0;
-         iter_cur_epoch = 0; starter = 0;
+         loss_train = 0; jacc_train = []; ce_train = 0; dc_train = 0; hd_train = 0;
+         iter_cur_epoch_train = 0; starter = 0;
          for batch_x, batch_y, spatial_weight in training_generator:
                  ### Test speed for debug
                  starter += 1
@@ -280,7 +401,7 @@ if __name__ == '__main__':
                  inputs = inputs[:, 0, ...]
 
                  # PRINT OUT THE SHAPE OF THE INPUT
-                 if iter_cur_epoch == 0:
+                 if iter_cur_epoch_train == 0:
                      print('input size is' + str(batch_x.shape))
 
                 
@@ -289,9 +410,45 @@ if __name__ == '__main__':
                  output_train = unet(inputs)  ### forward + backward + optimize
                                   
                  """ calculate loss: includes HD loss functions """
-                 if tracker.HD:
+                 
+                 if tracker.cID:
+
+                     ### USE SOFTMAX, and NOT argmax because argmax creates some discontinuous skeleton
+                     outputs_soft = F.softmax(output_train, dim=1)
+                     loss = loss_function(labels.type(torch.float32).unsqueeze(1), outputs_soft[:, 1, :, :, :].unsqueeze(1))
+                     # outputs_argm = torch.argmax(output_train, dim=1)
+                     # loss = loss_function(labels.type(torch.float32).unsqueeze(1), outputs_argm.type(torch.float32).unsqueeze(1))
+                     
+                     #loss_function = cID_loss.soft_cldice(iter_=3, smooth = 0)
+                     #outputs_argm = torch.argmax(output_train, dim=1)
+                     #val = loss_function(labels[1].type(torch.float32).unsqueeze(0).unsqueeze(0), outputs_soft[1, 1, :, :, :].unsqueeze(0).unsqueeze(0))
+                     #val = loss_function(labels[1].type(torch.float32).unsqueeze(0).unsqueeze(0), outputs_argm[1, :, :, :].type(torch.float32).unsqueeze(0).unsqueeze(0))
+
+                     # y_true = labels[1].type(torch.float32).unsqueeze(0).unsqueeze(0)
+                     # #y_pred =  outputs_soft[1, 1, :, :, :].unsqueeze(0).unsqueeze(0)
+                     # y_pred = outputs_argm[1, :, :, :].type(torch.float32).unsqueeze(0).unsqueeze(0)
+                     
+                     # #plot_max(labels[0].detach().cpu().numpy())
+                     # skel_pred = soft_skel(y_pred, 3)
+                     # skel_true = soft_skel(y_true, 3)
+                     # tprec = (torch.sum(torch.multiply(skel_pred, y_true)[:,0,:,:,:]))/(torch.sum(skel_pred[:,0,:,:,:]))    
+                     # tsens = (torch.sum(torch.multiply(skel_true, y_pred)[:,0,:,:,:]))/(torch.sum(skel_true[:,0,:,:,:]))    
+                     # cl_dice = 1.- 2.0*(tprec*tsens)/(tprec+tsens)                 
+                             
+
+                       
+                       
+                 elif tracker.HD:
                      loss, tracker, ce_train, dc_train, hd_train = compute_HD_loss(output_train, labels, tracker.alpha, tracker, 
-                                                                                   ce_train, dc_train, hd_train, val_bool=0)
+                                                                                    ce_train, dc_train, hd_train, val_bool=0,
+                                                                                    spatial_weight=sW_centroid, weight_arr=torch_spatial_center)
+                     
+                     
+                     """ can also check out the old HD function """
+                     # loss, tracker, ce_train, dc_train, hd_train = compute_HD_loss_OLD(output_train, labels, tracker.alpha, tracker, 
+                     #                                                               ce_train, dc_train, hd_train, val_bool=0)
+                                          
+                     
                  else:
                      if deep_sup:   ### IF DEEP SUPERVISION
                         # compute output
@@ -307,13 +464,17 @@ if __name__ == '__main__':
                              spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
                              weighted = loss * spatial_tensor
                              loss = torch.mean(weighted)
+                             
                               
                         else:  ### NO WEIGHTING AT ALL
                              loss = torch.mean(loss)   
                                        
                  """ update and step trainer """
                  loss.backward()
-                 optimizer.step()
+                 if sps_bool:
+                     optimizer.step(loss=loss)
+                 else:
+                     optimizer.step()
                
                  """ Training loss """
                  tracker.train_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
@@ -321,14 +482,15 @@ if __name__ == '__main__':
                 
    
                  """ Calculate Jaccard on GPU """                 
-                 jacc = jacc_eval_GPU_torch(output_train, labels)
-                 jacc = jacc.cpu().data.numpy()
-                                            
-                 jacc_train += jacc # Training jacc
+                 #jacc = jacc_eval_GPU_torch(output_train, labels)
+                 #jacc = jacc.cpu().data.numpy()
+                 jacc = cID_metric_eval_CPU(output_train, labels=batch_y)
+                               
+                 jacc_train.append(jacc) # Training jacc
                  tracker.train_jacc_per_batch.append(jacc)
    
                  tracker.iterations = tracker.iterations + 1       
-                 iter_cur_epoch += 1
+                 iter_cur_epoch_train += 1
                  if tracker.iterations % 100 == 0:
                      print('Trained: %d' %(tracker.iterations))
 
@@ -347,151 +509,186 @@ if __name__ == '__main__':
 
 
 
-
                  """ Should I keep track of loss on every single sample? and iteration? Just not plot it??? """   
-                 if tracker.iterations % 10000 == 0:
+                 #if tracker.iterations % 10000 == 0:
                      
+                 #if tracker.iterations % train_steps_per_epoch == 0:
 
-                     """ calculate new alpha for next epoch """   
-                     if tracker.HD:
-                         tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch)
-                         
-                         #tracker.alpha = 0.5
-
-                     tracker.train_loss_per_epoch.append(loss_train/iter_cur_epoch)
-                     tracker.train_jacc_per_epoch.append(jacc_train/iter_cur_epoch)     
+                     
+                     
+                     
+                    
+         tracker.train_loss_per_epoch.append(loss_train/iter_cur_epoch_train)
+         tracker.train_jacc_per_epoch.append(np.nanmean(jacc_train))     
+              
+           
+         loss_val = 0; jacc_val = []; val_idx = 0;
+         iter_cur_epoch = 0;  ce_val = 0; dc_val = 0; hd_val = 0;  hd_value = 0;
+         if cur_epoch % validate_every_num_epochs == 0:
+               
+                with torch.set_grad_enabled(False):  # saves GPU RAM
+                     unet.eval()
+                     for batch_x_val, batch_y_val, spatial_weight in val_generator:
                         
-                     
-                     loss_val = 0; jacc_val = 0; val_idx = 0;
-                     iter_cur_epoch = 0;  ce_val = 0; dc_val = 0; hd_val = 0;
-                     if cur_epoch % validate_every_num_epochs == 0:
-                         
-                          with torch.set_grad_enabled(False):  # saves GPU RAM
-                               unet.eval()
-                               for batch_x_val, batch_y_val, spatial_weight in val_generator:
-                                  
-                                    """ Transfer to GPU to normalize ect... """
-                                    inputs_val, labels_val = transfer_to_GPU(batch_x_val, batch_y_val, device, tracker.mean_arr, tracker.std_arr)
-                                    inputs_val = inputs_val[:, 0, ...]   
-                         
-                                    # forward pass to check validation
-                                    output_val = unet(inputs_val)
-            
-                                    """ calculate loss 
-                                            include HD loss functions """
-                                    if tracker.HD:
-                                        loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
-                                                                                                      ce_val, dc_val, hd_val, val_bool=1)
-                                    else:
-                                        if deep_sup:                                                
-                                            # compute output
-                                            loss = 0
-                                            for output in output_val:
-                                                 loss += loss_function(output, labels_val)
-                                            loss /= len(output_val)                                
-                                            output_val = output_val[-1]  # set this so can eval jaccard later                            
-                                        else:
-                                        
-                                            loss = loss_function(output_val, labels_val)       
-                                            if torch.is_tensor(spatial_weight):
-                                                   spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
-                                                   weighted = loss * spatial_tensor
-                                                   loss = torch.mean(weighted)
-                                            elif dist_loss:
-                                                   loss  # do not do anything if do not need to reduce
-                                                
-                                            else:
-                                                   loss = torch.mean(loss)  
-            
-                                    """ Training loss """
-                                    tracker.val_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
-                                    loss_val += loss.cpu().data.numpy()
-                                                     
-                                    """ Calculate jaccard on GPU """
-                                    jacc = jacc_eval_GPU_torch(output_val, labels_val)
-                                    jacc = jacc.cpu().data.numpy()
-                                    
-                                    jacc_val += jacc
-                                    tracker.val_jacc_per_batch.append(jacc)   
-            
-                                    val_idx = val_idx + tracker.batch_size
-                                    print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
-                                    iter_cur_epoch += 1
-            
-                                    #if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
-            
-                                       
-                               tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
-                               tracker.val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       
-                               
-                               """ Add to scheduler to do LR decay """
-                               scheduler.step()
-            
-
-                     """ Plot metrics every epoch """      
-                     if cur_epoch % plot_every_num_epochs == 0:       
-                          
-                         
-                          """ Plot metrics in tracker """
-                          plot_tracker(tracker, s_path)
-                          
-                          """ custom plot """
-                          output_train = output_train.cpu().data.numpy()            
-                          output_train = np.moveaxis(output_train, 1, -1)              
-                          seg_train = np.argmax(output_train[0], axis=-1)  
-                          
-                          # convert back to CPU
-                          batch_x = batch_x.cpu().data.numpy() 
-                          batch_y = batch_y.cpu().data.numpy() 
-                          batch_x_val = batch_x_val.cpu().data.numpy()
-                          
-                          
-                          batch_y_val = batch_y_val.cpu().data.numpy() 
-                          output_val = output_val.cpu().data.numpy()            
-                          output_val = np.moveaxis(output_val, 1, -1)       
-                          seg_val = np.argmax(output_val[0], axis=-1)  
-                          
-                          plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_val, batch_x[0], batch_x_val[0], batch_y[0], batch_y_val[0],
-                                                   s_path, tracker.iterations, plot_depth=8)
-                                                         
-                          
-                     """ To save tracker and model (every x iterations) """
-                     if cur_epoch % save_every_num_epochs == 0:           
-                           stop_time_epoch = time.perf_counter(); diff = stop_time_epoch - start_time_epoch; print(diff); 
-                          
-                           save_name = s_path + 'check_' +  str(tracker.iterations)               
-                           torch.save({
-                            'tracker': tracker,
-            
-                            'model_type': unet,
-                            'optimizer_type': optimizer,
-                            'scheduler_type': scheduler,
+                          """ Transfer to GPU to normalize ect... """
+                          inputs_val, labels_val = transfer_to_GPU(batch_x_val, batch_y_val, device, tracker.mean_arr, tracker.std_arr)
+                          inputs_val = inputs_val[:, 0, ...]   
+               
+                          # forward pass to check validation
+                          output_val = unet(inputs_val)
+  
+                          """ calculate loss 
+                                  include HD loss functions """
+                          if tracker.cID:
+        
+                              ### USE SOFTMAX, and NOT argmax because argmax creates some discontinuous skeleton
+                              outputs_soft = F.softmax(output_val, dim=1)
+                              loss = loss_function(labels_val.type(torch.float32).unsqueeze(1), outputs_soft[:, 1, :, :, :].unsqueeze(1))
+                              # outputs_argm = torch.argmax(output_val, dim=1)
+                              # loss = loss_function(labels_val.type(torch.float32).unsqueeze(1), outputs_argm.type(torch.float32).unsqueeze(1))
                             
-                            'model_state_dict': unet.state_dict(),
-                            'optimizer_state_dict': optimizer.state_dict(),
-                            'scheduler': scheduler.state_dict(),
-                            'loss_function': loss_function,  
-                            
-                            }, save_name)
-     
+                          elif tracker.HD:
+                              loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
+                                                                                             ce_val, dc_val, hd_val, val_bool=1,
+                                                                                             spatial_weight=sW_centroid, weight_arr=torch_spatial_center)
+                      
+                        
+                        
+                              
+                              """ can also check out the old HD function """
+                              # loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss_OLD(output_val, labels_val, tracker.alpha, tracker, 
+                              #                                                               ce_val, dc_val, hd_val, val_bool=1)
+                                      
+                          else:
+                              if deep_sup:                                                
+                                  # compute output
+                                  loss = 0
+                                  for output in output_val:
+                                       loss += loss_function(output, labels_val)
+                                  loss /= len(output_val)                                
+                                  output_val = output_val[-1]  # set this so can eval jaccard later                            
+                              else:
+                              
+                                  loss = loss_function(output_val, labels_val)       
+                                  if torch.is_tensor(spatial_weight):
+                                         spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                                         weighted = loss * spatial_tensor
+                                         loss = torch.mean(weighted)
+                                  # elif dist_loss:
+                                  #        loss  # do not do anything if do not need to reduce
+                                      
+                                  else:
+                                         loss = torch.mean(loss)  
+  
+                          """ Training loss """
+                          tracker.val_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
+                          loss_val += loss.cpu().data.numpy()
+                                           
+                          """ Calculate jaccard on GPU """
+                          #jacc = jacc_eval_GPU_torch(output_val, labels_val)
+                          #jacc = jacc.cpu().data.numpy()
+                          jacc = cID_metric_eval_CPU(output_val, labels=batch_y_val)
+                          
+                          jacc_val.append(jacc)
+                          tracker.val_jacc_per_batch.append(jacc)   
 
 
-   
+
+                          """ HD_metric """
+                          # outputs_argm = torch.argmax(output_train, dim=1)
+                          # hd_metric = HD_metric.HausdorffDistance()
+                          # hd_m = hd_metric.compute(outputs_argm.unsqueeze(1), labels.unsqueeze(1))
+                          # hd_value += hd_m.cpu().data.numpy()
+  
     
-                     """ check and plot params during training """             
-                     for param_group in optimizer.param_groups:
-                           #tracker.alpha = 0.5
-                           #param_group['lr'] = 1e-6   # manually sets learning rate
-                           cur_lr = param_group['lr']
-                           tracker.lr_plot.append(cur_lr)
-                           tracker.print_essential()
-            
-                     unet.train()  ### set PYTORCH to training mode
-            
-                     start_time_epoch = time.perf_counter();
-                     loss_train = 0; jacc_train = 0; ce_train = 0; dc_train = 0; hd_train = 0;
-                     iter_cur_epoch = 0; starter = 0;                     
+                          val_idx = val_idx + tracker.batch_size
+                          print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
+                          iter_cur_epoch += 1
+  
+                          #if starter == 50: stop = time.perf_counter(); diff = stop - start; print(diff);  #break;
+  
+                             
+                     tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
+                     tracker.val_jacc_per_eval.append(np.nanmean(jacc_val))       
                      
+                     """ Add to scheduler to do LR decay
+                             skipped if doing sps_bool!
+                     """
+                     if not sps_bool:
+                         scheduler.step()
+                         
+         """ calculate new alpha for next epoch """   
+         if tracker.HD:
+               tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch_train)
+               
+               #tracker.alpha = 0.5
+  
+
+         """ Plot metrics every epoch """      
+         if cur_epoch % plot_every_num_epochs == 0:       
+                
+               
+                """ Plot metrics in tracker """
+                plot_tracker(tracker, s_path)
+                
+                """ custom plot """
+                output_train = output_train.cpu().data.numpy()            
+                output_train = np.moveaxis(output_train, 1, -1)              
+                seg_train = np.argmax(output_train[0], axis=-1)  
+                
+                # convert back to CPU
+                batch_x = batch_x.cpu().data.numpy() 
+                batch_y = batch_y.cpu().data.numpy() 
+                batch_x_val = batch_x_val.cpu().data.numpy()
+                
+                
+                batch_y_val = batch_y_val.cpu().data.numpy() 
+                output_val = output_val.cpu().data.numpy()            
+                output_val = np.moveaxis(output_val, 1, -1)       
+                seg_val = np.argmax(output_val[0], axis=-1)  
+                
+                plot_trainer_3D_PYTORCH_snake_seg(seg_train, seg_val, batch_x[0], batch_x_val[0], batch_y[0], batch_y_val[0],
+                                         s_path, tracker.iterations, plot_depth=8)
+                                               
+                
+         """ To save tracker and model (every x iterations) """
+         if cur_epoch % save_every_num_epochs == 0:           
+                 stop_time_epoch = time.perf_counter(); diff = stop_time_epoch - start_time_epoch; print(diff); 
+                
+                 save_name = s_path + 'check_' +  str(tracker.iterations)               
+                 torch.save({
+                  'tracker': tracker,
+  
+                  'model_type': unet,
+                  'optimizer_type': optimizer,
+                  'scheduler_type': scheduler,
+                  
+                  'model_state_dict': unet.state_dict(),
+                  'optimizer_state_dict': optimizer.state_dict(),
+                  'scheduler': scheduler.state_dict(),
+                  'loss_function': loss_function,  
+                  
+                  }, save_name)
+
+
+
+ 
+  
+         """ check and plot params during training """             
+         # for param_group in optimizer.param_groups:
+         #       #tracker.alpha = 0.5
+         #       #param_group['lr'] = 1e-6   # manually sets learning rate
+         #       if not sps_bool:
+         #           cur_lr = param_group['lr']
+         #           tracker.lr_plot.append(cur_lr)
+         #       tracker.print_essential()
+  
+         # unet.train()  ### set PYTORCH to training mode
+  
+         # start_time_epoch = time.perf_counter();
+         # loss_train = 0; jacc_train = 0; ce_train = 0; dc_train = 0; hd_train = 0;
+         # iter_cur_epoch = 0; starter = 0;                     
+           
                 
 
                 
