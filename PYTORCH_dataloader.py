@@ -17,20 +17,80 @@ import scipy
 import math
 import tifffile as tifffile
 
-# import torchio
-# from torchio.transforms import (
-#     RescaleIntensity,
-#     RandomFlip,
-#     RandomAffine,
-#     RandomElasticDeformation,
-#     RandomMotion,
-#     RandomBiasField,
-#     RandomBlur,
-#     RandomNoise,
-#     Interpolation,
-#     Compose
-# )
-# from torchio import Image, Subject, ImagesDataset
+import skimage
+
+import matplotlib.pyplot as plt
+
+import matlab_crop_function
+
+
+
+def plot_max(im, ax=0, plot=1):
+     max_im = np.amax(im, axis=ax)
+     if plot:
+         plt.figure(); plt.imshow(max_im)
+     
+     return max_im
+ 
+""" dilates image by a spherical ball of size radius """
+def dilate_by_ball_to_binary(input_im, radius):
+     ball_obj = skimage.morphology.ball(radius=radius)
+     input_im = skimage.morphology.dilation(input_im, selem=ball_obj)  
+     input_im[input_im > 0] = 1
+     return input_im
+ 
+    
+ 
+    
+
+""" Define transforms"""
+import torchio
+from torchio.transforms import (
+    RescaleIntensity,
+    RandomFlip,
+    RandomAffine,
+    RandomElasticDeformation,
+    RandomMotion,
+    RandomBiasField,
+    RandomBlur,
+    RandomAnisotropy,
+    RandomNoise,
+    #Interpolation,
+    Compose
+)
+#from torchio import Image, Subject, ImagesDataset
+
+
+import torchio as tio
+
+
+def initialize_transforms_simple(p=0.8):
+     transforms = [
+           RandomFlip(axes = (0, 1, 2), flip_probability = 1, p = p),
+           
+           #RandomAffine(scales=(0.9, 1.1), degrees=(10), isotropic=False,
+           #             default_pad_value='otsu', image_interpolation=Interpolation.LINEAR,
+           #             p = p, seed=None),
+           
+           # *** SLOWS DOWN DATALOADER ***
+           #RandomElasticDeformation(num_control_points = 7, max_displacement = 7.5,
+           #                         locked_borders = 2, image_interpolation = Interpolation.LINEAR,
+           #                         p = 0.5, seed = None),
+           RandomMotion(degrees = 10, translation = 10, num_transforms = 2, image_interpolation = 'linear',
+                        p = p),
+           
+           RandomAnisotropy(axes=(0, 1, 2), downsampling=2),
+           
+           RandomBiasField(coefficients=0.5, order = 3, p = p),
+           
+           RandomBlur(std = (0, 2), p = p),
+           
+           RandomNoise(mean = 0, std = (0, 5), p = p),
+           RescaleIntensity((0, 255))
+           
+     ]
+     transform = tio.Compose(transforms)
+     return transform
 
 
 from functional.data_functions_CLEANED import *
@@ -156,25 +216,52 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         
 
   def apply_transforms(self, image, labels):
+        #inputs = np.asarray(image, dtype=np.float32)
         inputs = image
-        inputs = torch.tensor(inputs, dtype = torch.float,requires_grad=False)
-        labels = torch.tensor(labels, dtype = torch.long, requires_grad=False)         
+
  
-        subject_a = Subject(
-                one_image=Image(None,  torchio.INTENSITY, inputs),   # *** must be tensors!!!
-                a_segmentation=Image(None, torchio.LABEL, labels))
+        inputs = torch.tensor(inputs, dtype = torch.float,requires_grad=False)
+        labels = torch.tensor(labels, dtype = torch.long, requires_grad=False)      
+        
+        
+        """ Expected input is:   (C x W x H x D) """
+        inputs = inputs.unsqueeze(0)
+        inputs = torch.moveaxis(inputs, 1, -1)
+        
+        labels = labels.unsqueeze(0)
+        labels = torch.moveaxis(labels, 1, -1)
+        
+ 
+        subject_a = tio.Subject(
+                one_image=tio.ScalarImage(tensor=inputs),   # *** must be tensors!!!
+                a_segmentation=tio.LabelMap(tensor=labels))
           
         subjects_list = [subject_a]
 
-        subjects_dataset = ImagesDataset(subjects_list, transform=self.transforms)
+        subjects_dataset = tio.SubjectsDataset(subjects_list, transform=self.transforms)
         subject_sample = subjects_dataset[0]
           
           
         X = subject_sample['one_image']['data'].numpy()
         Y = subject_sample['a_segmentation']['data'].numpy()
         
-        return X[0], Y[0]    
+        
+        """ Re-arrange channels for Pytorch into (D, H, W) """
+        X = X[0]
+        X = np.moveaxis(X, -1, 0)
+        
+        Y = Y[0]
+        Y = np.moveaxis(Y, -1, 0)
+
+
+        """ DEBUG """
+        #plot_max(X)
+        #plot_max(Y)
+  
     
+  
+        return X, Y
+
     
   def append_seed_mask(self, image, seed_crop):
      
@@ -789,6 +876,49 @@ class Dataset_tiffs_snake_seg(data.Dataset):
         seed_crop = tifffile.imread(seed_name)
         Y[Y > 0] = 1
         
+        #crop_size = int(80/2);  ### if want NORMAL XY
+        
+        
+        """ Crop to smaller training data """
+        height = X.shape[1]; width = X.shape[2]; depth = X.shape[0]
+        
+        #crop_size = int(32/2);  ### if want smaller XY
+        crop_size = int(64/2);  ### if want smaller XY
+        
+        z_size = 16
+        x = int(X.shape[1]/2 - 1)
+        y = int(X.shape[2]/2 - 1)
+        z = int(X.shape[0]/2 - 1)
+            
+        move_im = np.moveaxis(X, 0, -1)
+        X_cp, x_min, x_max, y_min, y_max, z_min, z_max = crop_around_centroid(move_im, y, x, z, crop_size=crop_size, z_size=z_size, height=height, width=width, depth=depth)
+        X = np.moveaxis(X_cp, -1, 0)
+        
+        move_im = np.moveaxis(Y, 0, -1)
+        Y_cp, x_min, x_max, y_min, y_max, z_min, z_max = crop_around_centroid(move_im, y, x, z, crop_size=crop_size, z_size=z_size, height=height, width=width, depth=depth)
+        Y = np.moveaxis(Y_cp, -1, 0)
+
+        move_im = np.moveaxis(seed_crop, 0, -1)
+        seed_crop_cp, x_min, x_max, y_min, y_max, z_min, z_max = crop_around_centroid(move_im, y, x, z, crop_size=crop_size, z_size=z_size, height=height, width=width, depth=depth)
+        seed_crop = np.moveaxis(seed_crop_cp, -1, 0)        
+
+        ### DEBUG:
+        # import napari
+        # im = []; im.append(X); im.append(Y * 255); im.append(seed_crop * 255); im = np.asarray(im)
+        # im = np.moveaxis(im, 0, -1)
+        # with napari.gui_qt():
+        #     viewer = napari.view_image(im)
+
+        
+        """ Add dilation """
+        dil_r = 1
+        
+        Y = dilate_by_ball_to_binary(Y, radius=dil_r)
+        
+        seed_crop = dilate_by_ball_to_binary(seed_crop, radius=dil_r)
+        
+        
+        
         """ Resize the z-dimension """
         if self.resize_z:
                X, seed_crop, Y = self.resize_z_func(X, seed_crop, Y)
@@ -870,80 +1000,6 @@ class Dataset_tiffs_snake_seg(data.Dataset):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-""" Define transforms"""
-
-
-# def initialize_transforms(p=0.5):
-#      transforms = [
-#            RandomFlip(axes = 0, flip_probability = 0.5, p = p, seed = None),
-           
-#            RandomAffine(scales=(0.9, 1.1), degrees=(10), isotropic=False,
-#                         default_pad_value='otsu', image_interpolation=Interpolation.LINEAR,
-#                         p = p, seed=None),
-           
-#            # *** SLOWS DOWN DATALOADER ***
-#            #RandomElasticDeformation(num_control_points = 7, max_displacement = 7.5,
-#            #                         locked_borders = 2, image_interpolation = Interpolation.LINEAR,
-#            #                         p = 0.5, seed = None),
-#            RandomMotion(degrees = 10, translation = 10, num_transforms = 2, image_interpolation = Interpolation.LINEAR,
-#                         p = p, seed = None),
-           
-#            RandomBiasField(coefficients=0.5, order = 3, p = p, seed = None),
-           
-#            RandomBlur(std = (0, 4), p = p, seed=None),
-           
-#            RandomNoise(mean = 0, std = (0, 0.25), p = p, seed = None),
-#            RescaleIntensity((0, 255))
-           
-#      ]
-#      transform = Compose(transforms)
-#      return transform
-
-
-
-
-def initialize_transforms_simple(p=0.5):
-     transforms = [
-           RandomFlip(axes = 0, flip_probability = 1.0, p = p, seed = None),
-           
-           #RandomAffine(scales=(0.9, 1.1), degrees=(10), isotropic=False,
-           #             default_pad_value='otsu', image_interpolation=Interpolation.LINEAR,
-           #             p = p, seed=None),
-           
-           # *** SLOWS DOWN DATALOADER ***
-           #RandomElasticDeformation(num_control_points = 7, max_displacement = 7.5,
-           #                         locked_borders = 2, image_interpolation = Interpolation.LINEAR,
-           #                         p = 0.5, seed = None),
-           #RandomMotion(degrees = 10, translation = 10, num_transforms = 2, image_interpolation = Interpolation.LINEAR,
-           #             p = p, seed = None),
-           
-           #RandomBiasField(coefficients=0.5, order = 3, p = p, seed = None),
-           
-           #RandomBlur(std = (0, 4), p = p, seed=None),
-           
-           #RandomNoise(mean = 0, std = (0, 0.25), p = p, seed = None),
-           #RescaleIntensity((0, 255))
-           
-     ]
-     transform = Compose(transforms)
-     return transform
 
 
 

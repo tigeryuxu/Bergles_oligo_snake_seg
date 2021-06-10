@@ -208,18 +208,106 @@ class HausdorffERLoss(nn.Module):
 
 
 
+# """ Steps alpha after each epoch """
+# def alpha_step(ce, dc, hd, iter_cur_epoch):
+     
+#      mean_dc = dc/iter_cur_epoch
+#      mean_combined = mean_dc
+     
+#      ### IF WANT TO ADD LOSS_CE
+#      mean_ce = ce/iter_cur_epoch
+#      mean_combined = (mean_ce + mean_dc)/2
+    
+#      mean_hd = hd/iter_cur_epoch
+    
+#      alpha = mean_hd/(mean_combined)
+     
+#      return alpha
+
+# """ computes composite (DICE + CE) + alpha * HD loss """
+# def compute_HD_loss(output, labels, alpha, tracker, ce, dc, hd, val_bool=0, spatial_weight=0, weight_arr=[]):
+    
+#     """ April 16th 2021 ----- Tiger removed CE loss because probably not helping... """
+#     loss_ce = F.cross_entropy(output, labels, reduction='none')
+#     #ce = 0
+    
+#     """ Make spatial weight matrix that is just exponential decay from middle of image """
+#     # if spatial_weight:
+#     #     weighted = torch.multiply(loss_ce, weight_arr)
+#     #     loss_ce = weighted
+        
+#     loss_ce = torch.mean(loss_ce)
+        
+    
+#     outputs_soft = F.softmax(output, dim=1)
+#     loss_seg_dice = dice_loss(outputs_soft[:, 1, :, :, :], labels == 1, spatial_weight=spatial_weight, weight_arr=weight_arr)
+#     # compute distance maps and hd loss
+#     # with torch.no_grad():
+#     #     # defalut using compute_dtm; however, compute_dtm01 is also worth to try;
+#     #     gt_dtm_npy = compute_dtm(labels.cpu().numpy(), outputs_soft.shape)
+#     #     gt_dtm = torch.from_numpy(gt_dtm_npy).float().cuda(outputs_soft.device.index)
+#     #     seg_dtm_npy = compute_dtm(outputs_soft[:, 1, :, :, :].cpu().numpy()>0.5, outputs_soft.shape)
+#     #     seg_dtm = torch.from_numpy(seg_dtm_npy).float().cuda(outputs_soft.device.index)
+
+
+#     """ debug """
+#     #plot_max(inputs[0, 0].cpu().numpy())
+#     #plot_max(labels[0].cpu().numpy())
+
+
+    
+    
+#     #loss_hd = hd_loss(outputs_argm, labels, seg_dtm, gt_dtm, spatial_weight=spatial_weight, weight_arr=weight_arr)
+    
+#     """ updated HAUSSDORF LOSS: 
+        
+#                 can choose either with DT or with ER
+#         """
+#     outputs_argm = torch.argmax(output, dim=1)
+#     hd_loss = HausdorffDTLoss()  
+    
+#     #hd_loss = HausdorffERLoss()
+    
+#     loss_hd = hd_loss.forward(pred=outputs_argm.unsqueeze(1), target=labels.unsqueeze(1))
+#     loss = alpha*(loss_seg_dice) + loss_hd
+    
+    
+    
+#     ### if want to add loss_ce
+#     loss = alpha*(loss_ce+loss_seg_dice) + loss_hd
+
+    
+#     if not val_bool:   ### append to training trackers if not validation
+#         #tracker.train_ce_pb.append(loss_ce.cpu().data.numpy())
+#         tracker.train_dc_pb.append(loss_seg_dice.cpu().data.numpy())
+#         tracker.train_hd_pb.append(loss_hd.cpu().data.numpy())
+
+#     else:
+#         #tracker.val_ce_pb.append(loss_ce.cpu().data.numpy())
+#         tracker.val_dc_pb.append(loss_seg_dice.cpu().data.numpy())
+#         tracker.val_hd_pb.append(loss_hd.cpu().data.numpy())        
+
+    
+#     ce += loss_ce.cpu().data.numpy()
+#     dc += loss_seg_dice.cpu().data.numpy()
+#     hd += loss_hd.cpu().data.numpy()    
+    
+#     return loss, tracker, ce, dc, hd
+
+
+
 """ Steps alpha after each epoch """
 def alpha_step(ce, dc, hd, iter_cur_epoch):
-     #mean_ce = ce/iter_cur_epoch
-     mean_dc = dc/iter_cur_epoch
-     mean_combined = mean_dc
-     #mean_combined = (mean_ce + mean_dc)/2
+      #mean_ce = ce/iter_cur_epoch
+      mean_dc = dc/iter_cur_epoch
+      mean_combined = mean_dc
+      #mean_combined = (mean_ce + mean_dc)/2
     
-     mean_hd = hd/iter_cur_epoch
+      mean_hd = hd/iter_cur_epoch
     
-     alpha = mean_hd/(mean_combined)
+      alpha = mean_hd/(mean_combined)
      
-     return alpha
+      return alpha
 
 """ computes composite (DICE + CE) + alpha * HD loss """
 def compute_HD_loss(output, labels, alpha, tracker, ce, dc, hd, val_bool=0, spatial_weight=0, weight_arr=[]):
@@ -227,34 +315,10 @@ def compute_HD_loss(output, labels, alpha, tracker, ce, dc, hd, val_bool=0, spat
     """ April 16th 2021 ----- Tiger removed CE loss because probably not helping... """
     #loss_ce = F.cross_entropy(output, labels, reduction='none')
     ce = 0
-    
-    """ Make spatial weight matrix that is just exponential decay from middle of image """
-    # if spatial_weight:
-    #     weighted = torch.multiply(loss_ce, weight_arr)
-    #     loss_ce = weighted
         
-    # loss_ce = torch.mean(loss_ce)
-        
-    
     outputs_soft = F.softmax(output, dim=1)
     loss_seg_dice = dice_loss(outputs_soft[:, 1, :, :, :], labels == 1, spatial_weight=spatial_weight, weight_arr=weight_arr)
-    # compute distance maps and hd loss
-    # with torch.no_grad():
-    #     # defalut using compute_dtm; however, compute_dtm01 is also worth to try;
-    #     gt_dtm_npy = compute_dtm(labels.cpu().numpy(), outputs_soft.shape)
-    #     gt_dtm = torch.from_numpy(gt_dtm_npy).float().cuda(outputs_soft.device.index)
-    #     seg_dtm_npy = compute_dtm(outputs_soft[:, 1, :, :, :].cpu().numpy()>0.5, outputs_soft.shape)
-    #     seg_dtm = torch.from_numpy(seg_dtm_npy).float().cuda(outputs_soft.device.index)
 
-
-    """ debug """
-    #plot_max(inputs[0, 0].cpu().numpy())
-    #plot_max(labels[0].cpu().numpy())
-
-
-    
-    
-    #loss_hd = hd_loss(outputs_argm, labels, seg_dtm, gt_dtm, spatial_weight=spatial_weight, weight_arr=weight_arr)
     
     """ updated HAUSSDORF LOSS: 
         

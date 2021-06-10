@@ -503,7 +503,7 @@ for id_fold, folder in enumerate(directories):
     list_sheaths = list_sheaths['sheath_coords']
     overlay_output = np.zeros(np.shape(input_im))
     
-    val_metrics = {'num_match': [], 'len_diff': [], 'prop_diff': [], 'overlap_diff': [], 'total_len_diff': [], 'total_prop_diff': [], }
+    val_metrics = {'num_match': [], 'len_diff': [], 'prop_diff': [], 'overlap_diff': [], 'total_len_diff': [], 'total_prop_diff': [], 'prop_missed': []}
     for id_s, sheath in enumerate(list_sheaths):
         val_im = np.zeros(np.shape(input_im))
         sheath = np.vstack(sheath)
@@ -608,8 +608,6 @@ for id_fold, folder in enumerate(directories):
     
     num_missed = 0
     for prop in all_props:
-        
-        
         if len(prop) == 0:
             num_missed += 1
             print('empty')
@@ -618,6 +616,7 @@ for id_fold, folder in enumerate(directories):
     prop_missed = num_missed/len(all_props)
     print(prop_missed)
 
+    val_metrics['prop_missed'].append(prop_missed)                      
 
 
     """ Also save the ground truth validation image"""
@@ -626,7 +625,7 @@ for id_fold, folder in enumerate(directories):
         val_im = np.zeros(np.shape(input_im))
         sheath = np.vstack(sheath)
         sheath = sheath - 1;   ### subtract one to start indexing from 0!!!
-        ground_truth[sheath[:, 0], sheath[:, 1], sheath[:, 2]] = id_s
+        ground_truth[sheath[:, 0], sheath[:, 1], sheath[:, 2]] = id_s + 1
                 
 
 
@@ -647,7 +646,9 @@ for id_fold, folder in enumerate(directories):
 
 
 """ Plot cumulative validation metrics """
+save_figs_path = './save_figs/'
 
+fontsize = 14
 # combine into one plot
 
 combined_prop = []
@@ -657,16 +658,62 @@ for val_metrics in all_val_metrics:
     combined_prop = np.concatenate((combined_prop, val_metrics['total_prop_diff']))
 
 
-plt.figure()
-plt.hist(combined_prop)      ### negative values mean that segmentation longer than ground truth
+plt.figure(figsize=(5, 4))
+#plt.hist(combined_prop, color='k', )      ### negative values mean that segmentation longer than ground truth
+
+plt.hist(combined_prop, color='k', bins=3)      ### negative values mean that segmentation longer than ground truth
 
 
 perc = len(np.where((combined_prop > -0.4) & (combined_prop < 0.6))[0])   # within +/- 50% proportion
 total_perc = perc/len(combined_prop)
 print("total_prop_diff:" + str(total_perc))
+ax = plt.gca()
+ax.spines['right'].set_visible(False)
+ax.spines['top'].set_visible(False)
+
+#plt.legend(leg_to_plot, frameon=False, fontsize=fontsize-2)
+plt.ylabel('Number of segments', fontsize=fontsize); plt.yticks(fontsize=fontsize - 2);  plt.ylim([0, 20])
+plt.xlabel('Prop length diff px (Truth - Seg)/Seg', fontsize=fontsize);  plt.xticks(fontsize=fontsize - 2); plt.xlim([-10, 2.5])
+plt.tight_layout()
+
+plt.savefig(save_figs_path + 'length_difference.png', dpi=300)
 
 
 
+""" Plot missed per cell """
+fontsize = 14
+# combine into one plot
+
+combined_prop = []
+for val_metrics in all_val_metrics:
+    #combined_prop.append(val_metrics['total_prop_diff'])
+
+    combined_prop = np.concatenate((combined_prop, val_metrics['prop_missed']))
+
+
+import numpy as np
+import pandas as pd
+import seaborn as sns
+
+data = pd.DataFrame(data=combined_prop, columns=['SnakeSeg HD'])
+plt.figure(figsize=(2, 3));
+#ax = sns.swarmplot(data=data, color='k', edgecolor="black",alpha=.5, s=8,linewidth=1.)
+ax = sns.stripplot(data=data, color='k', edgecolor="r",alpha=.5, s=5,linewidth=1., jitter=0.05)
+ax.set_xticklabels(ax.get_xticks(), size = fontsize - 2)
+
+sns.barplot(data=data, color='gray', capsize=.2, ci=68)   ### ci = 68 ==> means SEM
+
+#sns.despine()
+plt.ylim([0, 0.5]); 
+plt.ylabel('Prop missed segs', fontsize=fontsize); plt.yticks(fontsize=fontsize - 2); 
+#plt.xlabel('SnakeSeg HD', fontsize=fontsize); 
+
+
+ax = plt.gca()
+ax.spines['right'].set_visible(False)
+ax.spines['top'].set_visible(False)
+plt.tight_layout()
+plt.savefig(save_figs_path + 'num_missed_per_cell.png', dpi=300)
 
 
 

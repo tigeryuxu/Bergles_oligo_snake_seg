@@ -68,3 +68,10 @@ class soft_dice_cldice(nn.Module):
         tsens = (torch.sum(torch.multiply(skel_true, y_pred)[:,0,:,:,:])+self.smooth)/(torch.sum(skel_true[:,0,:,:,:])+self.smooth)    
         cl_dice = 1.- 2.0*(tprec*tsens)/(tprec+tsens)
         return (1.0-self.alpha)*dice+self.alpha*cl_dice
+    
+    
+    
+    
+    
+    
+    

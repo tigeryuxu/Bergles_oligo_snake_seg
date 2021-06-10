@@ -44,7 +44,11 @@ from layers.unet3_3D import *
 from layers.switchable_BN import *
 
 from losses_pytorch.HD_loss import *
- 
+
+import cIDice_metric as cID_metric
+import cIDice_loss as cID_loss
+
+
 import re
 import sps
     
@@ -72,6 +76,13 @@ if __name__ == '__main__':
     
     s_path = './(2) Checkpoint_unet_MEDIUM_filt7x7_b8_HD_INTERNODE_SPS_optimizer/'; HD = 1; alpha = 1; sps_bool = 1;
     
+    s_path = './(3) Checkpoint_unet_MEDIUM_filt7x7_b8_HD_INTERNODE_sps_cID_loss/'; cID = 1; HD = 0; alpha = 0; sps_bool = 1; im_type = 0
+    
+    s_path = './(4) Checkpoint_unet_MEDIUM_filt7x7_b8_HD_INTERNODE_sps_NEW_HD_loss/'; cID = 0; HD = 1; alpha = 1; sps_bool = 1; im_type = 0; sW_centroid = 0
+    
+    
+    s_path = './(5) Checkpoint_unet_MEDIUM_filt7x7_b8_HD_INTERNODE_sps_NEW_HD_loss_set_alpha_1/'; cID = 0; HD = 1; alpha = 1; sps_bool = 1; im_type = 0; sW_centroid = 0
+        
     
     """ path to input data """
     input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING linear myelin seg/TRAINING_linear_myelin_FULL_DATA/'
@@ -166,8 +177,14 @@ if __name__ == '__main__':
         print('parameters:', sum(param.numel() for param in unet.parameters()))  
         
         """ Select loss function *** unimportant if using HD loss """
-        if not HD:    loss_function = torch.nn.CrossEntropyLoss(reduction='none')
-        else:         loss_function = 'Haussdorf'
+        if not HD and not cID:    
+            loss_function = torch.nn.CrossEntropyLoss(reduction='none')
+        
+        elif cID:
+            loss_function = cID_loss.soft_dice_cldice(iter_=3, alpha=0.5, smooth = 1.)
+                      
+        else:         
+            loss_function = 'Haussdorf'
             
 
         """ Select optimizer """
@@ -175,18 +192,18 @@ if __name__ == '__main__':
             
         if not sps_bool:
             optimizer = torch.optim.AdamW(unet.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+            """ Add scheduler """
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1, last_epoch=-1)
             
         else:
+            
+            
+            """ add useless scheduler """
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(torch.optim.AdamW(unet.parameters()), milestones, gamma=0.1, last_epoch=-1)
+            
+            """ Define SPS optimizer"""
             optimizer = sps.Sps(unet.parameters())
-            
-            # import sls
-            # optimizer = sls.Sls(unet.parameters())
-        
-            ### *** Optimizer does NOT use scheduler!!!
-            
-        """ Add scheduler """
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1, last_epoch=-1)
-            
+
         """ initialize index of training set and validation set, split using size of test_size """
         #idx_train, idx_valid, empty, empty = train_test_split(counter, counter, test_size=test_size, random_state=2018)
         
@@ -195,7 +212,8 @@ if __name__ == '__main__':
         idx_train = counter
         
         tracker = tracker(batch_size, test_size, mean_arr, std_arr, idx_train, idx_valid, deep_sup=deep_sup, switch_norm=switch_norm, alpha=alpha, HD=HD,
-                                          sp_weight_bool=sp_weight_bool, transforms=transforms, dataset=input_path)
+                                          sp_weight_bool=sp_weight_bool, transforms=transforms, dataset=input_path, im_type=im_type, cID=cID)
+
 
         tracker.resize_z = resize_z
 
@@ -263,7 +281,38 @@ if __name__ == '__main__':
     train_steps_per_epoch = round(len(tracker.idx_train)/tracker.batch_size)
     validation_size = len(tracker.idx_valid)
     epoch_size = len(tracker.idx_train)    
-   
+
+    
+    """ Generate spatial weight matrix """
+    def create_spatial_weight_mat(labels, edgeFalloff=10,background=0.01,approximate=True):    
+           if approximate:   # does chebyshev
+               dist1 = scipy.ndimage.distance_transform_cdt(labels)
+               dist2 = scipy.ndimage.distance_transform_cdt(np.where(labels>0,0,1))    # sets everything in the middle of the OBJECT to be 0
+                       
+           else:   # does euclidean
+               dist1 = scipy.ndimage.distance_transform_edt(labels, sampling=[1,1,1])
+               dist2 = scipy.ndimage.distance_transform_edt(np.where(labels>0,0,1), sampling=[1,1,1])
+               
+           """ DO CLASS WEIGHTING instead of spatial weighting WITHIN the object """
+           dist1[dist1 > 0] = 0.5
+       
+           dist = dist1+dist2
+           attention = math.e**(1-dist/edgeFalloff) + background   # adds background so no loses go to zero
+           
+           
+           """ TIGER REMOVED THIS SO NOT SO EXTREME - Jan. 9th, 2021 """
+           #attention /= np.average(attention)
+           
+           return np.reshape(attention,labels.shape)
+    
+    center_im = np.zeros([48, 80, 80])
+    center_im[int(center_im.shape[0]/2 - 1), int(center_im.shape[1]/2 - 1), int(center_im.shape[2]/2 - 1)] = 1
+    
+    spatial_center = create_spatial_weight_mat(center_im, edgeFalloff=20,background=0.01,approximate=False)
+    torch_spatial_center = torch.tensor(spatial_center, dtype = torch.float, device=device, requires_grad=False)    
+    
+
+
     """ Start training """
     for cur_epoch in range(len(tracker.train_loss_per_epoch), 10000): 
      
@@ -279,8 +328,8 @@ if __name__ == '__main__':
          unet.train()  ### set PYTORCH to training mode
 
          start_time_epoch = time.perf_counter();
-         loss_train = 0; jacc_train = 0; ce_train = 0; dc_train = 0; hd_train = 0;
-         iter_cur_epoch = 0; starter = 0;
+         loss_train = 0; jacc_train = []; ce_train = 0; dc_train = 0; hd_train = 0;
+         iter_cur_epoch_train = 0; starter = 0;
          for batch_x, batch_y, spatial_weight in training_generator:
                  ### Test speed for debug
                  #print(starter)
@@ -297,7 +346,7 @@ if __name__ == '__main__':
                  inputs = inputs[:, 0, ...]
 
                  # PRINT OUT THE SHAPE OF THE INPUT
-                 if iter_cur_epoch == 0:
+                 if iter_cur_epoch_train == 0:
                      print('input size is' + str(batch_x.shape))
 
                 
@@ -306,12 +355,22 @@ if __name__ == '__main__':
                  output_train = unet(inputs)  ### forward + backward + optimize
                                   
                  """ calculate loss: includes HD loss functions """
-                 if tracker.HD == 1:
+                 if tracker.cID:
+
+                     ### USE SOFTMAX, and NOT argmax because argmax creates some discontinuous skeleton
+                     outputs_soft = F.softmax(output_train, dim=1)
+                     loss = loss_function(labels.type(torch.float32).unsqueeze(1), outputs_soft[:, 1, :, :, :].unsqueeze(1))
+
+                 elif tracker.HD:
                      loss, tracker, ce_train, dc_train, hd_train = compute_HD_loss(output_train, labels, tracker.alpha, tracker, 
-                                                                                   ce_train, dc_train, hd_train, val_bool=0)
-                 elif tracker.HD == 2:
-                     loss, tracker, ce_train, dc_train = compute_DICE_CE_loss(output_train, labels, tracker.alpha, tracker, 
-                                                                                   ce_train, dc_train, hd_train, val_bool=0)
+                                                                                    ce_train, dc_train, hd_train, val_bool=0,
+                                                                                    spatial_weight=sW_centroid, weight_arr=torch_spatial_center)
+                     
+                     
+                     """ can also check out the old HD function """
+                     # loss, tracker, ce_train, dc_train, hd_train = compute_HD_loss_OLD(output_train, labels, tracker.alpha, tracker, 
+                     #                                                               ce_train, dc_train, hd_train, val_bool=0)
+                                          
                      
                  else:
                      if deep_sup:   ### IF DEEP SUPERVISION
@@ -328,6 +387,7 @@ if __name__ == '__main__':
                              spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
                              weighted = loss * spatial_tensor
                              loss = torch.mean(weighted)
+                             
                               
                         else:  ### NO WEIGHTING AT ALL
                              loss = torch.mean(loss)   
@@ -358,14 +418,15 @@ if __name__ == '__main__':
                 
    
                  """ Calculate Jaccard on GPU """                 
-                 jacc = jacc_eval_GPU_torch(output_train, labels)
-                 jacc = jacc.cpu().data.numpy()
-                                            
-                 jacc_train += jacc # Training jacc
+                 #jacc = jacc_eval_GPU_torch(output_train, labels)
+                 #jacc = jacc.cpu().data.numpy()
+                 jacc = cID_metric_eval_CPU(output_train, labels=batch_y)
+                               
+                 jacc_train.append(jacc) # Training jacc
                  tracker.train_jacc_per_batch.append(jacc)
    
                  tracker.iterations = tracker.iterations + 1       
-                 iter_cur_epoch += 1
+                 iter_cur_epoch_train += 1
                  if tracker.iterations % 100 == 0:
                      print('Trained: %d' %(tracker.iterations))
 
@@ -424,15 +485,14 @@ if __name__ == '__main__':
 
                      """ calculate new alpha for next epoch """   
                      if tracker.HD == 1:
-                         tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch)
+                         #tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch_train)
                          
-                         #tracker.alpha = 0.5
+                         tracker.alpha = 1
 
-                     tracker.train_loss_per_epoch.append(loss_train/iter_cur_epoch)
-                     tracker.train_jacc_per_epoch.append(jacc_train/iter_cur_epoch)     
-                        
+                     tracker.train_loss_per_epoch.append(loss_train/iter_cur_epoch_train)
+                     tracker.train_jacc_per_epoch.append(np.nanmean(jacc_train))     
                      
-                     loss_val = 0; jacc_val = 0; val_idx = 0;
+                     loss_val = 0; jacc_val = []; val_idx = 0;
                      iter_cur_epoch = 0;  ce_val = 0; dc_val = 0; hd_val = 0;
                      if cur_epoch % validate_every_num_epochs == 0:
                          
@@ -448,47 +508,60 @@ if __name__ == '__main__':
                                     output_val = unet(inputs_val)
             
                                     """ calculate loss 
-                                            include HD loss functions """
-                                    if tracker.HD == 1:
-                                        loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
-                                                                                                      ce_val, dc_val, hd_val, val_bool=1)
+                                              include HD loss functions """
+                                    if tracker.cID:
+                    
+                                          ### USE SOFTMAX, and NOT argmax because argmax creates some discontinuous skeleton
+                                          outputs_soft = F.softmax(output_val, dim=1)
+                                          loss = loss_function(labels_val.type(torch.float32).unsqueeze(1), outputs_soft[:, 1, :, :, :].unsqueeze(1))
+                                          # outputs_argm = torch.argmax(output_val, dim=1)
+                                          # loss = loss_function(labels_val.type(torch.float32).unsqueeze(1), outputs_argm.type(torch.float32).unsqueeze(1))
                                         
-                                    elif tracker.HD == 2:
-                                        loss, tracker, ce_val, dc_val = compute_DICE_CE_loss(output_val, labels_val, tracker.alpha, tracker, 
-                                                                                                      ce_val, dc_val, hd_val, val_bool=1)                                        
-                                        
+                                    elif tracker.HD:
+                                          loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
+                                                                                                         ce_val, dc_val, hd_val, val_bool=1,
+                                                                                                         spatial_weight=sW_centroid, weight_arr=torch_spatial_center)
+                                  
+                                    
+                                    
+                                          
+                                          """ can also check out the old HD function """
+                                          # loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss_OLD(output_val, labels_val, tracker.alpha, tracker, 
+                                          #                                                               ce_val, dc_val, hd_val, val_bool=1)
+                                                  
                                     else:
-                                        if deep_sup:                                                
-                                            # compute output
-                                            loss = 0
-                                            for output in output_val:
-                                                 loss += loss_function(output, labels_val)
-                                            loss /= len(output_val)                                
-                                            output_val = output_val[-1]  # set this so can eval jaccard later                            
-                                        else:
-                                        
-                                            loss = loss_function(output_val, labels_val)       
-                                            if torch.is_tensor(spatial_weight):
-                                                   spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
-                                                   weighted = loss * spatial_tensor
-                                                   loss = torch.mean(weighted)
-                                            elif dist_loss:
-                                                   loss  # do not do anything if do not need to reduce
-                                                
-                                            else:
-                                                   loss = torch.mean(loss)  
+                                          if deep_sup:                                                
+                                              # compute output
+                                              loss = 0
+                                              for output in output_val:
+                                                   loss += loss_function(output, labels_val)
+                                              loss /= len(output_val)                                
+                                              output_val = output_val[-1]  # set this so can eval jaccard later                            
+                                          else:
+                                          
+                                              loss = loss_function(output_val, labels_val)       
+                                              if torch.is_tensor(spatial_weight):
+                                                     spatial_tensor = torch.tensor(spatial_weight, dtype = torch.float, device=device, requires_grad=False)          
+                                                     weighted = loss * spatial_tensor
+                                                     loss = torch.mean(weighted)
+                                              # elif dist_loss:
+                                              #        loss  # do not do anything if do not need to reduce
+                                                  
+                                              else:
+                                                     loss = torch.mean(loss)  
             
                                     """ Training loss """
                                     tracker.val_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
                                     loss_val += loss.cpu().data.numpy()
                                                      
                                     """ Calculate jaccard on GPU """
-                                    jacc = jacc_eval_GPU_torch(output_val, labels_val)
-                                    jacc = jacc.cpu().data.numpy()
-                                    
-                                    jacc_val += jacc
+                                    #jacc = jacc_eval_GPU_torch(output_val, labels_val)
+                                    #jacc = jacc.cpu().data.numpy()
+                                    jacc = cID_metric_eval_CPU(output_val, labels=batch_y_val)
+                                      
+                                    jacc_val.append(jacc)
                                     tracker.val_jacc_per_batch.append(jacc)   
-                                    print(jacc)
+
             
                                     val_idx = val_idx + tracker.batch_size
                                     print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
@@ -510,7 +583,7 @@ if __name__ == '__main__':
                                      
                                        
                                tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
-                               tracker.val_jacc_per_eval.append(jacc_val/iter_cur_epoch)       
+                               tracker.val_jacc_per_eval.append(np.nanmean(jacc_val))      
                                
                                """ Add to scheduler to do LR decay
                                        skipped if doing sps_bool!
@@ -582,7 +655,7 @@ if __name__ == '__main__':
                      unet.train()  ### set PYTORCH to training mode
             
                      start_time_epoch = time.perf_counter();
-                     loss_train = 0; jacc_train = 0; ce_train = 0; dc_train = 0; hd_train = 0;
+                     loss_train = 0; jacc_train = []; ce_train = 0; dc_train = 0; hd_train = 0;
                      iter_cur_epoch = 0; starter = 0;                     
                      
                 

@@ -126,16 +126,18 @@ check_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/
 
 
 check_path = './(82) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol/';  dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
-load_myelin = 1;
+load_myelin = 0;
 #z_size = 32
 
 
-check_path = './(80) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_only_cytosol/';dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
+check_path = './(80) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_only_cytosol/'; dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
 #check_path = './(81) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_only_cytosol/';dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
 #check_path = './(83) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_sps_only_cytosol/'; dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
 
 #check_path = './(84) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_sps_CYTOSOL_and_MYELIN/'; dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
 
+
+check_path = './(86) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_cID_loss/';  load_myelin = 0; dilation = 1; deep_supervision = False; tracker = 1; HISTORICAL = 0;  combine_tree = 0
 
 
 
@@ -145,8 +147,8 @@ z_size = 48
 
 """ No historical, 2 step matched """
 # HISTORICAL = 0;
-# storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
-# check_path = storage_path + '(66) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step/'; dilation = 1; deep_supervision = False; tracker = 1;
+storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
+check_path = storage_path + '(66) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step/'; dilation = 1; deep_supervision = False; tracker = 1;
 
 
 
@@ -159,13 +161,13 @@ z_size = 48
 # combine_tree = 1;
 
 
-""" For neuron """   ### used for presentation???
-z_size = 32
-HISTORICAL = 0;
-storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
-check_path = storage_path + '(68) Checkpoint_unet_MEDIUM_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2/'; dilation = 2; deep_supervision = False; tracker = 1;
-combine_tree = 1;
-load_myelin = 0;
+""" For neuron ### used for presentation??? """   
+# z_size = 32
+# HISTORICAL = 0;
+# storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
+# check_path = storage_path + '(68) Checkpoint_unet_MEDIUM_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_4_step_NEURON_DILATE_2/'; dilation = 2; deep_supervision = False; tracker = 1;
+# combine_tree = 1;
+# load_myelin = 0;
 
 
 
@@ -179,14 +181,14 @@ load_myelin = 0;
 #s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale/'
 
 
-s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_correct_scale_100000_short_first_no_edge_ANIMATION/'
+s_path = check_path + 'TEST_inference_last_first_CLEANED_correct_scale_short_first_no_edge_ANIMATION_97264_NO_MYELIN_old_REDO/'
 
 #s_path = check_path + 'TEST_inference_185437_CLEANED_correct_scale_100000_short_first_EDGE_REMOVAL_different_subtractor/'
 
 
 
 
-s_path = check_path + 'TEST_inference_last_first_MYELIN_edge_remove_last_first/'
+#s_path = check_path + 'TEST_inference_last_first_MYELIN_edge_remove_last_first/'
 #s_path = check_path + 'TEST_inference_185437_last_first_CLEANED_HISTORICAL_NEURON/'
 #s_path = check_path + 'TEST_inference_185437_shortest_first_REAL_troubleshoot/'
 
@@ -213,7 +215,7 @@ except FileExistsError:
 
 #input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large_25px_NEW/';  seed_crop_size=100; seed_z_size=80
 """ CORRECTLY SCALED!!! """
-#input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large REDO multiply scaling/';  seed_crop_size=100; seed_z_size=80
+input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/seed generation large REDO multiply scaling/';  seed_crop_size=100; seed_z_size=80
 
 #input_path = 'E:/7) Bergles lab data/Traces files/seed generation large_25px/'
 
@@ -226,7 +228,7 @@ except FileExistsError:
 
 
 """ Su-Jeong neuron """
-input_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/seed generation large SWC/';   seed_crop_size=150; seed_z_size=50
+#input_path = '/media/user/Seagate Portable Drive/Bergles lab data 2021/Su_Jeong_neurons/Training data SOLANGE/seed generation large SWC/';   seed_crop_size=150; seed_z_size=50
 
 
 
@@ -236,7 +238,7 @@ natsort_key1 = natsort_keygen(key = lambda y: y.lower())      # natural sorting 
 images.sort(key = natsort_key1)
 examples = [dict(input=i,truth=i.replace('input.tif','truth.tif'), cell_mask=i.replace('input.tif','input_cellMASK.tif'),
                  seeds = i.replace('input.tif', 'seeds.tif'),
-                 myelin = i.replace('input.tif', 'input_overall_output_1st_iteration_COLOR_INTERNODES.tif')) for i in images]
+                 myelin = i.replace('input.tif', 'input_overall_output_1st_iteration_COLOR_INTERNODES_RAW.tif')) for i in images]
 
 counter = list(range(len(examples)))  # create a counter, so can randomize it
 
@@ -509,25 +511,27 @@ for i in range(len(examples)):
                         
                     
                 ### also check if end point is located within a previously segmented location
-
-                all_coords = show_tree_FAST_drop_index(tree, drop_id=node_idx)  ### eliminate current coords from that previous coords
-                im_prev = np.zeros(np.shape(input_im))
-                im_prev[all_coords[:, 0], all_coords[:, 1], all_coords[:, 2]] = 1
-                                
-                prev_crop, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(im_prev, y_n, x_n, z_n, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                
-                
-                prev_crop = dilate_by_ball_to_binary(prev_crop, radius=2)
-                bool_prev = prev_crop[crop_size - 1, crop_size - 1, int(z_size/2 - 1)]
-                
-                if bool_prev:
-                        plot_save_max_project(fig_num=20, im=crop_input, max_proj_axis=-1, title='input_im', 
-                                              name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(1)_input_im.png', pause_time=0.001)                         
-                        plot_save_max_project(fig_num=20, im=crop_seed, max_proj_axis=-1, title='myelin_block', 
-                                              name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(2)_seed.png', pause_time=0.001) 
-                        plot_save_max_project(fig_num=20, im=prev_crop, max_proj_axis=-1, title='myelin_block', 
-                                              name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(3)_prev_BLOCK.png', pause_time=0.001) 
-                        
-                        tree.visited[node_idx] = 0; iterator += 1; continue;
+                if node_idx == 0:
+                    print('zero skip')
+                else:
+                    all_coords = show_tree_FAST_drop_index(tree, drop_id=node_idx)  ### eliminate current coords from that previous coords
+                    im_prev = np.zeros(np.shape(input_im))
+                    im_prev[all_coords[:, 0], all_coords[:, 1], all_coords[:, 2]] = 1
+                                    
+                    prev_crop, box_xyz, box_over, boundaries_crop = crop_around_centroid_with_pads(im_prev, y_n, x_n, z_n, crop_size, z_size, height_tmp, width_tmp, depth_tmp)                
+                    
+                    prev_crop = dilate_by_ball_to_binary(prev_crop, radius=2)
+                    bool_prev = prev_crop[crop_size - 1, crop_size - 1, int(z_size/2 - 1)]
+                    
+                    if bool_prev:
+                            plot_save_max_project(fig_num=20, im=crop_input, max_proj_axis=-1, title='input_im', 
+                                                  name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(1)_input_im.png', pause_time=0.001)                         
+                            plot_save_max_project(fig_num=20, im=crop_seed, max_proj_axis=-1, title='myelin_block', 
+                                                  name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(2)_seed.png', pause_time=0.001) 
+                            plot_save_max_project(fig_num=20, im=prev_crop, max_proj_axis=-1, title='myelin_block', 
+                                                  name=s_path + filename + '_Crop_'   + str(num_tree) + '_' + str(iterator) + '(3)_prev_BLOCK.png', pause_time=0.001) 
+                            
+                            tree.visited[node_idx] = 0; iterator += 1; continue;
                                             
                 
                 

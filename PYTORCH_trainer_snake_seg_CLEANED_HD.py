@@ -5,6 +5,24 @@ Created on Sunday Dec. 24th
 @author: Tiger
 """
 
+
+""" 
+
+        Additional installs:
+                - pip install skan tsp_solver opencv-python
+
+
+        For windows:
+            - conda instl algit
+            
+            
+        Training packages:
+            - pip install git+https://github.com/IssamLaradji/sps.git
+            
+
+"""
+
+
 """ ALLOWS print out of results on compute canada """
 import matplotlib
 matplotlib.rc('xtick', labelsize=8)
@@ -45,6 +63,9 @@ from losses_pytorch.HD_loss import *
  
 import cIDice_metric as cID_metric
 import cIDice_loss as cID_loss
+
+
+import losses_pytorch.HD_loss
 
 import re
 import sps
@@ -108,14 +129,63 @@ if __name__ == '__main__':
 
     #s_path = './(86_fast) Checkpoint_unet_SMALL_filt_3x3_b4_type_dataset_NO_1st_im_sps_cytosol_cID_FAST/'; cID = 1; HD = 0; alpha = 0; sps_bool = 1; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
         
+    s_path = './(86_LARGE) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_cID_loss/'; cID = 1; HD = 0; alpha = 0; sps_bool = 1; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+    
+    #s_path = './(86_no_sps) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_NO_sps_only_cytosol_cID_loss/'; cID = 1; HD = 0; alpha = 0; sps_bool = 0; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+
+
+    s_path = './(86_DILATE) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_only_cytosol_cID_loss_DILATE/'; cID = 1; HD = 0; alpha = 0; sps_bool = 0; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+    
+    
+    balance = 0
+
+
+    #s_path = './(86_BALANCED) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_NO_sps_only_cytosol_cID_loss/'; balance = 1; cID = 1; HD = 0; alpha = 0; sps_bool = 1; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+    
+
 
     
     ### run with NEW Haussdorff loss
-    s_path = './(87) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_loss/'; cID = 0; HD = 1; alpha = 1; sps_bool = 0; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+    #s_path = './(87) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_loss/'; cID = 0; HD = 1; alpha = 1; sps_bool = 0; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
 
-    s_path = './(88) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_loss_YES_SPS/'; cID = 0; HD = 1; alpha = 1; sps_bool = 1; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+    #s_path = './(88) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_loss_YES_SPS/'; cID = 0; HD = 1; alpha = 1; sps_bool = 1; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
         
-       
+
+    #s_path = './(91) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_loss_YES_SPS_and_CE_LOSS/'; cID = 0; HD = 1; alpha = 1; sps_bool = 1; im_type = 'c'; sW_centroid = 0; HISTORICAL = 0;
+    
+        
+    #s_path = './(96) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_1_set_DEEPER/'; cID = 0; HD = 1; alpha = 1; sps_bool = 1; im_type = 'c'; HISTORICAL = 0;  bnorm_bool = True;  sW_centroid = 0;
+
+
+    #s_path = './(98) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_10_set_DILATE/'; cID = 0; HD = 1; alpha = 10; sps_bool = 1; im_type = 'c'; HISTORICAL = 0;  bnorm_bool = True;  sW_centroid = 0;
+        
+    
+    s_path = './(99) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_10_set_DILATE_crop_SMALL_32x32x16/'; cID = 0; HD = 1; alpha = 10; sps_bool = 1; im_type = 'c'; HISTORICAL = 0;  bnorm_bool = True;  sW_centroid = 0;
+
+
+    s_path = './(99_cID) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_set_DILATE_crop_SMALL_32x32x16_cID_loss/'; cID = 1; HD = 0; alpha = 0; sps_bool = 1; im_type = 'c'; HISTORICAL = 0;  bnorm_bool = True;  sW_centroid = 0;
+
+
+    s_path = './(99_alpha_1) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_1_set_DILATE_crop_SMALL_32x32x16/'; cID = 0; HD = 1; alpha = 1; sps_bool = 1; im_type = 'c'; HISTORICAL = 0;  bnorm_bool = True;  sW_centroid = 0;
+            
+            
+    
+    #s_path = './(100) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_10_set_no_DILATE_crop_64x64x16/'; cID = 0; HD = 1; alpha = 10; sps_bool = 1; im_type = 'c'; HISTORICAL = 0;  bnorm_bool = True;  sW_centroid = 0;
+                
+
+    #s_path = './(101) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_10_set_YES_DILATE_crop_64x64x16/'; cID = 0; HD = 1; alpha = 10; sps_bool = 1; im_type = 'c'; HISTORICAL = 0;  bnorm_bool = True;  sW_centroid = 0;
+
+
+    #s_path = './(101_lower_alpha0_1) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_10_set_YES_DILATE_crop_64x64x16/'; cID = 0; HD = 1; alpha = 0.1; im_type = 'c'; HISTORICAL = 0;  bnorm_bool = True;  sW_centroid = 0;
+
+
+    #s_path = './(103) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_sps_only_cytosol_set_YES_DILATE_crop_64x64x16_DICE_ONLY/'; cID = 1; HD = 0; alpha = 0; sps_bool = 1; im_type = 'c'; HISTORICAL = 0;  bnorm_bool = True;  sW_centroid = 0;
+                
+                
+
+    """ ADD TRANSFORMS??? """
+
+
 
     """ path to input data """
     # (2)
@@ -144,7 +214,7 @@ if __name__ == '__main__':
     #                  filename= i.split('/')[-1].split('_origId')[0].replace(',', ''))
     #                  for i in images]
       
-    examples = []
+    examples = []; all_props = []
     for i in images:
         type_check = str(re.search('_type_(.*)_branch_', i).group(1))
                          
@@ -155,10 +225,14 @@ if __name__ == '__main__':
                              x = int(re.search('_x_(.*)_y_', i).group(1)),
                              y = int(re.search('_y_(.*)_z_', i).group(1)),
                              z = int(re.search('[^=][^a-z]_z_(.*)_type_', i).group(1)),     ### had to exclude anything that starts with "=0_z" b/c that shows up earlier
-                             im_type = str(re.search('_type_(.*)_branch_', i).group(1)),    
+                             im_type = str(re.search('_type_(.*)_branch_', i).group(1)),  
+                             pos_prop = int(re.search('_pos_prop_(.*)_', i).group(1).split('_')[0]),  
                              filename= i.split('/')[-1].split('_origId')[0].replace(',', '')))
-        
+            
+            all_props.append(int(re.search('_pos_prop_(.*)_', i).group(1).split('_')[0]))
 
+
+    
 
     """ Also load in the all_tree_indices file """
     all_trees = []
@@ -182,6 +256,44 @@ if __name__ == '__main__':
 
     examples = [i for j, i in enumerate(examples) if j not in idx_skip]
           
+
+
+    """ BALANCE DATASET by prop_positive pixels """
+    
+    if balance:
+        num_bins = 3
+        counts, bins = np.histogram(all_props, bins=num_bins)
+        plt.figure(); plt.hist(all_props, bins=num_bins)
+        
+        scale_c0 = 1
+        scale_c1 = counts[0]/counts[1]; num_missing_c1 = counts[0] - counts[1]
+        scale_c2 = counts[0]/counts[-1]; num_missing_c2 = counts[0] - counts[-1]
+    
+        examples_balanced = []; added_c1 = 0; added_c2 = 0
+        
+        rand_seed = 1
+        while added_c2 != num_missing_c2 or added_c1 != num_missing_c1:
+            np.random.seed(rand_seed); rand_seed += 1 
+            counter_all = np.arange(len(examples))
+            np.random.shuffle(counter_all) 
+            print('loop 1')
+            for id_im in counter_all:
+                im_name = examples[id_im]
+                prop = im_name['pos_prop']
+                
+                # in the first class
+                if prop < bins[1]:
+                    continue;
+                elif prop >= bins[1] and prop < bins[2] and added_c1 != num_missing_c1:
+                    
+                    examples_balanced.append(im_name); added_c1 +=1 
+                elif prop >= bins[2] and added_c2 != num_missing_c2:
+                    examples_balanced.append(im_name); added_c2 +=1 
+        
+        examples.extend(examples_balanced)
+
+
+
 
     """ Shorten for over-fitting """
     # examples = examples[0:500]
@@ -237,6 +349,9 @@ if __name__ == '__main__':
         
         elif cID:
             loss_function = cID_loss.soft_dice_cldice(iter_=3, alpha=0.5, smooth = 1.)
+            
+            ### IF ONLY WANT DICE loss
+            #loss_function = dice_loss
                       
         else:         
             loss_function = 'Haussdorf'
@@ -367,6 +482,11 @@ if __name__ == '__main__':
     torch_spatial_center = torch.tensor(spatial_center, dtype = torch.float, device=device, requires_grad=False)    
     
 
+
+    ### if alpha < 0.1, means during a continuation of training, we set alpha to be lower
+    if alpha <= 0.1:
+        tracker.alpha = alpha
+
    
     """ Start training """
     for cur_epoch in range(len(tracker.train_loss_per_epoch), 10000): 
@@ -416,24 +536,11 @@ if __name__ == '__main__':
                      ### USE SOFTMAX, and NOT argmax because argmax creates some discontinuous skeleton
                      outputs_soft = F.softmax(output_train, dim=1)
                      loss = loss_function(labels.type(torch.float32).unsqueeze(1), outputs_soft[:, 1, :, :, :].unsqueeze(1))
-                     # outputs_argm = torch.argmax(output_train, dim=1)
-                     # loss = loss_function(labels.type(torch.float32).unsqueeze(1), outputs_argm.type(torch.float32).unsqueeze(1))
-                     
-                     #loss_function = cID_loss.soft_cldice(iter_=3, smooth = 0)
-                     #outputs_argm = torch.argmax(output_train, dim=1)
-                     #val = loss_function(labels[1].type(torch.float32).unsqueeze(0).unsqueeze(0), outputs_soft[1, 1, :, :, :].unsqueeze(0).unsqueeze(0))
-                     #val = loss_function(labels[1].type(torch.float32).unsqueeze(0).unsqueeze(0), outputs_argm[1, :, :, :].type(torch.float32).unsqueeze(0).unsqueeze(0))
 
-                     # y_true = labels[1].type(torch.float32).unsqueeze(0).unsqueeze(0)
-                     # #y_pred =  outputs_soft[1, 1, :, :, :].unsqueeze(0).unsqueeze(0)
-                     # y_pred = outputs_argm[1, :, :, :].type(torch.float32).unsqueeze(0).unsqueeze(0)
-                     
-                     # #plot_max(labels[0].detach().cpu().numpy())
-                     # skel_pred = soft_skel(y_pred, 3)
-                     # skel_true = soft_skel(y_true, 3)
-                     # tprec = (torch.sum(torch.multiply(skel_pred, y_true)[:,0,:,:,:]))/(torch.sum(skel_pred[:,0,:,:,:]))    
-                     # tsens = (torch.sum(torch.multiply(skel_true, y_pred)[:,0,:,:,:]))/(torch.sum(skel_true[:,0,:,:,:]))    
-                     # cl_dice = 1.- 2.0*(tprec*tsens)/(tprec+tsens)                 
+
+                     """ if only want DICE loss """
+                     #loss = loss_function(outputs_soft[:, 1, :, :, :], labels == 1)
+
                              
 
                        
@@ -523,7 +630,7 @@ if __name__ == '__main__':
               
            
          loss_val = 0; jacc_val = []; val_idx = 0;
-         iter_cur_epoch = 0;  ce_val = 0; dc_val = 0; hd_val = 0;  hd_value = 0;
+         iter_cur_epoch = 0;  ce_val = 0; dc_val = 0; hd_val = 0;  hd_value = [];
          if cur_epoch % validate_every_num_epochs == 0:
                
                 with torch.set_grad_enabled(False):  # saves GPU RAM
@@ -544,9 +651,11 @@ if __name__ == '__main__':
                               ### USE SOFTMAX, and NOT argmax because argmax creates some discontinuous skeleton
                               outputs_soft = F.softmax(output_val, dim=1)
                               loss = loss_function(labels_val.type(torch.float32).unsqueeze(1), outputs_soft[:, 1, :, :, :].unsqueeze(1))
-                              # outputs_argm = torch.argmax(output_val, dim=1)
-                              # loss = loss_function(labels_val.type(torch.float32).unsqueeze(1), outputs_argm.type(torch.float32).unsqueeze(1))
-                            
+
+                              """ if only want DICE loss """
+                              #loss = loss_function(outputs_soft[:, 1, :, :, :], labels_val == 1)                            
+ 
+    
                           elif tracker.HD:
                               loss, tracker, ce_val, dc_val, hd_val = compute_HD_loss(output_val, labels_val, tracker.alpha, tracker, 
                                                                                              ce_val, dc_val, hd_val, val_bool=1,
@@ -593,14 +702,21 @@ if __name__ == '__main__':
                           tracker.val_jacc_per_batch.append(jacc)   
 
 
-
-                          """ HD_metric """
-                          # outputs_argm = torch.argmax(output_train, dim=1)
-                          # hd_metric = HD_metric.HausdorffDistance()
-                          # hd_m = hd_metric.compute(outputs_argm.unsqueeze(1), labels.unsqueeze(1))
-                          # hd_value += hd_m.cpu().data.numpy()
   
+                          """ HD_metric """
+                          import Hausdorff_metric as HD_metric
+                          outputs_argm = torch.argmax(output_val, dim=1)
+                          hd_metric = HD_metric.HausdorffDistance()
+                          hd_m = hd_metric.compute(outputs_argm.unsqueeze(1), labels_val.unsqueeze(1))
     
+                          ### prevent infinites from being added
+                          if hd_m.cpu().data.numpy() > 10000000000000000:
+                               hd_value.append(np.nan)
+                          else:
+                               hd_value.append(hd_m.cpu().data.numpy())
+                           
+                           
+                           
                           val_idx = val_idx + tracker.batch_size
                           print('Validation: ' + str(val_idx) + ' of total: ' + str(validation_size))
                           iter_cur_epoch += 1
@@ -609,7 +725,8 @@ if __name__ == '__main__':
   
                              
                      tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
-                     tracker.val_jacc_per_eval.append(np.nanmean(jacc_val))       
+                     tracker.val_jacc_per_eval.append(np.nanmean(jacc_val))     
+                     tracker.val_ce_pb.append(np.nanmean(hd_value))
                      
                      """ Add to scheduler to do LR decay
                              skipped if doing sps_bool!
@@ -619,9 +736,9 @@ if __name__ == '__main__':
                          
          """ calculate new alpha for next epoch """   
          if tracker.HD:
-               tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch_train)
+               #tracker.alpha = alpha_step(ce_train, dc_train, hd_train, iter_cur_epoch_train)
                
-               #tracker.alpha = 0.5
+               tracker.alpha = alpha
   
 
          """ Plot metrics every epoch """      

@@ -19,38 +19,56 @@ def crop_around_centroid(input_im, y, x, z, crop_size, z_size, height, width, de
      im_size_y = height;
      im_size_z = depth;
      
+     
+     ### Setup "x"
+     
      if box_x_max > im_size_x:
          overshoot = box_x_max - im_size_x;
          box_x_max = box_x_max - overshoot;
          box_x_min = box_x_min - overshoot;
      
-     if box_x_min <= 0:
+     if box_x_min < 0:
          overshoot_neg = (-1) * box_x_min + 1;
          box_x_min = box_x_min + overshoot_neg;
          box_x_max = box_x_max + overshoot_neg;
+         
+     elif box_x_min == 0:  ### Tiger added April 25th, 2021
+         overshoot_neg = 0
+         
      
      
+     
+     ### Setup "y"
      if box_y_max > im_size_y:
          overshoot = box_y_max - im_size_y;
          box_y_max = box_y_max - overshoot;
          box_y_min = box_y_min - overshoot;
      
-     if box_y_min <= 0:
+     if box_y_min < 0:
          overshoot_neg = (-1) * box_y_min + 1;
          box_y_min = box_y_min + overshoot_neg;
          box_y_max = box_y_max + overshoot_neg;     
+
+     elif box_y_min == 0:   ### Tiger added April 25th, 2021
+         overshoot_neg = 0        
+
      
+     ### Setup "z"
      
      if box_z_max > im_size_z:
          overshoot = box_z_max - im_size_z;
          box_z_max = box_z_max - overshoot;
          box_z_min = box_z_min - overshoot;
      
-     if box_z_min <= 0:
+     if box_z_min < 0:
          overshoot_neg = (-1) * box_z_min + 1;
          box_z_min = box_z_min + overshoot_neg;
          box_z_max = box_z_max + overshoot_neg;
-     
+
+     elif box_z_min == 0:   ### Tiger added April 25th, 2021
+         overshoot_neg = 0                
+
+
      box_x_max - box_x_min
      box_y_max - box_y_min
      box_z_max - box_z_min

@@ -21,14 +21,14 @@ class VGGBlock(nn.Module):
     def __init__(self, in_channels, middle_channels, out_channels, padding, batch_norm_switchable=False):
         super().__init__()
         self.relu = nn.ReLU(inplace=True)
-        self.conv1 = nn.Conv3d(in_channels, middle_channels, 5, padding=padding)
+        self.conv1 = nn.Conv3d(in_channels, middle_channels, 7, padding=padding)
         if not batch_norm_switchable:
             self.bn1 = nn.BatchNorm3d(middle_channels)
         else:
             self.sn1 = SwitchNorm3d(middle_channels)
 
 
-        self.conv2 = nn.Conv3d(middle_channels, out_channels, 5, padding=padding)
+        self.conv2 = nn.Conv3d(middle_channels, out_channels, 7, padding=padding)
         if not batch_norm_switchable:
             self.bn2 = nn.BatchNorm3d(out_channels)
         else:

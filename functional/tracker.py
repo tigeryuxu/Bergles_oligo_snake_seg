@@ -92,7 +92,12 @@ def plot_tracker(tracker, s_path):
     plot_metric_fun(tracker.train_loss_per_epoch, tracker.val_loss_per_eval, class_name='', metric_name='loss', plot_num=40)
     plt.figure(40); plt.savefig(s_path + 'loss_per_epoch_NO_LOG.png')         
      
-    
+ 
+
+
+    ### for validation
+    plot_metric_fun(tracker.val_ce_pb, tracker.val_ce_pb, class_name='', metric_name='Haussdorf metric', plot_num=50)
+    plt.figure(50); plt.savefig(s_path + 'HD_metric_per_epoch.png')          
       
     """ Separate losses """
     if tracker.HD:
@@ -115,13 +120,7 @@ def plot_tracker(tracker, s_path):
         plt.close('all')                  
         
  
-        ### for validation
-        # plot_cost_fun(tracker.val_ce_pb, tracker.val_ce_pb)                   
-        # plt.figure(18); plt.savefig(s_path + '_VAL_global_loss_CE.png')
-        # #plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')
-        # plt.figure(25); plt.savefig(s_path + '_VAL_global_loss_LOG_CE.png')
-        # plt.close('all')
-          
+
         plot_cost_fun(tracker.val_hd_pb, tracker.val_hd_pb)                   
         plt.figure(18); plt.savefig(s_path + '_VAL_global_loss_HD.png')
         #plt.figure(19); plt.savefig(s_path + '_VAL_detailed_loss_VAL.png')

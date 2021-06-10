@@ -57,11 +57,11 @@ torch.backends.cudnn.enabled = True
 
 """ Define GPU to use """
 import torch
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 """ Decide if use pregenerated seeds or not """
-pregenerated = 1
+pregenerated = 0
         
 """  Network Begins: """
 tracker = 0
@@ -82,12 +82,21 @@ input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/just f
 input_path = '/media/user/storage/Data/(1z) paranode_identification/Training_COMBINED_DATASET/test_image/'; seed_crop_size=150; seed_z_size=50
 #input_path = '/media/user/storage/Data/(1z) paranode_identification/Training_COMBINED_DATASET/test_image/validation'; seed_crop_size=150; seed_z_size=50
 
+input_path = '/media/user/storage/Data/(1z) paranode_identification/Training_COMBINED_DATASET/test_very_dense/'; seed_crop_size=150; seed_z_size=50
+
 
 """ post-correction paranodes """
 #input_path = '/media/user/storage/Data/(1z) paranode_identification/Training_COMBINED_DATASET/val_image/val_image_output_5x5_SPS_optimizer_correct_depth_NO_BATCH_NORM_62736/ERROR_CORR_(2)_checkpoints/'
 
-input_path = '/media/user/storage/Data/(1z) paranode_identification/Training_COMBINED_DATASET/test_image/test_image_output_5x5_HD_loss_check_(32)_62736/test_image_output_5x5_HD_loss_check_(32)_62736_ERROR_CORRECT_check_(2)58604/'
+
+### WITH ERROR_CORRECTIOn
+#input_path = '/media/user/storage/Data/(1z) paranode_identification/Training_COMBINED_DATASET/test_image/test_image_output_5x5_HD_loss_check_(32)_62736/test_image_output_5x5_HD_loss_check_(32)_62736_ERROR_CORRECT_check_(2)58604/'
 #/media/user/storage/Data/(1) snake seg project/Traces files MORE/DENSE_cell
+
+
+#input_path = '/media/user/storage/Data/(1z) paranode_identification/Training_COMBINED_DATASET/test_image/analysis_output_5x5_HD_loss_check_(33)_49666/analysis_output_5x5_HD_loss_check_(33)_49666_ERROR_CORRECT_check_(2)58604/'
+
+
 
 
 """ Load filenames from zip """
@@ -162,7 +171,7 @@ for i in range(len(examples)):
     
  
         """ Create save folder """
-        s_path = check_path + filename + '_TEST_176000_PERFECT_PARANODES/'
+        s_path = check_path + filename + '_TEST_176000/'
         
         try:
             # Create target Directory

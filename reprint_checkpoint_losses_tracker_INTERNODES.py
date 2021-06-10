@@ -67,155 +67,60 @@ if __name__ == '__main__':
     
     
     """" path to checkpoints """       
-    # s_path = './(51) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_repeat_MARCC/'; HD = 1; alpha = 1;
-    # s_path = './(52) Checkpoint_nested_unet_SPATIALW_COMPLEX_b4_NEW_DATA_SWITCH_NORM_crop_pad_Hd_loss_balance_NO_1st_im/'; dilation = 1; deep_supervision = False; tracker = 1;
-
-    # s_path = './(53) Checkpoint_unet_medium_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_5_step/'; HD = 1; alpha = 1;
+    s_path = './(1) Checkpoint_unet_MEDIUM_filt7x7_b8_HD_INTERNODE/'; HD = 1; alpha = 1;  sps_bool = 0
     
-    s_path = './(85) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_sW_kernel/';  HD = 1; alpha = 1;
+    s_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints INTERNODE_linear_tracing/(2) Checkpoint_unet_MEDIUM_filt7x7_b8_HD_INTERNODE_SPS_optimizer/'; HD = 1; alpha = 1; sps_bool = 1;
     
+    #s_path = './(3) Checkpoint_unet_MEDIUM_filt7x7_b8_HD_INTERNODE_sps_cID_loss/'; cID = 1; HD = 0; alpha = 0; sps_bool = 1; im_type = 0
     
-    #s_path = './(80) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_only_cytosol/'; sps_bool = 0
-
-# mean DICE: 0.60010105
-# mean HD: 32.723248
-# mean cID_3D: 0.5498028000869585
-
+    s_path = './(4) Checkpoint_unet_MEDIUM_filt7x7_b8_HD_INTERNODE_sps_NEW_HD_loss/'; cID = 0; HD = 1; alpha = 1; sps_bool = 1; im_type = 0; sW_centroid = 0
     
-    #s_path = './(81) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_only_cytosol/'; sps_bool = 0
-# mean DICE: 0.6950659
-# mean HD: inf
-# mean cID_3D: 0.45028386288785266
-    
-    
-    #s_path = './(82) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol/'; sps_bool = 1
-    
-
-    
-    s_path = './(83) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_no_HD_sps_only_cytosol/'; sps_bool = 1
-
-# mean DICE: 0.6383685
-# mean HD: 30.525087
-# mean cID_3D: 0.49861519301127855
-
-
-    #s_path = './(84) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_CYTOSOL_and_MYELIN/'; sps_bool = 1
-
-
-    #s_path = './(86) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_cID_loss/'; sps_bool = 1 
-# mean DICE: 0.585507
-# mean HD: 27.20421
-# mean cID_3D: 0.5953414421486821
-
-
-
-    #s_path = './(88) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_loss_YES_SPS/'
-
-    #s_path = './(89) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_NO_HD_NO_sps_only_cytosol_cID_loss/'; sps_bool = 0
-
-    #s_path = './(90) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_YES_HD_NO_sps_only_cytosol/'; sps_bool = 0
-    
-    #s_path = './(92) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_10_set/'; sps_bool = 1
-    
-    
-    s_path = './(93) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_1_set/'; sps_bool = 1
-    
-    
-    #s_path = './(94) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_0-1_set/'; sps_bool = 1
-    
-    
-    s_path = './(98) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_10_set_DILATE/';
-    
-    #s_path = './(99) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_10_set_DILATE_crop_SMALL_32x32x16/'; sps_bool = 1
-
-
-    #s_path = './(100) Checkpoint_unet_MEDIUM_filt_7x7_b4_type_dataset_NO_1st_im_HD_sps_only_cytosol_NEW_HD_alpha_10_set_no_DILATE_crop_64x64x16/'
-
-    s_path = './(104) Checkpoint_unet_MEDIUM_filt_7x7_b8_NO_1st_im_sps_only_cytosol_64x64x16_DILATE_focal_loss/'
-
-    """ Try older checkpoints """
-
-    #storage_path = '/media/user/storage/Data/(1) snake seg project/Backup checkpoints/'
-    #s_path = storage_path + '(66) Checkpoint_unet_LARGE_filt7x7_b4_NEW_DATA_B_NORM_crop_pad_Hd_loss_balance_NO_1st_im_2_step/'; sps_bool = 1; dilation = 1; deep_supervision = False; tracker = 1;
-
-
-    
-
-
     """ path to input data """
-    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; dataset = 'new crop pads'
-    #input_path = 'E:/7) Bergles lab data/Traces files/TRAINING FORWARD PROP ONLY SCALED crop pads/'; 
-
-    #input_path = '/lustre04/scratch/yxu233/TRAINING FORWARD PROP ONLY SCALED crop pads/';  dataset = 'new crop pads'
-
-
-    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING SCALED crop pads seed 4 COLORED 48 z DENSE LABELS/Training_snake_seg/'; dataset = 'full historical type seed 4 z 48 dataset'
-
-
-    #input_path = './TRAINING SCALED crop pads seed 4 validation ONLY/'
-
-
-    im_type = 'c'
-
-    """ Load filenames from tiff """
-    # images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
-    # images.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
-    # examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop')) for i in images]
+    input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/TRAINING linear myelin seg/TRAINING_linear_myelin_FULL_DATA/'
     
+
+    #im_type = 'c'
+
+
     """ Load filenames from tiff """
     images = glob.glob(os.path.join(input_path,'*_NOCLAHE_input_crop.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
     images.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
-    # examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
-    #                  seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
-    #                  orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
-    #                  x = int(re.search('_x_(.*)_y_', i).group(1)),
-    #                  y = int(re.search('_y_(.*)_z_', i).group(1)),
-    #                  z = int(re.search('[^=][^a-z]_z_(.*)_type_', i).group(1)),     ### had to exclude anything that starts with "=0_z" b/c that shows up earlier
-    #                  im_type = str(re.search('_type_(.*)_branch_', i).group(1)),    
-    #                  filename= i.split('/')[-1].split('_origId')[0].replace(',', ''))
-    #                  for i in images]
-      
-    examples = []
-    for i in images:
-        type_check = str(re.search('_type_(.*)_branch_', i).group(1))
-                         
-        if im_type == type_check:
-            examples.append(dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
-                             seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
-                             orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
-                             x = int(re.search('_x_(.*)_y_', i).group(1)),
-                             y = int(re.search('_y_(.*)_z_', i).group(1)),
-                             z = int(re.search('[^=][^a-z]_z_(.*)_type_', i).group(1)),     ### had to exclude anything that starts with "=0_z" b/c that shows up earlier
-                             im_type = str(re.search('_type_(.*)_branch_', i).group(1)),    
-                             filename= i.split('/')[-1].split('_origId')[0].replace(',', '')))
-            
-            
-            
-    
-    """ Also load in full images """
-    full_input_path = '/media/user/storage/Data/(1) snake seg project/Traces files/'
-    images_full = glob.glob(os.path.join(full_input_path,'*_input.tif'))    # can switch this to "*truth.tif" if there is no name for "input"
-    images_full.sort(key=natsort_keygen(alg=ns.REAL))  # natural sorting
-    examples_full = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop')) for i in images]
-    
-    
-    #input_im = tifffile.imread(images_full[0])
-        
-    deep_sup = 0; dist_loss = 0
-    
-    
+    examples = [dict(input=i,truth=i.replace('_NOCLAHE_input_crop.tif','_DILATE_truth_class_1_crop.tif'), 
+                     seed_crop=i.replace('_NOCLAHE_input_crop','_DILATE_seed_crop'),  
+                     orig_idx= int(re.search('_origId_(.*)_eId', i).group(1)),
+                     x = int(re.search('_x_(.*)_y_', i).group(1)),
+                     y = int(re.search('_y_(.*)_z_', i).group(1)),
+                     z = int(re.search('_z_(.*)_NOCLAHE_', i).group(1)),                     
+                     filename= i.split('/')[-1].split('_origId')[0].replace(',', ''))
+                     for i in images]
+
+
+    """ Also load in the all_tree_indices file """
+    all_trees = [];
+
+
     # ### REMOVE IMAGE 1 from training data
     idx_skip = []
     for idx, im in enumerate(examples):
         filename = im['input']
-        if '1to1pair_b_series_t1_input' in filename:
+        if '1to1pair_b_series_t1' in filename:
             print('skip')
             idx_skip.append(idx)
-    
-    #examples = [i for j, i in enumerate(examples) if j not in idx_skip]
-    
 
+
+
+    ### USE THE EXCLUDED IMAGE AS VALIDATION/TESTING
+    if len(idx_skip) > 0:
+        examples_test = examples[idx_skip[0]:idx_skip[-1]]
+    # else:
+    #     examples_test = examples[0:20]
+
+    examples = [i for j, i in enumerate(examples) if j not in idx_skip]
+          
+            
     counter = list(range(len(examples)))
+    
+    counter_val = list(range(len(examples_test)))  ### NEWLY ADDED!!!
 
     # """ load mean and std for normalization later """  
     mean_arr = np.load('./normalize/' + 'mean_VERIFIED.npy')
@@ -257,7 +162,7 @@ if __name__ == '__main__':
         import sps
         optimizer = sps.Sps(unet.parameters()) 
     
-    scheduler.load_state_dict(check['scheduler'])     
+    #scheduler.load_state_dict(check['scheduler'])     
     #loss_function = check['loss_function']
 
 
@@ -268,7 +173,7 @@ if __name__ == '__main__':
     
     tracker.idx_train = []
 
-    #tracker.batch_size = 1
+    tracker.batch_size = 1
     tracker.train_loss_per_batch = [] 
     tracker.train_jacc_per_batch = []
     tracker.val_loss_per_batch = []; tracker.val_jacc_per_batch = []
@@ -277,7 +182,7 @@ if __name__ == '__main__':
     tracker.val_ce_pb = []; tracker.val_hd_pb = []; tracker.val_dc_pb = [];
  
     """ Get metrics per epoch"""
-    #tracker.train_loss_per_epoch = []; tracker.train_jacc_per_epoch = []
+    tracker.train_loss_per_epoch = []; tracker.train_jacc_per_epoch = []
     tracker.val_loss_per_eval = []; tracker.val_jacc_per_eval = []
     tracker.plot_sens = []; tracker.plot_sens_val = [];
     tracker.plot_prec = []; tracker.plot_prec_val = [];
@@ -291,7 +196,7 @@ if __name__ == '__main__':
     for check_file in onlyfiles_check:      
         last_file = check_file
         """ Find last checkpoint """       
-        #last_file = onlyfiles_check[-1]
+        last_file = onlyfiles_check[-1]
         split = last_file.split('check_')[-1]
         num_check = split.split('.')
         checkpoint = num_check[0]
@@ -359,10 +264,15 @@ if __name__ == '__main__':
             
                        # forward pass to check validation
                        output_val = unet(inputs_val)
+
    
                        """ Training loss """
-
+                       # tracker.val_loss_per_batch.append(loss.cpu().data.numpy());  # Training loss
+                       # loss_val += loss.cpu().data.numpy()
+                                        
                        """ Calculate jaccard on GPU """
+                       #jacc = jacc_eval_GPU_torch(output_val, labels_val)
+                       #jacc = jacc.cpu().data.numpy()
                        jacc = cID_metric_eval_CPU(output_val, labels=batch_y_val)
                        
                        jacc_val.append(jacc)
@@ -374,12 +284,7 @@ if __name__ == '__main__':
                        outputs_argm = torch.argmax(output_val, dim=1)
                        hd_metric = HD_metric.HausdorffDistance()
                        hd_m = hd_metric.compute(outputs_argm.unsqueeze(1), labels_val.unsqueeze(1))
-
-                       ### prevent infinites from being added
-                       if hd_m.cpu().data.numpy() > 10000000000000000:
-                           hd_value.append(np.nan)
-                       else:
-                           hd_value.append(hd_m.cpu().data.numpy())
+                       hd_value.append(hd_m.cpu().data.numpy())
   
 
                        tracker.val_hd_pb.append(hd_m.cpu().data.numpy())
@@ -406,7 +311,7 @@ if __name__ == '__main__':
                        
                        
                        """ check each image and all metrics """
-                       DEBUG = 0
+                       DEBUG = 1
                        if DEBUG:
                             jacc = jacc_eval_GPU_torch(output_val, labels_val)
                             jacc = jacc.cpu().data.numpy()
@@ -478,8 +383,8 @@ if __name__ == '__main__':
                                                            
                             print('num_tested')
                               
-                            """ Early stop """
-                            if val_idx > 400:
+                            # """ Early stop """
+                            if val_idx > 300:
                                 zzz
                                 break
                                
@@ -492,9 +397,9 @@ if __name__ == '__main__':
                   tracker.val_loss_per_eval.append(loss_val/iter_cur_epoch)
                   tracker.val_jacc_per_eval.append(np.nanmean(jacc_val))       
                   tracker.val_ce_pb.append(np.nanmean(hd_value))
-                  
                                    
-                  #zzz
+                  zzz
+                                   
                   
                   """ Add to scheduler to do LR decay """
                   #scheduler.step()
@@ -596,7 +501,7 @@ if __name__ == '__main__':
      
      'model_state_dict': unet.state_dict(),
      'optimizer_state_dict': optimizer.state_dict(),
-     'scheduler': scheduler.state_dict(),
+     'scheduler': [],
      'loss_function': loss_function,  
      
      }, save_name)
